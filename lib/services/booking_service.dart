@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
@@ -24,7 +25,8 @@ class BookingService {
 
   BookingService({
     FirebaseFirestore? firestore,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+  }) : _firestore =
+            firestore ?? FirebaseFirestore.instance;
 
   Future<void> createBooking({
     required User user,
@@ -37,71 +39,137 @@ class BookingService {
   }) async {
     final int totalPrice = selectedServices.fold(
       0,
-      (total, service) => total + service.price,
+      (total, service) {
+        return total + service.price;
+      },
     );
 
     final int totalDuration = selectedServices.fold(
       0,
-      (total, service) => total + service.durationMinutes,
+      (total, service) {
+        return total + service.durationMinutes;
+      },
+    );
+
+    final List<Barber> candidateBarbers;
+
+    if (useAnyBarber) {
+      candidateBarbers = getBarbersBySalonId(salon.id);
+    } else if (selectedBarber != null) {
+      candidateBarbers = [selectedBarber];
+    } else {
+      throw ArgumentError(
+        'Chưa chọn thợ cho lịch hẹn.',
+      );
+    }
+
+    if (candidateBarbers.isEmpty) {
+      throw const BookingConflictException(
+        'Chi nhánh này chưa có thợ để nhận lịch.',
+      );
+    }
+
+    final List<DateTime> occupiedTimes =
+        _createOccupiedTimes(
+      appointmentAt: appointmentAt,
+      durationMinutes: totalDuration,
     );
 
     final DocumentReference<Map<String, dynamic>>
         bookingReference =
         _firestore.collection('bookings').doc();
 
-    final List<DateTime> occupiedTimes =
-        _createOccupiedTimes(
-      appointmentAt: appointmentAt,
-      durationMinutes: totalDuration,
-      shouldCreateSlots:
-          !useAnyBarber && selectedBarber != null,
-    );
+    final Map<
+        String,
+        List<
+            DocumentReference<
+                Map<String, dynamic>>>> slotReferencesByBarber = {};
 
-    final List<
-            DocumentReference<Map<String, dynamic>>>
-        slotReferences = occupiedTimes.map(
-      (slotTime) {
-        final String slotId = _createSlotId(
-          salonId: salon.id,
-          barberId: selectedBarber!.id,
-          slotTime: slotTime,
-        );
+    for (final Barber barber in candidateBarbers) {
+      slotReferencesByBarber[barber.id] =
+          occupiedTimes.map(
+        (slotTime) {
+          final String slotId = _createSlotId(
+            salonId: salon.id,
+            barberId: barber.id,
+            slotTime: slotTime,
+          );
 
-        return _firestore
-            .collection('booking_slots')
-            .doc(slotId);
-      },
-    ).toList();
+          return _firestore
+              .collection('booking_slots')
+              .doc(slotId);
+        },
+      ).toList();
+    }
 
-    await _firestore.runTransaction<void>(
+    final bool bookingCreated =
+        await _firestore.runTransaction<bool>(
       (transaction) async {
+        final Map<
+            String,
+            List<
+                DocumentSnapshot<
+                    Map<String, dynamic>>>>
+            slotSnapshotsByBarber = {};
+
+        // Firestore yêu cầu đọc toàn bộ dữ liệu trước khi ghi.
+        for (final Barber barber in candidateBarbers) {
+          final List<
+                  DocumentReference<Map<String, dynamic>>>
+              slotReferences =
+              slotReferencesByBarber[barber.id]!;
+
+          final List<
+                  DocumentSnapshot<Map<String, dynamic>>>
+              snapshots = [];
+
+          for (final slotReference in slotReferences) {
+            final DocumentSnapshot<Map<String, dynamic>>
+                snapshot =
+                await transaction.get(slotReference);
+
+            snapshots.add(snapshot);
+          }
+
+          slotSnapshotsByBarber[barber.id] = snapshots;
+        }
+
+        Barber? availableBarber;
+
+        for (final Barber barber in candidateBarbers) {
+          final List<
+                  DocumentSnapshot<Map<String, dynamic>>>
+              snapshots =
+              slotSnapshotsByBarber[barber.id]!;
+
+          final bool allSlotsAreAvailable =
+              snapshots.every(
+            (snapshot) => !snapshot.exists,
+          );
+
+          if (allSlotsAreAvailable) {
+            availableBarber = barber;
+            break;
+          }
+        }
+
+        if (availableBarber == null) {
+          return false;
+        }
+
+        final Barber assignedBarber =
+            availableBarber;
+
         final List<
-                DocumentSnapshot<Map<String, dynamic>>>
-            slotSnapshots = [];
+                DocumentReference<Map<String, dynamic>>>
+            selectedSlotReferences =
+            slotReferencesByBarber[
+                assignedBarber.id]!;
 
-        // Firestore yêu cầu đọc dữ liệu trước khi ghi.
-        for (final slotReference in slotReferences) {
-          final slotSnapshot =
-              await transaction.get(slotReference);
-
-          slotSnapshots.add(slotSnapshot);
-        }
-
-        final bool hasConflict = slotSnapshots.any(
-          (snapshot) => snapshot.exists,
-        );
-
-        if (hasConflict) {
-          throw const BookingConflictException();
-        }
-
-        final String barberName = useAnyBarber
-            ? 'Thợ bất kỳ'
-            : selectedBarber?.name ?? 'Chưa chọn thợ';
-
-        final List<String> slotIds = slotReferences
-            .map((reference) => reference.id)
-            .toList();
+        final List<String> slotIds =
+            selectedSlotReferences
+                .map((reference) => reference.id)
+                .toList();
 
         transaction.set(
           bookingReference,
@@ -112,10 +180,10 @@ class BookingService {
             'salonId': salon.id,
             'salonName': salon.name,
             'salonAddress': salon.address,
-            'barberId':
-                useAnyBarber ? null : selectedBarber?.id,
-            'barberName': barberName,
+            'barberId': assignedBarber.id,
+            'barberName': assignedBarber.name,
             'useAnyBarber': useAnyBarber,
+            'autoAssignedBarber': useAnyBarber,
             'serviceIds': selectedServices
                 .map((service) => service.id)
                 .toList(),
@@ -143,24 +211,41 @@ class BookingService {
         );
 
         for (int index = 0;
-            index < slotReferences.length;
+            index < selectedSlotReferences.length;
             index++) {
           transaction.set(
-            slotReferences[index],
+            selectedSlotReferences[index],
             {
               'bookingId': bookingReference.id,
               'userId': user.uid,
               'salonId': salon.id,
-              'barberId': selectedBarber!.id,
+              'barberId': assignedBarber.id,
               'slotAt': Timestamp.fromDate(
                 occupiedTimes[index],
               ),
-              'createdAt': FieldValue.serverTimestamp(),
+              'createdAt':
+                  FieldValue.serverTimestamp(),
             },
           );
         }
+
+        return true;
       },
     );
+
+    if (!bookingCreated) {
+      if (useAnyBarber) {
+        throw const BookingConflictException(
+          'Tất cả thợ tại chi nhánh đều đã bận '
+          'trong khoảng thời gian này.',
+        );
+      }
+
+      throw const BookingConflictException(
+        'Thợ bạn chọn đã có lịch trong '
+        'khoảng thời gian này.',
+      );
+    }
   }
 
   Future<void> cancelBooking({
@@ -178,7 +263,9 @@ class BookingService {
             await transaction.get(bookingReference);
 
         if (!bookingSnapshot.exists) {
-          throw StateError('Không tìm thấy lịch hẹn.');
+          throw StateError(
+            'Không tìm thấy lịch hẹn.',
+          );
         }
 
         final Map<String, dynamic> bookingData =
@@ -195,7 +282,9 @@ class BookingService {
         }
 
         final List<dynamic> rawSlotIds =
-            bookingData['slotIds'] as List<dynamic>? ?? [];
+            bookingData['slotIds']
+                    as List<dynamic>? ??
+                [];
 
         final List<String> slotIds = rawSlotIds
             .map((slotId) => slotId.toString())
@@ -205,14 +294,16 @@ class BookingService {
           bookingReference,
           {
             'status': 'cancelled',
-            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
           },
         );
 
         for (final String slotId in slotIds) {
-          final slotReference = _firestore
-              .collection('booking_slots')
-              .doc(slotId);
+          final DocumentReference<Map<String, dynamic>>
+              slotReference = _firestore
+                  .collection('booking_slots')
+                  .doc(slotId);
 
           transaction.delete(slotReference);
         }
@@ -223,12 +314,7 @@ class BookingService {
   List<DateTime> _createOccupiedTimes({
     required DateTime appointmentAt,
     required int durationMinutes,
-    required bool shouldCreateSlots,
   }) {
-    if (!shouldCreateSlots) {
-      return [];
-    }
-
     final int numberOfSlots =
         (durationMinutes / 30).ceil();
 
@@ -249,12 +335,16 @@ class BookingService {
   }) {
     final String year =
         slotTime.year.toString().padLeft(4, '0');
+
     final String month =
         slotTime.month.toString().padLeft(2, '0');
+
     final String day =
         slotTime.day.toString().padLeft(2, '0');
+
     final String hour =
         slotTime.hour.toString().padLeft(2, '0');
+
     final String minute =
         slotTime.minute.toString().padLeft(2, '0');
 

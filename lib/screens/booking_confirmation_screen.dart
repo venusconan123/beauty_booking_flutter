@@ -131,20 +131,17 @@ class _BookingConfirmationScreenState
       Navigator.of(context).popUntil(
         (route) => route.isFirst,
       );
-    } on BookingConflictException {
-      if (!mounted) {
-        return;
-      }
+    } on BookingConflictException catch (error) {
+  if (!mounted) {
+    return;
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Thợ này đã có lịch trong khoảng thời gian '
-            'bạn chọn. Vui lòng chọn thợ hoặc thời gian khác.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(error.message),
+      backgroundColor: Colors.orange,
+    ),
+  );
     } on FirebaseException catch (error) {
       if (!mounted) {
         return;
