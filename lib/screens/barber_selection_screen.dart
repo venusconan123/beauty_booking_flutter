@@ -4,6 +4,7 @@ import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
+import 'date_time_selection_screen.dart';
 
 class BarberSelectionScreen extends StatefulWidget {
   final Salon salon;
@@ -38,6 +39,33 @@ class _BarberSelectionScreenState
     setState(() {
       _selectedBarberId = barberId;
     });
+  }
+
+  void _continueToDateTimeSelection() {
+    if (_selectedBarberId == null) {
+      return;
+    }
+
+    final bool useAnyBarber =
+        _selectedBarberId == 'any_barber';
+
+    final Barber? selectedBarber = useAnyBarber
+        ? null
+        : _barbers.firstWhere(
+            (barber) => barber.id == _selectedBarberId,
+          );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DateTimeSelectionScreen(
+          salon: widget.salon,
+          selectedServices: widget.selectedServices,
+          selectedBarber: selectedBarber,
+          useAnyBarber: useAnyBarber,
+        ),
+      ),
+    );
   }
 
   @override
@@ -111,15 +139,7 @@ class _BarberSelectionScreenState
             child: FilledButton(
               onPressed: _selectedBarberId == null
                   ? null
-                  : () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Bước tiếp theo: chọn ngày và giờ.',
-                          ),
-                        ),
-                      );
-                    },
+                  : _continueToDateTimeSelection,
               child: const Text(
                 'Tiếp tục chọn thời gian',
                 style: TextStyle(fontSize: 16),
@@ -132,40 +152,40 @@ class _BarberSelectionScreenState
   }
 
   Widget _buildAnyBarberOption() {
-  final bool isSelected =
-      _selectedBarberId == 'any_barber';
+    final bool isSelected =
+        _selectedBarberId == 'any_barber';
 
-  return Card(
-    color: isSelected
-        ? const Color(0xFFE8F0FE)
-        : null,
-    child: ListTile(
-      onTap: () {
-        _selectBarber('any_barber');
-      },
-      leading: const CircleAvatar(
-        child: Icon(Icons.people),
-      ),
-      title: const Text(
-        'Chọn thợ bất kỳ',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
+    return Card(
+      color: isSelected
+          ? const Color(0xFFE8F0FE)
+          : null,
+      child: ListTile(
+        onTap: () {
+          _selectBarber('any_barber');
+        },
+        leading: const CircleAvatar(
+          child: Icon(Icons.people),
+        ),
+        title: const Text(
+          'Chọn thợ bất kỳ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: const Text(
+          'Hệ thống sẽ chọn một thợ đang trống lịch.',
+        ),
+        trailing: Icon(
+          isSelected
+              ? Icons.check_circle
+              : Icons.radio_button_unchecked,
+          color: isSelected
+              ? const Color(0xFF1E3A5F)
+              : Colors.grey,
         ),
       ),
-      subtitle: const Text(
-        'Hệ thống sẽ chọn một thợ đang trống lịch.',
-      ),
-      trailing: Icon(
-        isSelected
-            ? Icons.check_circle
-            : Icons.radio_button_unchecked,
-        color: isSelected
-            ? const Color(0xFF1E3A5F)
-            : Colors.grey,
-      ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildBarberCard(Barber barber) {
     final bool isSelected =
