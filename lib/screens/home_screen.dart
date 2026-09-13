@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
+import 'admin_booking_screen.dart';
 import 'booking_history_screen.dart';
 import 'salon_detail_screen.dart';
 
@@ -14,11 +16,7 @@ class HomeScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          icon: const Icon(
-            Icons.logout,
-            color: Color(0xFF1E3A5F),
-            size: 48,
-          ),
+          icon: const Icon(Icons.logout, color: Color(0xFF1E3A5F), size: 48),
           title: const Text('Đăng xuất'),
           content: const Text(
             'Bạn có chắc chắn muốn đăng xuất không?',
@@ -57,18 +55,57 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminBookingScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return const AdminBookingScreen();
+        },
+      ),
+    );
+  }
+
+  Widget _buildAdminButton(BuildContext context) {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final bool isAdmin = snapshot.data?.exists ?? false;
+
+        if (!isAdmin) {
+          return const SizedBox.shrink();
+        }
+
+        return IconButton(
+          tooltip: 'Quản lý lịch hẹn',
+          onPressed: () {
+            _openAdminBookingScreen(context);
+          },
+          icon: const Icon(Icons.admin_panel_settings),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Men Hair Booking',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         actions: [
+          _buildAdminButton(context),
           IconButton(
             tooltip: 'Lịch hẹn của tôi',
             onPressed: () {
@@ -90,26 +127,18 @@ class HomeScreen extends StatelessWidget {
         children: [
           const Text(
             'Xin chào!',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Chọn salon và đặt lịch cắt tóc ngay hôm nay.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade700,
-            ),
+            'Chọn salon và đặt lịch cắt tóc '
+            'ngay hôm nay.',
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
           ),
           const SizedBox(height: 24),
           const Text(
             'Dịch vụ phổ biến',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Row(
@@ -122,10 +151,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildServiceItem(
-                  icon: Icons.shower,
-                  title: 'Gội đầu',
-                ),
+                child: _buildServiceItem(icon: Icons.shower, title: 'Gội đầu'),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -139,52 +165,32 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 28),
           const Text(
             'Salon gần bạn',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          ...sampleSalons.map(
-            (salon) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildSalonCard(
-                  context,
-                  salon,
-                ),
-              );
-            },
-          ),
+          ...sampleSalons.map((salon) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildSalonCard(context, salon),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildServiceItem({
-    required IconData icon,
-    required String title,
-  }) {
+  Widget _buildServiceItem({required IconData icon, required String title}) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: 18,
-          horizontal: 8,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: const Color(0xFF1E3A5F),
-            ),
+            Icon(icon, size: 32, color: const Color(0xFF1E3A5F)),
             const SizedBox(height: 8),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -192,51 +198,32 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSalonCard(
-    BuildContext context,
-    Salon salon,
-  ) {
+  Widget _buildSalonCard(BuildContext context, Salon salon) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
-        leading: const CircleAvatar(
-          radius: 26,
-          child: Icon(Icons.content_cut),
-        ),
+        leading: const CircleAvatar(radius: 26, child: Icon(Icons.content_cut)),
         title: Text(
           salon.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                salon.services
-                    .map((service) => service.name)
-                    .join(' • '),
-              ),
+              Text(salon.services.map((service) => service.name).join(' • ')),
               const SizedBox(height: 4),
               Text(salon.address),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(
-                    Icons.star,
-                    size: 17,
-                    color: Colors.amber,
-                  ),
+                  const Icon(Icons.star, size: 17, color: Colors.amber),
                   const SizedBox(width: 4),
                   Text('${salon.rating}'),
                   const SizedBox(width: 12),
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 17,
-                  ),
+                  const Icon(Icons.location_on_outlined, size: 17),
                   const SizedBox(width: 4),
                   Text('${salon.distance} km'),
                 ],
@@ -244,17 +231,12 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 18,
-        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 18),
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) {
-                return SalonDetailScreen(
-                  salon: salon,
-                );
+                return SalonDetailScreen(salon: salon);
               },
             ),
           );

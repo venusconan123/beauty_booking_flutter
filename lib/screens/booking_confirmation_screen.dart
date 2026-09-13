@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -31,8 +30,7 @@ class BookingConfirmationScreen extends StatefulWidget {
   }
 }
 
-class _BookingConfirmationScreenState
-    extends State<BookingConfirmationScreen> {
+class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   bool _isSaving = false;
 
   final BookingService _bookingService = BookingService();
@@ -45,10 +43,9 @@ class _BookingConfirmationScreenState
   }
 
   int get _totalDuration {
-    return widget.selectedServices.fold(
-      0,
-      (total, service) => total + service.durationMinutes,
-    );
+    return widget.selectedServices.fold(0, (total, service) {
+      return total + service.durationMinutes;
+    });
   }
 
   String _formatPrice(int price) {
@@ -56,18 +53,15 @@ class _BookingConfirmationScreenState
   }
 
   String _formatDate(DateTime date) {
-    final String day =
-        date.day.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
 
-    final String month =
-        date.month.toString().padLeft(2, '0');
+    final String month = date.month.toString().padLeft(2, '0');
 
     return '$day/$month/${date.year}';
   }
 
   DateTime _createAppointmentDateTime() {
-    final List<String> timeParts =
-        widget.selectedTime.split(':');
+    final List<String> timeParts = widget.selectedTime.split(':');
 
     final int hour = int.parse(timeParts[0]);
     final int minute = int.parse(timeParts[1]);
@@ -91,9 +85,7 @@ class _BookingConfirmationScreenState
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Bạn cần đăng nhập trước khi đặt lịch.',
-          ),
+          content: Text('Bạn cần đăng nhập trước khi đặt lịch.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -105,8 +97,7 @@ class _BookingConfirmationScreenState
     });
 
     try {
-      final DateTime appointmentDateTime =
-          _createAppointmentDateTime();
+      final DateTime appointmentDateTime = _createAppointmentDateTime();
 
       await _bookingService.createBooking(
         user: user,
@@ -128,20 +119,15 @@ class _BookingConfirmationScreenState
         return;
       }
 
-      Navigator.of(context).popUntil(
-        (route) => route.isFirst,
-      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on BookingConflictException catch (error) {
-  if (!mounted) {
-    return;
-  }
+      if (!mounted) {
+        return;
+      }
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(error.message),
-      backgroundColor: Colors.orange,
-    ),
-  );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), backgroundColor: Colors.orange),
+      );
     } on FirebaseException catch (error) {
       if (!mounted) {
         return;
@@ -155,23 +141,23 @@ class _BookingConfirmationScreenState
               'Bạn không có quyền lưu lịch hẹn. '
               'Hãy kiểm tra Firestore Rules.';
           break;
+
         case 'unavailable':
           message =
               'Firestore đang tạm thời không khả dụng. '
               'Vui lòng thử lại.';
           break;
+
         case 'network-request-failed':
           message = 'Không có kết nối mạng.';
           break;
+
         default:
           message = error.message ?? message;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } catch (error) {
       if (!mounted) {
@@ -199,11 +185,7 @@ class _BookingConfirmationScreenState
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          icon: const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 58,
-          ),
+          icon: const Icon(Icons.check_circle, color: Colors.green, size: 58),
           title: const Text('Đặt lịch thành công'),
           content: const Text(
             'Lịch hẹn đã được lưu vào hệ thống '
@@ -230,25 +212,16 @@ class _BookingConfirmationScreenState
         : widget.selectedBarber?.name ?? 'Chưa chọn thợ';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Xác nhận đặt lịch'),
-      ),
+      appBar: AppBar(title: const Text('Xác nhận đặt lịch')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Icon(
-            Icons.event_available,
-            size: 70,
-            color: Color(0xFF1E3A5F),
-          ),
+          const Icon(Icons.event_available, size: 70, color: Color(0xFF1E3A5F)),
           const SizedBox(height: 12),
           const Text(
             'Kiểm tra thông tin lịch hẹn',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
           Card(
@@ -277,9 +250,7 @@ class _BookingConfirmationScreenState
                   _buildInformationRow(
                     icon: Icons.calendar_month,
                     title: 'Ngày hẹn',
-                    value: _formatDate(
-                      widget.selectedDate,
-                    ),
+                    value: _formatDate(widget.selectedDate),
                   ),
                   const Divider(height: 24),
                   _buildInformationRow(
@@ -294,10 +265,7 @@ class _BookingConfirmationScreenState
           const SizedBox(height: 24),
           const Text(
             'Dịch vụ đã chọn',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           Card(
@@ -305,48 +273,37 @@ class _BookingConfirmationScreenState
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  ...widget.selectedServices.map(
-                    (service) {
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    service.name,
-                                    style: const TextStyle(
-                                      fontWeight:
-                                          FontWeight.w600,
-                                    ),
+                  ...widget.selectedServices.map((service) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  service.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${service.durationMinutes} phút',
-                                    style: TextStyle(
-                                      color:
-                                          Colors.grey.shade700,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${service.durationMinutes} phút',
+                                  style: TextStyle(color: Colors.grey.shade700),
+                                ),
+                              ],
                             ),
-                            Text(
-                              _formatPrice(service.price),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                          Text(
+                            _formatPrice(service.price),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                   const Divider(),
                   Row(
                     children: [
@@ -354,9 +311,7 @@ class _BookingConfirmationScreenState
                       const Spacer(),
                       Text(
                         '$_totalDuration phút',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -393,24 +348,17 @@ class _BookingConfirmationScreenState
           child: SizedBox(
             height: 52,
             child: FilledButton.icon(
-              onPressed:
-                  _isSaving ? null : _saveBooking,
+              onPressed: _isSaving ? null : _saveBooking,
               icon: _isSaving
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.check),
               label: Text(
-                _isSaving
-                    ? 'Đang lưu lịch hẹn...'
-                    : 'Xác nhận đặt lịch',
-                style: const TextStyle(
-                  fontSize: 16,
-                ),
+                _isSaving ? 'Đang lưu lịch hẹn...' : 'Xác nhận đặt lịch',
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ),
@@ -427,28 +375,18 @@ class _BookingConfirmationScreenState
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          color: const Color(0xFF1E3A5F),
-        ),
+        Icon(icon, color: const Color(0xFF1E3A5F)),
         const SizedBox(width: 14),
         SizedBox(
           width: 90,
-          child: Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-            ),
-          ),
+          child: Text(title, style: TextStyle(color: Colors.grey.shade700)),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ],
