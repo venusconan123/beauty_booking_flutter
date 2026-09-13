@@ -85,25 +85,37 @@ class SalonDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...salon.services.map(
-            (service) => Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.content_cut),
-                ),
-                title: Text(
-                  service,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: const Text(
-                  'Xem giá và thời gian thực hiện',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-              ),
-            ),
-          ),
+  (service) => Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    child: ListTile(
+      contentPadding: const EdgeInsets.all(14),
+      leading: const CircleAvatar(
+        child: Icon(Icons.content_cut),
+      ),
+      title: Text(
+        service.name,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          '${service.durationMinutes} phút\n'
+          '${service.description}',
+        ),
+      ),
+      isThreeLine: true,
+      trailing: Text(
+        '${service.price ~/ 1000}.000đ',
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF1E3A5F),
+        ),
+      ),
+    ),
+  ),
+),
           const SizedBox(height: 24),
           SizedBox(
             height: 52,
