@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
+import '../services/booking_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   final Salon salon;
@@ -34,6 +35,8 @@ class _BookingConfirmationScreenState
     extends State<BookingConfirmationScreen> {
   bool _isSaving = false;
 
+  final BookingService _bookingService = BookingService();
+
   int get _totalPrice {
     return widget.selectedServices.fold(
       0,
@@ -53,8 +56,11 @@ class _BookingConfirmationScreenState
   }
 
   String _formatDate(DateTime date) {
-    final String day = date.day.toString().padLeft(2, '0');
-    final String month = date.month.toString().padLeft(2, '0');
+    final String day =
+        date.day.toString().padLeft(2, '0');
+
+    final String month =
+        date.month.toString().padLeft(2, '0');
 
     return '$day/$month/${date.year}';
   }
@@ -102,47 +108,15 @@ class _BookingConfirmationScreenState
       final DateTime appointmentDateTime =
           _createAppointmentDateTime();
 
-      final String barberName = widget.useAnyBarber
-          ? 'Thợ bất kỳ'
-          : widget.selectedBarber?.name ?? 'Chưa chọn thợ';
-
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .add({
-        'userId': user.uid,
-        'userEmail': user.email,
-        'userName': user.displayName ?? '',
-        'salonId': widget.salon.id,
-        'salonName': widget.salon.name,
-        'salonAddress': widget.salon.address,
-        'barberId': widget.useAnyBarber
-            ? null
-            : widget.selectedBarber?.id,
-        'barberName': barberName,
-        'useAnyBarber': widget.useAnyBarber,
-        'serviceIds': widget.selectedServices
-            .map((service) => service.id)
-            .toList(),
-        'services': widget.selectedServices.map(
-          (service) {
-            return {
-              'id': service.id,
-              'name': service.name,
-              'price': service.price,
-              'durationMinutes': service.durationMinutes,
-            };
-          },
-        ).toList(),
-        'appointmentAt': Timestamp.fromDate(
-          appointmentDateTime,
-        ),
-        'selectedTime': widget.selectedTime,
-        'totalPrice': _totalPrice,
-        'totalDurationMinutes': _totalDuration,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _bookingService.createBooking(
+        user: user,
+        salon: widget.salon,
+        selectedServices: widget.selectedServices,
+        selectedBarber: widget.selectedBarber,
+        useAnyBarber: widget.useAnyBarber,
+        appointmentAt: appointmentDateTime,
+        selectedTime: widget.selectedTime,
+      );
 
       if (!mounted) {
         return;
@@ -157,6 +131,20 @@ class _BookingConfirmationScreenState
       Navigator.of(context).popUntil(
         (route) => route.isFirst,
       );
+    } on BookingConflictException {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Thợ này đã có lịch trong khoảng thời gian '
+            'bạn chọn. Vui lòng chọn thợ hoặc thời gian khác.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
     } on FirebaseException catch (error) {
       if (!mounted) {
         return;
@@ -167,11 +155,13 @@ class _BookingConfirmationScreenState
       switch (error.code) {
         case 'permission-denied':
           message =
-              'Bạn không có quyền lưu lịch hẹn. Hãy kiểm tra Firestore Rules.';
+              'Bạn không có quyền lưu lịch hẹn. '
+              'Hãy kiểm tra Firestore Rules.';
           break;
         case 'unavailable':
           message =
-              'Firestore đang tạm thời không khả dụng. Vui lòng thử lại.';
+              'Firestore đang tạm thời không khả dụng. '
+              'Vui lòng thử lại.';
           break;
         case 'network-request-failed':
           message = 'Không có kết nối mạng.';
@@ -219,7 +209,8 @@ class _BookingConfirmationScreenState
           ),
           title: const Text('Đặt lịch thành công'),
           content: const Text(
-            'Lịch hẹn đã được lưu vào hệ thống và đang chờ xác nhận.',
+            'Lịch hẹn đã được lưu vào hệ thống '
+            'và đang chờ xác nhận.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -289,7 +280,9 @@ class _BookingConfirmationScreenState
                   _buildInformationRow(
                     icon: Icons.calendar_month,
                     title: 'Ngày hẹn',
-                    value: _formatDate(widget.selectedDate),
+                    value: _formatDate(
+                      widget.selectedDate,
+                    ),
                   ),
                   const Divider(height: 24),
                   _buildInformationRow(
@@ -318,8 +311,9 @@ class _BookingConfirmationScreenState
                   ...widget.selectedServices.map(
                     (service) {
                       return Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(
+                          bottom: 12,
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -338,7 +332,8 @@ class _BookingConfirmationScreenState
                                   Text(
                                     '${service.durationMinutes} phút',
                                     style: TextStyle(
-                                      color: Colors.grey.shade700,
+                                      color:
+                                          Colors.grey.shade700,
                                     ),
                                   ),
                                 ],
@@ -401,7 +396,8 @@ class _BookingConfirmationScreenState
           child: SizedBox(
             height: 52,
             child: FilledButton.icon(
-              onPressed: _isSaving ? null : _saveBooking,
+              onPressed:
+                  _isSaving ? null : _saveBooking,
               icon: _isSaving
                   ? const SizedBox(
                       width: 20,
@@ -415,7 +411,9 @@ class _BookingConfirmationScreenState
                 _isSaving
                     ? 'Đang lưu lịch hẹn...'
                     : 'Xác nhận đặt lịch',
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
               ),
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/booking_service.dart';
 
 class BookingHistoryScreen extends StatelessWidget {
   const BookingHistoryScreen({super.key});
@@ -95,14 +96,29 @@ class BookingHistoryScreen extends StatelessWidget {
       return;
     }
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(bookingId)
-          .update({
-        'status': 'cancelled',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+    final User? user = FirebaseAuth.instance.currentUser;
+
+if (user == null) {
+  if (!context.mounted) {
+    return;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Bạn cần đăng nhập để hủy lịch hẹn.',
+      ),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return;
+}
+
+try {
+  await BookingService().cancelBooking(
+    bookingId: bookingId,
+    userId: user.uid,
+  );
 
       if (!context.mounted) {
         return;
