@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
+import 'salon_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -76,11 +77,10 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-
           ...sampleSalons.map(
             (salon) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _buildSalonCard(salon),
+              child: _buildSalonCard(context, salon),
             ),
           ),
         ],
@@ -119,7 +119,10 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSalonCard(Salon salon) {
+  Widget _buildSalonCard(
+    BuildContext context,
+    Salon salon,
+  ) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ListTile(
@@ -169,7 +172,14 @@ class HomeScreen extends StatelessWidget {
           size: 18,
         ),
         onTap: () {
-          // Bước sau sẽ mở trang chi tiết salon.
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SalonDetailScreen(
+                salon: salon,
+              ),
+            ),
+          );
         },
       ),
     );
