@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'salon_detail_screen.dart';
+
 
 import '../models/salon.dart';
+import 'package:beauty_booking_app/screens/service_selection_screen.dart';
 
 class SalonDetailScreen extends StatelessWidget {
   final Salon salon;
@@ -120,15 +121,16 @@ class SalonDetailScreen extends StatelessWidget {
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Chức năng đặt lịch sẽ được làm ở bước tiếp theo.',
-                    ),
+             onPressed: () {
+                Navigator.push(
+                  context,
+                 MaterialPageRoute(
+                   builder: (context) => ServiceSelectionScreen(
+                    salon: salon,
                   ),
-                );
-              },
+                ),
+              );
+            },
               child: const Text(
                 'Đặt lịch ngay',
                 style: TextStyle(fontSize: 17),
