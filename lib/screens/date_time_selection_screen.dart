@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
+import 'booking_confirmation_screen.dart';
 
 class DateTimeSelectionScreen extends StatefulWidget {
   final Salon salon;
@@ -344,16 +345,23 @@ class _DateTimeSelectionScreenState
               onPressed: _selectedTime == null
                   ? null
                   : () {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Đã chọn '
-                            '${_formatDate(_selectedDate!)} '
-                            'lúc $_selectedTime',
-                          ),
-                        ),
-                      );
+                       Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                BookingConfirmationScreen(
+              salon: widget.salon,
+              selectedServices:
+                  widget.selectedServices,
+              selectedBarber:
+                  widget.selectedBarber,
+              useAnyBarber:
+                  widget.useAnyBarber,
+              selectedDate: _selectedDate!,
+              selectedTime: _selectedTime!,
+            ),
+          ),
+        );
                     },
               child: const Text(
                 'Tiếp tục xác nhận',
