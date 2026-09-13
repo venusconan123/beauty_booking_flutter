@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
+import 'booking_history_screen.dart';
 import 'salon_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -46,6 +47,16 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
+  void _openBookingHistory(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return const BookingHistoryScreen();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,6 +69,13 @@ class HomeScreen extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Lịch hẹn của tôi',
+            onPressed: () {
+              _openBookingHistory(context);
+            },
+            icon: const Icon(Icons.event_note),
+          ),
           IconButton(
             tooltip: 'Đăng xuất',
             onPressed: () {
