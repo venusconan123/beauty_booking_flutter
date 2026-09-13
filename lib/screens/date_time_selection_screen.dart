@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
@@ -29,7 +30,9 @@ class DateTimeSelectionScreen extends StatefulWidget {
 class _DateTimeSelectionScreenState
     extends State<DateTimeSelectionScreen> {
   late final List<DateTime> _availableDates;
-  late final Stream<List<DateTime>> _bookedSlotsStream;
+
+  late final Stream<Map<String, List<DateTime>>>
+      _bookedSlotsStream;
 
   DateTime? _selectedDate;
   String? _selectedTime;
@@ -92,48 +95,49 @@ class _DateTimeSelectionScreenState
     );
 
     _selectedDate = _availableDates.first;
-
     _bookedSlotsStream = _createBookedSlotsStream();
   }
 
-  Stream<List<DateTime>> _createBookedSlotsStream() {
-    if (widget.useAnyBarber ||
-        widget.selectedBarber == null) {
-      return Stream<List<DateTime>>.value(
-        const <DateTime>[],
-      );
-    }
-
+  Stream<Map<String, List<DateTime>>>
+      _createBookedSlotsStream() {
     return FirebaseFirestore.instance
         .collection('booking_slots')
         .where(
-          'barberId',
-          isEqualTo: widget.selectedBarber!.id,
+          'salonId',
+          isEqualTo: widget.salon.id,
         )
         .snapshots()
         .map(
       (snapshot) {
-        final List<DateTime> bookedSlots = [];
+        final Map<String, List<DateTime>>
+            slotsByBarber = {};
 
         for (final document in snapshot.docs) {
           final Map<String, dynamic> data =
               document.data();
 
-          if (data['salonId'] != widget.salon.id) {
-            continue;
-          }
+          final String? barberId =
+              data['barberId'] as String?;
 
           final Timestamp? slotTimestamp =
               data['slotAt'] as Timestamp?;
 
-          if (slotTimestamp != null) {
-            bookedSlots.add(
-              slotTimestamp.toDate(),
-            );
+          if (barberId == null ||
+              slotTimestamp == null) {
+            continue;
           }
+
+          slotsByBarber.putIfAbsent(
+            barberId,
+            () => [],
+          );
+
+          slotsByBarber[barberId]!.add(
+            slotTimestamp.toDate(),
+          );
         }
 
-        return bookedSlots;
+        return slotsByBarber;
       },
     );
   }
@@ -184,18 +188,15 @@ class _DateTimeSelectionScreenState
     return slotTime.isBefore(DateTime.now());
   }
 
-  bool _isBookedTime(
-    String time,
-    List<DateTime> bookedSlots,
-  ) {
-    if (_selectedDate == null ||
-        widget.useAnyBarber ||
-        widget.selectedBarber == null) {
-      return false;
-    }
-
-    final DateTime appointmentStart =
-        _createDateTimeFromTime(time);
+  bool _barberHasConflict({
+    required String barberId,
+    required DateTime appointmentStart,
+    required Map<String, List<DateTime>>
+        bookedSlotsByBarber,
+  }) {
+    final List<DateTime> barberBookedSlots =
+        bookedSlotsByBarber[barberId] ??
+            const <DateTime>[];
 
     final int numberOfSlots =
         (_totalDuration / 30).ceil();
@@ -209,7 +210,7 @@ class _DateTimeSelectionScreenState
       );
 
       final bool slotAlreadyBooked =
-          bookedSlots.any(
+          barberBookedSlots.any(
         (bookedSlot) {
           return _isSameMinute(
             bookedSlot,
@@ -226,12 +227,62 @@ class _DateTimeSelectionScreenState
     return false;
   }
 
+  bool _isBookedTime(
+    String time,
+    Map<String, List<DateTime>>
+        bookedSlotsByBarber,
+  ) {
+    if (_selectedDate == null) {
+      return false;
+    }
+
+    final DateTime appointmentStart =
+        _createDateTimeFromTime(time);
+
+    if (widget.useAnyBarber) {
+      final List<Barber> salonBarbers =
+          getBarbersBySalonId(widget.salon.id);
+
+      if (salonBarbers.isEmpty) {
+        return true;
+      }
+
+      return salonBarbers.every(
+        (barber) {
+          return _barberHasConflict(
+            barberId: barber.id,
+            appointmentStart: appointmentStart,
+            bookedSlotsByBarber:
+                bookedSlotsByBarber,
+          );
+        },
+      );
+    }
+
+    final Barber? selectedBarber =
+        widget.selectedBarber;
+
+    if (selectedBarber == null) {
+      return true;
+    }
+
+    return _barberHasConflict(
+      barberId: selectedBarber.id,
+      appointmentStart: appointmentStart,
+      bookedSlotsByBarber: bookedSlotsByBarber,
+    );
+  }
+
   bool _isUnavailableTime(
     String time,
-    List<DateTime> bookedSlots,
+    Map<String, List<DateTime>>
+        bookedSlotsByBarber,
   ) {
     return _isPastTime(time) ||
-        _isBookedTime(time, bookedSlots);
+        _isBookedTime(
+          time,
+          bookedSlotsByBarber,
+        );
   }
 
   String _weekdayName(DateTime date) {
@@ -304,20 +355,25 @@ class _DateTimeSelectionScreenState
   Widget build(BuildContext context) {
     final String barberName = widget.useAnyBarber
         ? 'Thợ bất kỳ'
-        : widget.selectedBarber?.name ?? 'Chưa chọn thợ';
+        : widget.selectedBarber?.name ??
+            'Chưa chọn thợ';
 
-    return StreamBuilder<List<DateTime>>(
+    return StreamBuilder<
+        Map<String, List<DateTime>>>(
       stream: _bookedSlotsStream,
       builder: (context, snapshot) {
-        final List<DateTime> bookedSlots =
-            snapshot.data ?? const <DateTime>[];
+        final Map<String, List<DateTime>>
+            bookedSlotsByBarber =
+            snapshot.data ??
+                <String, List<DateTime>>{};
 
         final bool selectedTimeUnavailable =
-            _selectedTime != null &&
-                _isUnavailableTime(
-                  _selectedTime!,
-                  bookedSlots,
-                );
+            snapshot.hasError ||
+                (_selectedTime != null &&
+                    _isUnavailableTime(
+                      _selectedTime!,
+                      bookedSlotsByBarber,
+                    ));
 
         return Scaffold(
           appBar: AppBar(
@@ -342,7 +398,8 @@ class _DateTimeSelectionScreenState
               ),
               const SizedBox(height: 6),
               Text(
-                'Thời gian dịch vụ: $_totalDuration phút',
+                'Thời gian dịch vụ: '
+                '$_totalDuration phút',
                 style: TextStyle(
                   color: Colors.grey.shade700,
                 ),
@@ -407,7 +464,8 @@ class _DateTimeSelectionScreenState
                               '${date.day.toString().padLeft(2, '0')}/'
                               '${date.month.toString().padLeft(2, '0')}',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                                 color: isSelected
                                     ? Colors.white
                                     : Colors.black,
@@ -438,16 +496,17 @@ class _DateTimeSelectionScreenState
               const SizedBox(height: 6),
               Text(
                 widget.useAnyBarber
-                    ? 'Hệ thống sẽ sắp xếp một thợ còn trống.'
-                    : 'Các giờ màu xám là thời gian thợ đã bận.',
+                    ? 'Giờ màu xám là thời điểm '
+                        'cả 5 thợ đều bận.'
+                    : 'Giờ màu xám là thời gian '
+                        'thợ đã bận.',
                 style: TextStyle(
                   color: Colors.grey.shade700,
                 ),
               ),
               const SizedBox(height: 14),
               if (snapshot.connectionState ==
-                      ConnectionState.waiting &&
-                  !widget.useAnyBarber)
+                  ConnectionState.waiting)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
@@ -467,7 +526,9 @@ class _DateTimeSelectionScreenState
                   ),
                 )
               else
-                _buildTimeSlots(bookedSlots),
+                _buildTimeSlots(
+                  bookedSlotsByBarber,
+                ),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 20,
@@ -509,7 +570,8 @@ class _DateTimeSelectionScreenState
   }
 
   Widget _buildTimeSlots(
-    List<DateTime> bookedSlots,
+    Map<String, List<DateTime>>
+        bookedSlotsByBarber,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -525,7 +587,8 @@ class _DateTimeSelectionScreenState
 
         return GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics:
+              const NeverScrollableScrollPhysics(),
           itemCount: _availableTimeSlots.length,
           gridDelegate:
               SliverGridDelegateWithFixedCrossAxisCount(
@@ -544,11 +607,12 @@ class _DateTimeSelectionScreenState
             final bool isUnavailable =
                 _isUnavailableTime(
               time,
-              bookedSlots,
+              bookedSlotsByBarber,
             );
 
             return InkWell(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius:
+                  BorderRadius.circular(10),
               onTap: () {
                 _selectTime(
                   time,
@@ -563,7 +627,8 @@ class _DateTimeSelectionScreenState
                       : isSelected
                           ? const Color(0xFF1E3A5F)
                           : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius:
+                      BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected
                         ? const Color(0xFF1E3A5F)
