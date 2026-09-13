@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "621921257587",
+    "project_id": "men-hair-booking",
+    "storage_bucket": "men-hair-booking.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:621921257587:android:f05541f430cb8123e90206",
+        "android_client_info": {
+          "package_name": "com.venusconan.beauty_booking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDFdJ1H7N4VWiAiVCRBFpsfKdMl6nmNijc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

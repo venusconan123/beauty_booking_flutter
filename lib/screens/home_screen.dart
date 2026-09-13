@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
@@ -7,15 +8,64 @@ import 'salon_detail_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  Future<void> _confirmLogout(BuildContext context) async {
+    final bool? shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.logout,
+            color: Color(0xFF1E3A5F),
+            size: 48,
+          ),
+          title: const Text('Đăng xuất'),
+          content: const Text(
+            'Bạn có chắc chắn muốn đăng xuất không?',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Đăng xuất'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true) {
+      await FirebaseAuth.instance.signOut();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Men Hair Booking',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            onPressed: () {
+              _confirmLogout(context);
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -78,10 +128,15 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...sampleSalons.map(
-            (salon) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildSalonCard(context, salon),
-            ),
+            (salon) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSalonCard(
+                  context,
+                  salon,
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -143,10 +198,10 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                  salon.services
-                  .map((service) => service.name)
-                 .join(' • '),
-),
+                salon.services
+                    .map((service) => service.name)
+                    .join(' • '),
+              ),
               const SizedBox(height: 4),
               Text(salon.address),
               const SizedBox(height: 4),
@@ -176,12 +231,13 @@ class HomeScreen extends StatelessWidget {
           size: 18,
         ),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SalonDetailScreen(
-                salon: salon,
-              ),
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) {
+                return SalonDetailScreen(
+                  salon: salon,
+                );
+              },
             ),
           );
         },
