@@ -7,6 +7,7 @@ import '../models/salon.dart';
 import 'admin_booking_screen.dart';
 import 'booking_history_screen.dart';
 import 'salon_detail_screen.dart';
+import 'salon_map_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -105,22 +106,39 @@ class HomeScreen extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
-          _buildAdminButton(context),
-          IconButton(
-            tooltip: 'Lịch hẹn của tôi',
-            onPressed: () {
-              _openBookingHistory(context);
-            },
-            icon: const Icon(Icons.event_note),
-          ),
-          IconButton(
-            tooltip: 'Đăng xuất',
-            onPressed: () {
-              _confirmLogout(context);
-            },
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+  _buildAdminButton(context),
+  IconButton(
+    tooltip: 'Bản đồ salon',
+    icon: const Icon(Icons.map_outlined),
+    onPressed: () {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return const SalonMapScreen();
+          },
+        ),
+      );
+    },
+  ),
+  IconButton(
+    tooltip: 'Lịch hẹn của tôi',
+    onPressed: () {
+      _openBookingHistory(context);
+    },
+    icon: const Icon(
+      Icons.event_note,
+    ),
+  ),
+  IconButton(
+    tooltip: 'Đăng xuất',
+    onPressed: () {
+      _confirmLogout(context);
+    },
+    icon: const Icon(
+      Icons.logout,
+    ),
+  ),
+],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

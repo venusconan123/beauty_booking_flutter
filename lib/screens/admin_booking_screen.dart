@@ -10,8 +10,7 @@ class AdminBookingScreen extends StatefulWidget {
   }
 }
 
-class _AdminBookingScreenState
-    extends State<AdminBookingScreen> {
+class _AdminBookingScreenState extends State<AdminBookingScreen> {
   final Set<String> _updatingBookingIds = {};
 
   String _formatPrice(int price) {
@@ -19,14 +18,10 @@ class _AdminBookingScreenState
   }
 
   String _formatDateTime(DateTime dateTime) {
-    final String day =
-        dateTime.day.toString().padLeft(2, '0');
-    final String month =
-        dateTime.month.toString().padLeft(2, '0');
-    final String hour =
-        dateTime.hour.toString().padLeft(2, '0');
-    final String minute =
-        dateTime.minute.toString().padLeft(2, '0');
+    final String day = dateTime.day.toString().padLeft(2, '0');
+    final String month = dateTime.month.toString().padLeft(2, '0');
+    final String hour = dateTime.hour.toString().padLeft(2, '0');
+    final String minute = dateTime.minute.toString().padLeft(2, '0');
 
     return '$hour:$minute - $day/$month/${dateTime.year}';
   }
@@ -74,6 +69,60 @@ class _AdminBookingScreenState
     }
   }
 
+  DateTime _appointmentDate(
+    QueryDocumentSnapshot<Map<String, dynamic>> booking,
+  ) {
+    final Timestamp? timestamp = booking.data()['appointmentAt'] as Timestamp?;
+
+    return timestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _getActiveBookings(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  ) {
+    final activeBookings = bookings.where((booking) {
+      final String status = booking.data()['status'] as String? ?? 'pending';
+
+      return status == 'pending' || status == 'confirmed';
+    }).toList();
+
+    activeBookings.sort((first, second) {
+      final String firstStatus = first.data()['status'] as String? ?? 'pending';
+
+      final String secondStatus =
+          second.data()['status'] as String? ?? 'pending';
+
+      final int firstPriority = firstStatus == 'pending' ? 0 : 1;
+
+      final int secondPriority = secondStatus == 'pending' ? 0 : 1;
+
+      final int statusComparison = firstPriority.compareTo(secondPriority);
+
+      if (statusComparison != 0) {
+        return statusComparison;
+      }
+
+      return _appointmentDate(first).compareTo(_appointmentDate(second));
+    });
+
+    return activeBookings;
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _getBookingsByStatus(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+    String status,
+  ) {
+    final filteredBookings = bookings.where((booking) {
+      return booking.data()['status'] == status;
+    }).toList();
+
+    filteredBookings.sort((first, second) {
+      return _appointmentDate(second).compareTo(_appointmentDate(first));
+    });
+
+    return filteredBookings;
+  }
+
   Future<void> _requestStatusChange({
     required String bookingId,
     required String newStatus,
@@ -85,7 +134,8 @@ class _AdminBookingScreenState
           title: const Text('Cập nhật lịch hẹn'),
           content: Text(
             'Bạn có chắc chắn muốn '
-            '${_actionText(newStatus)} lịch hẹn này không?',
+            '${_actionText(newStatus)} '
+            'lịch hẹn này không?',
           ),
           actions: [
             TextButton(
@@ -96,9 +146,7 @@ class _AdminBookingScreenState
             ),
             FilledButton(
               style: newStatus == 'cancelled'
-                  ? FilledButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    )
+                  ? FilledButton.styleFrom(backgroundColor: Colors.red)
                   : null,
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -114,10 +162,7 @@ class _AdminBookingScreenState
       return;
     }
 
-    await _updateStatus(
-      bookingId: bookingId,
-      newStatus: newStatus,
-    );
+    await _updateStatus(bookingId: bookingId, newStatus: newStatus);
   }
 
   Future<void> _updateStatus({
@@ -136,9 +181,9 @@ class _AdminBookingScreenState
             .collection('bookings')
             .doc(bookingId)
             .update({
-          'status': newStatus,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+              'status': newStatus,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
       }
 
       if (!mounted) {
@@ -148,7 +193,8 @@ class _AdminBookingScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Đã cập nhật: ${_statusText(newStatus)}.',
+            'Đã cập nhật: '
+            '${_statusText(newStatus)}.',
           ),
           backgroundColor: Colors.green,
         ),
@@ -161,17 +207,13 @@ class _AdminBookingScreenState
       String message = 'Không thể cập nhật lịch hẹn.';
 
       if (error.code == 'permission-denied') {
-        message =
-            'Tài khoản này không có quyền quản trị.';
+        message = 'Tài khoản này không có quyền quản trị.';
       } else if (error.message != null) {
         message = error.message!;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
@@ -182,145 +224,197 @@ class _AdminBookingScreenState
     }
   }
 
-  Future<void> _cancelBookingAsAdmin(
-    String bookingId,
-  ) async {
-    final FirebaseFirestore firestore =
-        FirebaseFirestore.instance;
+  Future<void> _cancelBookingAsAdmin(String bookingId) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-    final DocumentReference<Map<String, dynamic>>
-        bookingReference =
-        firestore.collection('bookings').doc(bookingId);
+    final DocumentReference<Map<String, dynamic>> bookingReference = firestore
+        .collection('bookings')
+        .doc(bookingId);
 
-    await firestore.runTransaction<void>(
-      (transaction) async {
-        final DocumentSnapshot<Map<String, dynamic>>
-            bookingSnapshot =
-            await transaction.get(bookingReference);
+    await firestore.runTransaction<void>((transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> bookingSnapshot =
+          await transaction.get(bookingReference);
 
-        if (!bookingSnapshot.exists) {
-          return;
-        }
+      if (!bookingSnapshot.exists) {
+        return;
+      }
 
-        final Map<String, dynamic> data =
-            bookingSnapshot.data()!;
+      final Map<String, dynamic> data = bookingSnapshot.data()!;
 
-        final List<dynamic> rawSlotIds =
-            data['slotIds'] as List<dynamic>? ?? [];
+      final List<dynamic> rawSlotIds = data['slotIds'] as List<dynamic>? ?? [];
 
-        final List<String> slotIds = rawSlotIds
-            .map((slotId) => slotId.toString())
-            .toList();
+      final List<String> slotIds = rawSlotIds
+          .map((slotId) => slotId.toString())
+          .toList();
 
-        transaction.update(
-          bookingReference,
-          {
-            'status': 'cancelled',
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-        );
+      transaction.update(bookingReference, {
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-        for (final String slotId in slotIds) {
-          final slotReference = firestore
-              .collection('booking_slots')
-              .doc(slotId);
+      for (final String slotId in slotIds) {
+        final DocumentReference<Map<String, dynamic>> slotReference = firestore
+            .collection('booking_slots')
+            .doc(slotId);
 
-          transaction.delete(slotReference);
-        }
-      },
-    );
+        transaction.delete(slotReference);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final Stream<QuerySnapshot<Map<String, dynamic>>>
-        bookingStream = FirebaseFirestore.instance
-            .collection('bookings')
-            .snapshots();
+    final Stream<QuerySnapshot<Map<String, dynamic>>> bookingStream =
+        FirebaseFirestore.instance.collection('bookings').snapshots();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Quản lý lịch hẹn',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Quản lý lịch hẹn',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-      ),
-      body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
-        stream: bookingStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+        body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: bookingStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Không thể tải danh sách lịch hẹn.\n'
-                  '${snapshot.error}',
-                  textAlign: TextAlign.center,
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Không thể tải danh sách '
+                    'lịch hẹn.\n${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-            );
-          }
-
-          final bookings = [
-            ...?snapshot.data?.docs,
-          ];
-
-          bookings.sort((first, second) {
-            final Timestamp? firstTimestamp =
-                first.data()['appointmentAt']
-                    as Timestamp?;
-
-            final Timestamp? secondTimestamp =
-                second.data()['appointmentAt']
-                    as Timestamp?;
-
-            final DateTime firstDate =
-                firstTimestamp?.toDate() ??
-                    DateTime.fromMillisecondsSinceEpoch(0);
-
-            final DateTime secondDate =
-                secondTimestamp?.toDate() ??
-                    DateTime.fromMillisecondsSinceEpoch(0);
-
-            return secondDate.compareTo(firstDate);
-          });
-
-          if (bookings.isEmpty) {
-            return const Center(
-              child: Text(
-                'Chưa có lịch hẹn nào.',
-                style: TextStyle(fontSize: 18),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: bookings.length,
-            separatorBuilder: (context, index) {
-              return const SizedBox(height: 12);
-            },
-            itemBuilder: (context, index) {
-              final booking = bookings[index];
-
-              return _buildBookingCard(
-                bookingId: booking.id,
-                data: booking.data(),
               );
-            },
-          );
-        },
+            }
+
+            final List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings = [
+              ...?snapshot.data?.docs,
+            ];
+
+            final activeBookings = _getActiveBookings(bookings);
+
+            final cancelledBookings = _getBookingsByStatus(
+              bookings,
+              'cancelled',
+            );
+
+            final completedBookings = _getBookingsByStatus(
+              bookings,
+              'completed',
+            );
+
+            final int pendingCount = bookings.where((booking) {
+              return booking.data()['status'] == 'pending';
+            }).length;
+
+            return Column(
+              children: [
+                Material(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  child: TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    labelColor: const Color(0xFF1E3A5F),
+                    unselectedLabelColor: Colors.grey.shade700,
+                    indicatorColor: const Color(0xFF1E3A5F),
+                    tabs: [
+                      Tab(
+                        icon: Badge(
+                          isLabelVisible: pendingCount > 0,
+                          label: Text('$pendingCount'),
+                          child: const Icon(Icons.pending_actions),
+                        ),
+                        text: 'Chờ xác nhận',
+                      ),
+                      const Tab(icon: Icon(Icons.event_busy), text: 'Đã hủy'),
+                      const Tab(
+                        icon: Icon(Icons.event_available),
+                        text: 'Đã hoàn thành',
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildBookingList(
+                        bookings: activeBookings,
+                        emptyIcon: Icons.pending_actions,
+                        emptyMessage:
+                            'Không có lịch nào '
+                            'đang chờ xử lý.',
+                      ),
+                      _buildBookingList(
+                        bookings: cancelledBookings,
+                        emptyIcon: Icons.event_busy,
+                        emptyMessage:
+                            'Chưa có lịch nào '
+                            'bị hủy.',
+                      ),
+                      _buildBookingList(
+                        bookings: completedBookings,
+                        emptyIcon: Icons.event_available,
+                        emptyMessage:
+                            'Chưa có lịch nào '
+                            'hoàn thành.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
+    );
+  }
+
+  Widget _buildBookingList({
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+    required IconData emptyIcon,
+    required String emptyMessage,
+  }) {
+    if (bookings.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(emptyIcon, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                emptyMessage,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: bookings.length,
+      separatorBuilder: (context, index) {
+        return const SizedBox(height: 12);
+      },
+      itemBuilder: (context, index) {
+        final booking = bookings[index];
+
+        return _buildBookingCard(bookingId: booking.id, data: booking.data());
+      },
     );
   }
 
@@ -328,37 +422,26 @@ class _AdminBookingScreenState
     required String bookingId,
     required Map<String, dynamic> data,
   }) {
-    final String status =
-        data['status'] as String? ?? 'pending';
+    final String status = data['status'] as String? ?? 'pending';
 
-    final String salonName =
-        data['salonName'] as String? ?? 'Không rõ salon';
+    final String salonName = data['salonName'] as String? ?? 'Không rõ salon';
 
-    final String barberName =
-        data['barberName'] as String? ?? 'Chưa có thợ';
+    final String barberName = data['barberName'] as String? ?? 'Chưa có thợ';
 
-    final String userName =
-        data['userName'] as String? ?? '';
+    final String userName = data['userName'] as String? ?? '';
 
-    final String userEmail =
-        data['userEmail'] as String? ?? '';
+    final String userEmail = data['userEmail'] as String? ?? '';
 
-    final int totalPrice =
-        (data['totalPrice'] as num?)?.toInt() ?? 0;
+    final int totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
 
     final int totalDuration =
-        (data['totalDurationMinutes'] as num?)
-                ?.toInt() ??
-            0;
+        (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
 
-    final Timestamp? appointmentTimestamp =
-        data['appointmentAt'] as Timestamp?;
+    final Timestamp? appointmentTimestamp = data['appointmentAt'] as Timestamp?;
 
-    final DateTime? appointmentAt =
-        appointmentTimestamp?.toDate();
+    final DateTime? appointmentAt = appointmentTimestamp?.toDate();
 
-    final List<dynamic> services =
-        data['services'] as List<dynamic>? ?? [];
+    final List<dynamic> services = data['services'] as List<dynamic>? ?? [];
 
     final List<String> serviceNames = services
         .map((service) {
@@ -371,8 +454,9 @@ class _AdminBookingScreenState
         .where((name) => name.isNotEmpty)
         .toList();
 
-    final bool isUpdating =
-        _updatingBookingIds.contains(bookingId);
+    final bool isUpdating = _updatingBookingIds.contains(bookingId);
+
+    final bool canUpdate = status == 'pending' || status == 'confirmed';
 
     final Color statusColor = _statusColor(status);
 
@@ -385,9 +469,7 @@ class _AdminBookingScreenState
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
-                  child: Icon(Icons.content_cut),
-                ),
+                const CircleAvatar(child: Icon(Icons.content_cut)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -402,11 +484,9 @@ class _AdminBookingScreenState
                   const SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                else
+                else if (canUpdate)
                   PopupMenuButton<String>(
                     tooltip: 'Cập nhật trạng thái',
                     onSelected: (newStatus) {
@@ -425,20 +505,15 @@ class _AdminBookingScreenState
                         if (status == 'confirmed')
                           const PopupMenuItem<String>(
                             value: 'completed',
-                            child:
-                                Text('Đánh dấu hoàn thành'),
+                            child: Text('Đánh dấu hoàn thành'),
                           ),
-                        if (status == 'pending' ||
-                            status == 'confirmed')
-                          const PopupMenuItem<String>(
-                            value: 'cancelled',
-                            child: Text(
-                              'Hủy lịch',
-                              style: TextStyle(
-                                color: Colors.red,
-                              ),
-                            ),
+                        const PopupMenuItem<String>(
+                          value: 'cancelled',
+                          child: Text(
+                            'Hủy lịch',
+                            style: TextStyle(color: Colors.red),
                           ),
+                        ),
                       ];
                     },
                   ),
@@ -446,10 +521,7 @@ class _AdminBookingScreenState
             ),
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: statusColor.withAlpha(30),
                 borderRadius: BorderRadius.circular(20),
@@ -466,9 +538,7 @@ class _AdminBookingScreenState
             _buildInfoRow(
               icon: Icons.person_outline,
               label: 'Khách hàng',
-              value: userName.isEmpty
-                  ? userEmail
-                  : '$userName ($userEmail)',
+              value: userName.isEmpty ? userEmail : '$userName ($userEmail)',
             ),
             const SizedBox(height: 8),
             _buildInfoRow(
@@ -519,22 +589,13 @@ class _AdminBookingScreenState
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: const Color(0xFF1E3A5F),
-        ),
+        Icon(icon, size: 20, color: const Color(0xFF1E3A5F)),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 90,
-          child: Text(label),
-        ),
+        SizedBox(width: 90, child: Text(label)),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ],
