@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/sample_salons.dart';
+import '../models/salon.dart';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -32,7 +35,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-
           const Text(
             'Dịch vụ phổ biến',
             style: TextStyle(
@@ -41,7 +43,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-
           Row(
             children: [
               Expanded(
@@ -66,9 +67,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 28),
-
           const Text(
             'Salon gần bạn',
             style: TextStyle(
@@ -78,28 +77,10 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: const CircleAvatar(
-                radius: 26,
-                child: Icon(Icons.content_cut),
-              ),
-              title: const Text(
-                'Barber Shop Trung Tâm',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                  'Cắt tóc • Gội đầu • Uốn nhuộm\nCách bạn 1,2 km',
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-              onTap: () {
-                // Sau này sẽ mở màn hình chi tiết salon.
-              },
+          ...sampleSalons.map(
+            (salon) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildSalonCard(salon),
             ),
           ),
         ],
@@ -134,6 +115,62 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSalonCard(Salon salon) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        leading: const CircleAvatar(
+          radius: 26,
+          child: Icon(Icons.content_cut),
+        ),
+        title: Text(
+          salon.name,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(salon.services.join(' • ')),
+              const SizedBox(height: 4),
+              Text(salon.address),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.star,
+                    size: 17,
+                    color: Colors.amber,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('${salon.rating}'),
+                  const SizedBox(width: 12),
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 17,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('${salon.distance} km'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 18,
+        ),
+        onTap: () {
+          // Bước sau sẽ mở trang chi tiết salon.
+        },
       ),
     );
   }
