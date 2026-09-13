@@ -1,4 +1,5 @@
 import '../models/salon.dart';
+const String comboTenSteps = 'Combo 10 bước - 150.000đ';
 
 const List<Salon> sampleSalons = [
   Salon(
@@ -8,10 +9,12 @@ const List<Salon> sampleSalons = [
     distance: 1.2,
     rating: 4.8,
     services: [
-      'Cắt tóc',
-      'Gội đầu',
-      'Tạo kiểu',
-    ],
+    'Combo 10 bước - 150.000đ',
+    'Cắt tóc',
+    'Gội đầu',
+    'Tạo kiểu',
+    'Chăm sóc da',
+  ],
   ),
   Salon(
     id: 'salon_02',
@@ -20,21 +23,26 @@ const List<Salon> sampleSalons = [
     distance: 2.5,
     rating: 4.6,
     services: [
-      'Cắt tóc',
-      'Uốn tóc',
-      'Nhuộm tóc',
-    ],
+    'Combo 10 bước - 150.000đ',
+    'Cắt tóc',
+    'Gội đầu',
+    'Tạo kiểu',
+    'Chăm sóc da',
+
+  ],
   ),
   Salon(
-    id: 'salon_03',
-    name: 'Men Style Salon',
-    address: '48 Lê Văn C, Trung tâm thành phố',
-    distance: 3.1,
-    rating: 4.7,
-    services: [
-      'Cắt tóc',
-      'Gội đầu',
-      'Chăm sóc da',
-    ],
-  ),
+  id: 'salon_01',
+  name: 'Barber Shop Trung Tâm',
+  address: '12 Nguyễn Văn A, Trung tâm thành phố',
+  distance: 1.2,
+  rating: 4.8,
+  services: [
+    'Combo 10 bước - 150.000đ',
+    'Cắt tóc',
+    'Gội đầu',
+    'Tạo kiểu',
+    'Chăm sóc da',
+  ],
+),    
 ];
