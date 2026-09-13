@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/barber.dart';
@@ -28,6 +29,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
 class _DateTimeSelectionScreenState
     extends State<DateTimeSelectionScreen> {
   late final List<DateTime> _availableDates;
+  late final Stream<List<DateTime>> _bookedSlotsStream;
 
   DateTime? _selectedDate;
   String? _selectedTime;
@@ -35,7 +37,9 @@ class _DateTimeSelectionScreenState
   int get _totalDuration {
     return widget.selectedServices.fold(
       0,
-      (total, service) => total + service.durationMinutes,
+      (total, service) {
+        return total + service.durationMinutes;
+      },
     );
   }
 
@@ -78,14 +82,60 @@ class _DateTimeSelectionScreenState
       now.day,
     );
 
-    _availableDates = List.generate(
+    _availableDates = List<DateTime>.generate(
       7,
-      (index) => today.add(
-        Duration(days: index),
-      ),
+      (index) {
+        return today.add(
+          Duration(days: index),
+        );
+      },
     );
 
     _selectedDate = _availableDates.first;
+
+    _bookedSlotsStream = _createBookedSlotsStream();
+  }
+
+  Stream<List<DateTime>> _createBookedSlotsStream() {
+    if (widget.useAnyBarber ||
+        widget.selectedBarber == null) {
+      return Stream<List<DateTime>>.value(
+        const <DateTime>[],
+      );
+    }
+
+    return FirebaseFirestore.instance
+        .collection('booking_slots')
+        .where(
+          'barberId',
+          isEqualTo: widget.selectedBarber!.id,
+        )
+        .snapshots()
+        .map(
+      (snapshot) {
+        final List<DateTime> bookedSlots = [];
+
+        for (final document in snapshot.docs) {
+          final Map<String, dynamic> data =
+              document.data();
+
+          if (data['salonId'] != widget.salon.id) {
+            continue;
+          }
+
+          final Timestamp? slotTimestamp =
+              data['slotAt'] as Timestamp?;
+
+          if (slotTimestamp != null) {
+            bookedSlots.add(
+              slotTimestamp.toDate(),
+            );
+          }
+        }
+
+        return bookedSlots;
+      },
+    );
   }
 
   bool _isSameDate(
@@ -97,50 +147,91 @@ class _DateTimeSelectionScreenState
         first.day == second.day;
   }
 
-  bool _isPastTime(String time) {
-    if (_selectedDate == null) {
-      return false;
-    }
+  bool _isSameMinute(
+    DateTime first,
+    DateTime second,
+  ) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day &&
+        first.hour == second.hour &&
+        first.minute == second.minute;
+  }
 
-    final DateTime now = DateTime.now();
-
-    if (!_isSameDate(_selectedDate!, now)) {
-      return false;
-    }
-
+  DateTime _createDateTimeFromTime(String time) {
     final List<String> parts = time.split(':');
 
     final int hour = int.parse(parts[0]);
     final int minute = int.parse(parts[1]);
 
-    final DateTime slotTime = DateTime(
-      now.year,
-      now.month,
-      now.day,
+    return DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
       hour,
       minute,
     );
-
-    return slotTime.isBefore(now);
   }
 
-  bool _isDemoBookedTime(String time) {
+  bool _isPastTime(String time) {
     if (_selectedDate == null) {
       return false;
     }
 
-    final DateTime today = DateTime.now();
+    final DateTime slotTime =
+        _createDateTimeFromTime(time);
 
-    if (!_isSameDate(_selectedDate!, today)) {
+    return slotTime.isBefore(DateTime.now());
+  }
+
+  bool _isBookedTime(
+    String time,
+    List<DateTime> bookedSlots,
+  ) {
+    if (_selectedDate == null ||
+        widget.useAnyBarber ||
+        widget.selectedBarber == null) {
       return false;
     }
 
-    const Set<String> bookedTimes = {
-      '09:00',
-      '14:30',
-    };
+    final DateTime appointmentStart =
+        _createDateTimeFromTime(time);
 
-    return bookedTimes.contains(time);
+    final int numberOfSlots =
+        (_totalDuration / 30).ceil();
+
+    for (int index = 0;
+        index < numberOfSlots;
+        index++) {
+      final DateTime requiredSlot =
+          appointmentStart.add(
+        Duration(minutes: index * 30),
+      );
+
+      final bool slotAlreadyBooked =
+          bookedSlots.any(
+        (bookedSlot) {
+          return _isSameMinute(
+            bookedSlot,
+            requiredSlot,
+          );
+        },
+      );
+
+      if (slotAlreadyBooked) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _isUnavailableTime(
+    String time,
+    List<DateTime> bookedSlots,
+  ) {
+    return _isPastTime(time) ||
+        _isBookedTime(time, bookedSlots);
   }
 
   String _weekdayName(DateTime date) {
@@ -167,210 +258,358 @@ class _DateTimeSelectionScreenState
     return '$day/$month/${date.year}';
   }
 
+  void _selectDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _selectedTime = null;
+    });
+  }
+
+  void _selectTime(
+    String time,
+    bool isUnavailable,
+  ) {
+    if (isUnavailable) {
+      return;
+    }
+
+    setState(() {
+      _selectedTime = time;
+    });
+  }
+
+  void _continueToConfirmation() {
+    if (_selectedDate == null ||
+        _selectedTime == null) {
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return BookingConfirmationScreen(
+            salon: widget.salon,
+            selectedServices: widget.selectedServices,
+            selectedBarber: widget.selectedBarber,
+            useAnyBarber: widget.useAnyBarber,
+            selectedDate: _selectedDate!,
+            selectedTime: _selectedTime!,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final String barberName = widget.useAnyBarber
         ? 'Thợ bất kỳ'
         : widget.selectedBarber?.name ?? 'Chưa chọn thợ';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chọn ngày và giờ'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            widget.salon.name,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.person_outline),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Thợ: $barberName'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.schedule),
-              const SizedBox(width: 8),
-              Text(
-                'Thời lượng dịch vụ: $_totalDuration phút',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Chọn ngày',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 82,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _availableDates.length,
-              separatorBuilder: (context, index) {
-                return const SizedBox(width: 10);
-              },
-              itemBuilder: (context, index) {
-                final DateTime date =
-                    _availableDates[index];
+    return StreamBuilder<List<DateTime>>(
+      stream: _bookedSlotsStream,
+      builder: (context, snapshot) {
+        final List<DateTime> bookedSlots =
+            snapshot.data ?? const <DateTime>[];
 
-                final bool isSelected =
-                    _selectedDate != null &&
-                    _isSameDate(_selectedDate!, date);
-
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    setState(() {
-                      _selectedDate = date;
-                      _selectedTime = null;
-                    });
-                  },
-                  child: Container(
-                    width: 76,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF1E3A5F)
-                          : Colors.grey.shade100,
-                      borderRadius:
-                          BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _weekdayName(date),
-                          style: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${date.day.toString().padLeft(2, '0')}/'
-                          '${date.month.toString().padLeft(2, '0')}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isSelected
-                                ? Colors.white
-                                : Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+        final bool selectedTimeUnavailable =
+            _selectedTime != null &&
+                _isUnavailableTime(
+                  _selectedTime!,
+                  bookedSlots,
                 );
-              },
-            ),
-          ),
-          const SizedBox(height: 28),
-          const Text(
-            'Chọn giờ',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Giờ làm việc: 08:00–20:00',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: _availableTimeSlots.map((time) {
-              final bool isUnavailable =
-                  _isPastTime(time) ||
-                  _isDemoBookedTime(time);
 
-              return ChoiceChip(
-                label: Text(time),
-                selected: _selectedTime == time,
-                onSelected: isUnavailable
-                    ? null
-                    : (selected) {
-                        setState(() {
-                          _selectedTime =
-                              selected ? time : null;
-                        });
-                      },
-              );
-            }).toList(),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Chọn ngày và giờ'),
           ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          body: ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              Icon(
-                Icons.circle,
-                size: 12,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Khung giờ màu xám đã qua hoặc không khả dụng.',
+              Text(
+                widget.salon.name,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(
+                'Thợ: $barberName',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Thời gian dịch vụ: $_totalDuration phút',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Chọn ngày',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 82,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _availableDates.length,
+                  separatorBuilder: (context, index) {
+                    return const SizedBox(width: 10);
+                  },
+                  itemBuilder: (context, index) {
+                    final DateTime date =
+                        _availableDates[index];
+
+                    final bool isSelected =
+                        _selectedDate != null &&
+                            _isSameDate(
+                              _selectedDate!,
+                              date,
+                            );
+
+                    return InkWell(
+                      borderRadius:
+                          BorderRadius.circular(12),
+                      onTap: () {
+                        _selectDate(date);
+                      },
+                      child: Container(
+                        width: 76,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1E3A5F)
+                              : Colors.grey.shade100,
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _weekdayName(date),
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${date.day.toString().padLeft(2, '0')}/'
+                              '${date.month.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (_selectedDate != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Ngày đã chọn: '
+                  '${_formatDate(_selectedDate!)}',
+                ),
+              ],
+              const SizedBox(height: 28),
+              const Text(
+                'Chọn giờ',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.useAnyBarber
+                    ? 'Hệ thống sẽ sắp xếp một thợ còn trống.'
+                    : 'Các giờ màu xám là thời gian thợ đã bận.',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (snapshot.connectionState ==
+                      ConnectionState.waiting &&
+                  !widget.useAnyBarber)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (snapshot.hasError)
+                Card(
+                  color: Colors.red.shade50,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Không thể tải lịch bận của thợ. '
+                      'Vui lòng kiểm tra kết nối.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              else
+                _buildTimeSlots(bookedSlots),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 20,
+                runSpacing: 8,
+                children: [
+                  _buildLegend(
+                    color: const Color(0xFF1E3A5F),
+                    label: 'Đang chọn',
+                  ),
+                  _buildLegend(
+                    color: Colors.grey.shade300,
+                    label: 'Không khả dụng',
+                  ),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            height: 50,
-            child: FilledButton(
-              onPressed: _selectedTime == null
-                  ? null
-                  : () {
-                       Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                BookingConfirmationScreen(
-              salon: widget.salon,
-              selectedServices:
-                  widget.selectedServices,
-              selectedBarber:
-                  widget.selectedBarber,
-              useAnyBarber:
-                  widget.useAnyBarber,
-              selectedDate: _selectedDate!,
-              selectedTime: _selectedTime!,
+          bottomNavigationBar: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                height: 52,
+                child: FilledButton(
+                  onPressed: _selectedTime == null ||
+                          selectedTimeUnavailable
+                      ? null
+                      : _continueToConfirmation,
+                  child: const Text(
+                    'Tiếp tục xác nhận',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
             ),
           ),
         );
-                    },
-              child: const Text(
-                'Tiếp tục xác nhận',
-                style: TextStyle(fontSize: 16),
+      },
+    );
+  }
+
+  Widget _buildTimeSlots(
+    List<DateTime> bookedSlots,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int columnCount = 3;
+
+        if (constraints.maxWidth >= 900) {
+          columnCount = 6;
+        } else if (constraints.maxWidth >= 600) {
+          columnCount = 5;
+        } else if (constraints.maxWidth >= 400) {
+          columnCount = 4;
+        }
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _availableTimeSlots.length,
+          gridDelegate:
+              SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columnCount,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2.2,
+          ),
+          itemBuilder: (context, index) {
+            final String time =
+                _availableTimeSlots[index];
+
+            final bool isSelected =
+                _selectedTime == time;
+
+            final bool isUnavailable =
+                _isUnavailableTime(
+              time,
+              bookedSlots,
+            );
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                _selectTime(
+                  time,
+                  isUnavailable,
+                );
+              },
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isUnavailable
+                      ? Colors.grey.shade200
+                      : isSelected
+                          ? const Color(0xFF1E3A5F)
+                          : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF1E3A5F)
+                        : Colors.grey.shade400,
+                  ),
+                ),
+                child: Text(
+                  time,
+                  style: TextStyle(
+                    color: isUnavailable
+                        ? Colors.grey
+                        : isSelected
+                            ? Colors.white
+                            : Colors.black,
+                    fontWeight: FontWeight.w600,
+                    decoration: isUnavailable
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                ),
               ),
-            ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLegend({
+    required Color color,
+    required String label,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
-      ),
+        const SizedBox(width: 6),
+        Text(label),
+      ],
     );
   }
 }
