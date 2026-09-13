@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/salon.dart';
+import 'package:beauty_booking_app/screens/barber_selection_screen.dart';
 
 class ServiceSelectionScreen extends StatefulWidget {
   final Salon salon;
@@ -169,15 +170,23 @@ class _ServiceSelectionScreenState
                   onPressed: _selectedServiceIds.isEmpty
                       ? null
                       : () {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Bước tiếp theo: chọn thợ cắt tóc.',
-                              ),
-                            ),
-                          );
-                        },
+                         final selectedServices = widget.salon.services
+            .where(
+              (service) =>
+                  _selectedServiceIds.contains(service.id),
+            )
+            .toList();
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BarberSelectionScreen(
+              salon: widget.salon,
+              selectedServices: selectedServices,
+            ),
+          ),
+        );
+      },
                   child: const Text(
                     'Tiếp tục đặt lịch',
                     style: TextStyle(fontSize: 16),

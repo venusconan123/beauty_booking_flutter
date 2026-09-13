@@ -142,7 +142,11 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(salon.services.join(' • ')),
+              Text(
+                  salon.services
+                  .map((service) => service.name)
+                 .join(' • '),
+),
               const SizedBox(height: 4),
               Text(salon.address),
               const SizedBox(height: 4),
