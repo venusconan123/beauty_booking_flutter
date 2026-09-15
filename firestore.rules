@@ -1,0 +1,69 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn() &&
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /users/{userId} {
+      allow create, read, update: if signedIn() &&
+          request.auth.uid == userId;
+    }
+
+    match /admins/{adminId} {
+      allow read: if signedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if signedIn() &&
+          (resource.data.userId == request.auth.uid || admin());
+
+      allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.payment.provider == 'vnpay' &&
+          request.resource.data.payment.environment == 'sandbox' &&
+          request.resource.data.payment.status == 'unpaid' &&
+          request.resource.data.payment.amount ==
+              request.resource.data.totalPrice;
+
+      allow update: if admin() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'updatedAt']) &&
+          request.resource.data.status in
+              ['pending', 'confirmed', 'completed', 'cancelled'];
+
+      allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'cancelled' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    match /booking_slots/{slotId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid;
+
+      allow delete: if signedIn() &&
+          (resource.data.userId == request.auth.uid || admin());
+
+      allow update: if false;
+    }
+
+    match /payment_orders/{orderId} {
+      allow read, write: if false;
+    }
+  }
+}
