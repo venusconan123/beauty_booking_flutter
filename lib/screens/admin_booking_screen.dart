@@ -454,6 +454,15 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         .where((name) => name.isNotEmpty)
         .toList();
 
+    final Map<String, dynamic> payment =
+        Map<String, dynamic>.from(data['payment'] as Map? ?? const {});
+
+    final bool isPaid = payment['status'] == 'paid';
+
+    final String paymentLabel = payment['provider'] == 'vnpay'
+        ? 'Đã thanh toán qua VNPAY Sandbox'
+        : 'Đã thanh toán';
+
     final bool isUpdating = _updatingBookingIds.contains(bookingId);
 
     final bool canUpdate = status == 'pending' || status == 'confirmed';
@@ -575,6 +584,36 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                 ),
               ],
             ),
+            if (isPaid) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  border: Border.all(color: Colors.green.shade200),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.verified, color: Colors.green.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        paymentLabel,
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
