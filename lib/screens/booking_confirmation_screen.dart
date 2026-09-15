@@ -1,10 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
 import '../services/booking_service.dart';
+import '../services/vnpay_payment_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   final Salon salon;
@@ -75,7 +77,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     );
   }
 
-  Future<void> _saveBooking() async {
+  Future<void> _saveBooking({required bool payNow}) async {
     if (_isSaving) {
       return;
     }
@@ -99,7 +101,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     try {
       final DateTime appointmentDateTime = _createAppointmentDateTime();
 
-      await _bookingService.createBooking(
+      final String bookingId = await _bookingService.createBooking(
         user: user,
         salon: widget.salon,
         selectedServices: widget.selectedServices,
@@ -107,13 +109,47 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         useAnyBarber: widget.useAnyBarber,
         appointmentAt: appointmentDateTime,
         selectedTime: widget.selectedTime,
+        paymentChoice: payNow ? 'pay_now' : 'pay_later',
       );
 
       if (!mounted) {
         return;
       }
 
-      await _showSuccessDialog();
+      if (payNow) {
+        try {
+          final Uri paymentUri = await VnpayPaymentService().createPaymentUrl(
+            bookingId: bookingId,
+            user: user,
+          );
+          final bool opened = await launchUrl(
+            paymentUri,
+            mode: LaunchMode.externalApplication,
+            webOnlyWindowName: '_blank',
+          );
+          if (!opened) {
+            throw const VnpayPaymentException(
+              'Không thể mở trang VNPAY.',
+            );
+          }
+        } catch (error) {
+          if (!mounted) {
+            return;
+          }
+          final String paymentError = error is VnpayPaymentException
+              ? error.message
+              : 'Không thể kết nối VNPAY.';
+          await _showSuccessDialog(
+            message: 'Lịch đã được lưu, nhưng chưa mở được VNPAY. '
+                '$paymentError Bạn có thể thử lại trong Lịch hẹn của tôi.',
+          );
+        }
+      } else {
+        await _showSuccessDialog(
+          message: 'Lịch đã được lưu và đang chờ xác nhận. '
+              'Bạn đã chọn thanh toán sau tại salon.',
+        );
+      }
 
       if (!mounted) {
         return;
@@ -179,7 +215,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     }
   }
 
-  Future<void> _showSuccessDialog() {
+  Future<void> _showSuccessDialog({String? message}) {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -187,9 +223,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         return AlertDialog(
           icon: const Icon(Icons.check_circle, color: Colors.green, size: 58),
           title: const Text('Đặt lịch thành công'),
-          content: const Text(
-            'Lịch hẹn đã được lưu vào hệ thống '
-            'và đang chờ xác nhận.',
+          content: Text(
+            message ??
+                'Lịch hẹn đã được lưu vào hệ thống '
+                    'và đang chờ xác nhận.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -345,22 +382,53 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: _isSaving ? null : _saveBooking,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check),
-              label: Text(
-                _isSaving ? 'Đang lưu lịch hẹn...' : 'Xác nhận đặt lịch',
-                style: const TextStyle(fontSize: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _isSaving
+                      ? null
+                      : () => _saveBooking(payNow: false),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text(
+                    'Đặt lịch – Thanh toán sau',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: _isSaving
+                      ? null
+                      : () => _saveBooking(payNow: true),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.account_balance_wallet),
+                  label: Text(
+                    _isSaving
+                        ? 'Đang lưu lịch hẹn...'
+                        : 'Đặt lịch – Thanh toán ngay bằng VNPAY',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'VNPAY Sandbox là môi trường thử nghiệm, không trừ tiền thật.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+              ),
+            ],
           ),
         ),
       ),

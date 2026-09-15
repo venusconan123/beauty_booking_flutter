@@ -56,6 +56,16 @@ flutter analyze
 flutter run -d chrome
 ```
 
-Chỉ lịch có trạng thái `confirmed` mới xuất hiện nút thanh toán. Sau khi VNPAY gửi IPN có chữ ký hợp lệ và đúng số tiền, Worker mới cập nhật `payment.status` thành `paid`.
+Trước khi dùng hai lựa chọn đặt lịch mới, triển khai lại Worker đã cập nhật:
+
+```powershell
+cd C:\Users\tranl\beauty_booking_flutter\cloudflare_worker
+npm test
+npx wrangler deploy
+```
+
+Ở màn hình xác nhận đặt lịch, khách có thể chọn **Thanh toán sau** (thanh toán tại salon) hoặc **Thanh toán ngay bằng VNPAY Sandbox**. Lựa chọn được lưu trong `payment.choice`; đặt lịch mới vẫn ở trạng thái `pending` cho đến khi admin duyệt. Chọn thanh toán ngay sẽ mở VNPAY ngay sau khi lịch được lưu, kể cả khi lịch chưa được admin xác nhận. Nếu không mở được VNPAY, lịch vẫn đã được lưu; khách có thể thử lại trong **Lịch hẹn của tôi**. Lịch chọn thanh toán sau có thể chuyển sang VNPAY sau khi admin xác nhận.
+
+Màn hình admin đọc Firestore để hiện **Thanh toán sau**, **Đang thanh toán qua VNPAY** hoặc **Đã thanh toán qua VNPAY Sandbox**. Chỉ IPN VNPAY có chữ ký hợp lệ và đúng số tiền mới cập nhật `payment.status` thành `paid`; lựa chọn thanh toán ngay không tự đánh dấu là đã trả tiền.
 
 Đây là tích hợp **cổng VNPAY Sandbox thật**, không phải giao dịch tiền thật. Nếu Return URL báo đang chờ, hãy kiểm tra IPN URL đã đăng ký và Logs trong Cloudflare. Các lịch đã thanh toán rồi bị admin hủy cần quy trình hoàn tiền riêng; bản đồ án chưa có hoàn tiền.
