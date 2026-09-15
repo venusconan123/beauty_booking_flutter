@@ -25,7 +25,7 @@ class BookingService {
   BookingService({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  Future<void> createBooking({
+  Future<String> createBooking({
     required User user,
     required Salon salon,
     required List<HairService> selectedServices,
@@ -33,7 +33,12 @@ class BookingService {
     required bool useAnyBarber,
     required DateTime appointmentAt,
     required String selectedTime,
+    required String paymentChoice,
   }) async {
+    if (paymentChoice != 'pay_now' && paymentChoice != 'pay_later') {
+      throw ArgumentError.value(paymentChoice, 'paymentChoice');
+    }
+
     final int totalPrice = selectedServices.fold(0, (total, service) {
       return total + service.price;
     });
@@ -164,6 +169,7 @@ class BookingService {
           'provider': 'vnpay',
           'environment': 'sandbox',
           'status': 'unpaid',
+          'choice': paymentChoice,
           'amount': totalPrice,
         },
         'createdAt': FieldValue.serverTimestamp(),
@@ -197,6 +203,8 @@ class BookingService {
         'khoảng thời gian này.',
       );
     }
+
+    return bookingReference.id;
   }
 
   Future<void> cancelBooking({
