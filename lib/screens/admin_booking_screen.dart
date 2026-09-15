@@ -457,11 +457,34 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final Map<String, dynamic> payment =
         Map<String, dynamic>.from(data['payment'] as Map? ?? const {});
 
-    final bool isPaid = payment['status'] == 'paid';
+    final String paymentStatus =
+        payment['status']?.toString() ?? 'unpaid';
+    final String paymentChoice =
+        payment['choice']?.toString() ?? 'pay_later';
 
-    final String paymentLabel = payment['provider'] == 'vnpay'
-        ? 'Đã thanh toán qua VNPAY Sandbox'
-        : 'Đã thanh toán';
+    final String paymentLabel;
+    final Color paymentColor;
+    final IconData paymentIcon;
+
+    if (paymentStatus == 'paid') {
+      paymentLabel = payment['provider'] == 'vnpay'
+          ? 'Đã thanh toán qua VNPAY Sandbox'
+          : 'Đã thanh toán';
+      paymentColor = Colors.green;
+      paymentIcon = Icons.verified;
+    } else if (paymentStatus == 'pending') {
+      paymentLabel = 'Đang thanh toán qua VNPAY';
+      paymentColor = Colors.orange;
+      paymentIcon = Icons.hourglass_top;
+    } else if (paymentChoice == 'pay_later') {
+      paymentLabel = 'Thanh toán sau';
+      paymentColor = Colors.orange;
+      paymentIcon = Icons.payments_outlined;
+    } else {
+      paymentLabel = 'Chưa thanh toán qua VNPAY';
+      paymentColor = Colors.orange;
+      paymentIcon = Icons.account_balance_wallet_outlined;
+    }
 
     final bool isUpdating = _updatingBookingIds.contains(bookingId);
 
@@ -584,36 +607,34 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                 ),
               ],
             ),
-            if (isPaid) ...[
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  border: Border.all(color: Colors.green.shade200),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.verified, color: Colors.green.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        paymentLabel,
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.bold,
-                        ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: paymentColor.withAlpha(18),
+                border: Border.all(color: paymentColor.withAlpha(90)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(paymentIcon, color: paymentColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      paymentLabel,
+                      style: TextStyle(
+                        color: paymentColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
       ),
