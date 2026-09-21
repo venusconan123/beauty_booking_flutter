@@ -4,8 +4,21 @@ import { test } from 'node:test';
 
 globalThis.crypto ||= webcrypto;
 
-const { default: worker, sortedQuery, hmacSha512, formatVietnamTime,
-  canPayBooking } = await import('../src/index.js');
+const {
+  default: worker,
+  sortedQuery,
+  hmacSha512,
+  formatVietnamTime,
+  canPayBooking,
+  bookingStatusAfterPayment,
+} = await import('../src/index.js');
+
+test('auto-confirms a booking only after a successful VNPAY payment', () => {
+  assert.equal(bookingStatusAfterPayment('pending', 'paid'), 'confirmed');
+  assert.equal(bookingStatusAfterPayment('pending', 'failed'), 'pending');
+  assert.equal(bookingStatusAfterPayment('pending', 'pending'), 'pending');
+  assert.equal(bookingStatusAfterPayment('confirmed', 'paid'), 'confirmed');
+});
 
 test('permits immediate payment for a pending booking only when chosen', () => {
   assert.equal(canPayBooking({ status: 'pending', payment: { choice: 'pay_now' } }), true);
