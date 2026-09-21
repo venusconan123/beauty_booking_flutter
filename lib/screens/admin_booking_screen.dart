@@ -529,7 +529,8 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                     },
                     itemBuilder: (context) {
                       return [
-                        if (status == 'pending')
+                        if (status == 'pending' &&
+                            paymentChoice == 'pay_later')
                           const PopupMenuItem<String>(
                             value: 'confirmed',
                             child: Text('Xác nhận lịch'),
