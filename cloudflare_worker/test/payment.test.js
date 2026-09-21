@@ -4,8 +4,15 @@ import { test } from 'node:test';
 
 globalThis.crypto ||= webcrypto;
 
-const { default: worker, sortedQuery, hmacSha512, formatVietnamTime } =
-  await import('../src/index.js');
+const { default: worker, sortedQuery, hmacSha512, formatVietnamTime,
+  canPayBooking } = await import('../src/index.js');
+
+test('permits immediate payment for a pending booking only when chosen', () => {
+  assert.equal(canPayBooking({ status: 'pending', payment: { choice: 'pay_now' } }), true);
+  assert.equal(canPayBooking({ status: 'pending', payment: { choice: 'pay_later' } }), false);
+  assert.equal(canPayBooking({ status: 'confirmed', payment: { choice: 'pay_later' } }), true);
+  assert.equal(canPayBooking({ status: 'cancelled', payment: { choice: 'pay_now' } }), false);
+});
 
 test('sorts and encodes VNPAY parameters consistently', () => {
   assert.equal(sortedQuery({ vnp_TxnRef: 'A 1', vnp_Amount: '15000000' }),

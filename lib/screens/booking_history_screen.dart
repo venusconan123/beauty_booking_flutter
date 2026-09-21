@@ -296,6 +296,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       data['payment'] as Map? ?? const <String, dynamic>{},
     );
     final String paymentStatus = payment['status']?.toString() ?? 'unpaid';
+    final String paymentChoice =
+        payment['choice']?.toString() ?? 'pay_later';
     final bool isPaid = paymentStatus == 'paid';
     final bool isStartingPayment = _startingPaymentIds.contains(bookingId);
     final Color statusColor = _getStatusColor(status);
@@ -382,8 +384,30 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             if (isPaid) ...[
               const SizedBox(height: 12),
               _paidBanner(payment['provider']?.toString() ?? ''),
+            ] else if (paymentChoice == 'pay_later' &&
+                status != 'cancelled') ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Thanh toán sau tại salon',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ] else if (paymentStatus == 'pending') ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Đang chờ VNPAY xác nhận thanh toán',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
-            if (status == 'confirmed' && !isPaid) ...[
+            if (!isPaid &&
+                (status == 'confirmed' ||
+                    (status == 'pending' &&
+                        paymentChoice == 'pay_now'))) ...[
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
@@ -404,7 +428,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                   label: Text(
                     isStartingPayment
                         ? 'Đang mở VNPAY...'
-                        : 'Thanh toán trước bằng VNPAY',
+                        : 'Thanh toán bằng VNPAY',
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF005BAA),

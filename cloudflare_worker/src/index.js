@@ -31,6 +31,11 @@ export default {
   },
 };
 
+export function canPayBooking(booking) {
+  return booking.status === 'confirmed' ||
+    (booking.status === 'pending' && booking.payment?.choice === 'pay_now');
+}
+
 async function createPayment(request, env) {
   requireEnvironment(env);
   const userId = await verifyFirebaseUser(request, env);
@@ -49,8 +54,8 @@ async function createPayment(request, env) {
   if (booking.userId !== userId) {
     return json({ message: 'Bạn không có quyền thanh toán lịch này.' }, 403);
   }
-  if (booking.status !== 'confirmed') {
-    return json({ message: 'Lịch hẹn chưa được admin xác nhận.' }, 409);
+  if (!canPayBooking(booking)) {
+    return json({ message: 'Lịch hẹn này chưa thể thanh toán bằng VNPAY.' }, 409);
   }
   if (booking.payment?.status === 'paid') {
     return json({ message: 'Lịch hẹn đã được thanh toán.' }, 409);
@@ -76,6 +81,7 @@ async function createPayment(request, env) {
       provider: 'vnpay',
       environment: 'sandbox',
       status: 'pending',
+      choice: booking.payment?.choice || 'pay_later',
       amount,
       orderId,
     },
@@ -179,7 +185,7 @@ async function processVnpayResult(url, env) {
   if (!bookingDocument) return { code: '01', message: 'Booking not found', paid: false };
   const booking = decodeFields(bookingDocument.fields || {});
   if (booking.userId !== order.userId ||
-      booking.status !== 'confirmed' ||
+      !canPayBooking(booking) ||
       booking.payment?.status !== 'pending' ||
       booking.payment?.orderId !== orderId ||
       Number(booking.totalPrice) !== Number(order.amount)) {
@@ -193,6 +199,7 @@ async function processVnpayResult(url, env) {
     provider: 'vnpay',
     environment: 'sandbox',
     status: paid ? 'paid' : 'failed',
+    choice: booking.payment?.choice || 'pay_later',
     amount: Number(order.amount),
     orderId,
     transactionNo: String(parameters.vnp_TransactionNo || ''),
