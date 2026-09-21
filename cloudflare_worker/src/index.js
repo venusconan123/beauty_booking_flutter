@@ -208,7 +208,15 @@ async function processVnpayResult(url, env) {
   };
   if (paid) payment.paidAt = now;
 
-  await commitPayment(env, bookingDocument, orderDocument, order, payment, now);
+  await commitPayment(
+    env,
+    bookingDocument,
+    orderDocument,
+    order,
+    booking,
+    payment,
+    now,
+  );
 
   return {
     code: '00',
@@ -319,18 +327,38 @@ async function patchDocument(env, path, data, updateTime) {
   if (!response.ok) throw new Error(`Firestore PATCH failed: ${await response.text()}`);
 }
 
-async function commitPayment(env, bookingDocument, orderDocument, order, payment, now) {
+export function bookingStatusAfterPayment(currentStatus, paymentStatus) {
+  return paymentStatus === 'paid' ? 'confirmed' : currentStatus;
+}
+
+async function commitPayment(
+  env,
+  bookingDocument,
+  orderDocument,
+  order,
+  booking,
+  payment,
+  now,
+) {
   const account = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
   const token = await googleAccessToken(env);
   const bookingName = bookingDocument.name;
   const orderName = orderDocument.name;
+  const bookingStatus = bookingStatusAfterPayment(
+    booking.status,
+    payment.status,
+  );
   const writes = [
     {
       update: {
         name: bookingName,
-        fields: encodeFields({ payment, updatedAt: now }),
+        fields: encodeFields({
+          payment,
+          status: bookingStatus,
+          updatedAt: now,
+        }),
       },
-      updateMask: { fieldPaths: ['payment', 'updatedAt'] },
+      updateMask: { fieldPaths: ['payment', 'status', 'updatedAt'] },
       currentDocument: { updateTime: bookingDocument.updateTime },
     },
     {
