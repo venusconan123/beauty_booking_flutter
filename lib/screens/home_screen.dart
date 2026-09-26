@@ -452,6 +452,7 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildServiceStrip(BuildContext context) {
     const services = [
+      (Icons.workspace_premium_rounded, comboTenSteps, '150.000đ'),
       (Icons.content_cut_rounded, hairCut, '80.000đ'),
       (Icons.shower_rounded, hairWash, '30.000đ'),
       (Icons.auto_awesome_rounded, hairStyling, '50.000đ'),
