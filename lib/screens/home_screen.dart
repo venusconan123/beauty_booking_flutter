@@ -3,9 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
+import '../models/hair_service.dart';
 import '../models/salon.dart';
 import 'admin_booking_screen.dart';
 import 'booking_history_screen.dart';
+import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
 import 'salon_map_screen.dart';
 
@@ -71,6 +73,17 @@ class HomeScreen extends StatelessWidget {
   void _openSalon(BuildContext context, Salon salon) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => SalonDetailScreen(salon: salon)),
+    );
+  }
+
+  void _openQuickBooking(BuildContext context, HairService service) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuickBookingBranchScreen(
+          selectedService: service,
+          salons: sampleSalons,
+        ),
+      ),
     );
   }
 
@@ -439,11 +452,11 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildServiceStrip(BuildContext context) {
     const services = [
-      (Icons.content_cut_rounded, 'Cắt tóc nam', '80.000đ'),
-      (Icons.shower_rounded, 'Gội đầu', '30.000đ'),
-      (Icons.auto_awesome_rounded, 'Tạo kiểu', '50.000đ'),
-      (Icons.colorize_rounded, 'Nhuộm tóc', 'Từ 250.000đ'),
-      (Icons.spa_outlined, 'Chăm sóc', 'Từ 100.000đ'),
+      (Icons.content_cut_rounded, hairCut, '80.000đ'),
+      (Icons.shower_rounded, hairWash, '30.000đ'),
+      (Icons.auto_awesome_rounded, hairStyling, '50.000đ'),
+      (Icons.colorize_rounded, hairDye, '300.000đ'),
+      (Icons.spa_outlined, skinCare, '100.000đ'),
     ];
 
     return _contentWidth(
@@ -465,7 +478,7 @@ class HomeScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 onTap: sampleSalons.isEmpty
                     ? null
-                    : () => _openSalon(context, sampleSalons.first),
+                    : () => _openQuickBooking(context, service.$2),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   child: Row(
@@ -480,7 +493,10 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(service.$2, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text(
+                            service.$2.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
                           const SizedBox(height: 2),
                           Text(service.$3, style: const TextStyle(color: Color(0xFF9B6B24))),
                         ],
@@ -683,7 +699,7 @@ class HomeScreen extends StatelessWidget {
                     ? null
                     : () {
                         Navigator.of(context).pop();
-                        _openSalon(context, sampleSalons.first);
+                        _openQuickBooking(context, hairStyling);
                       },
                 style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
                 child: const Text('Đặt lịch với kiểu tóc này'),
