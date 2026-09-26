@@ -131,16 +131,99 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _resetPassword() async {
-    final email = _emailController.text.trim();
+    final dialogFormKey = GlobalKey<FormState>();
+    final resetEmailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
 
-    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Hãy nhập email hợp lệ trước khi lấy lại mật khẩu.',
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        void submit() {
+          if (dialogFormKey.currentState!.validate()) {
+            Navigator.of(dialogContext).pop(
+              resetEmailController.text.trim(),
+            );
+          }
+        }
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF111A27),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: const BorderSide(color: Color(0x66F6C768)),
           ),
-        ),
-      );
+          icon: const Icon(
+            Icons.lock_reset_rounded,
+            color: _gold,
+            size: 48,
+          ),
+          title: const Text(
+            'Lấy lại mật khẩu',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Form(
+            key: dialogFormKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Nhập email đã đăng ký để nhận liên kết đặt lại mật khẩu.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: resetEmailController,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.done,
+                  cursorColor: _gold,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _fieldDecoration(
+                    label: 'Email',
+                    hint: 'Nhập email của bạn',
+                    icon: Icons.mail_outline_rounded,
+                  ),
+                  onFieldSubmitted: (_) => submit(),
+                  validator: (value) {
+                    final input = value?.trim() ?? '';
+                    if (input.isEmpty) {
+                      return 'Vui lòng nhập email.';
+                    }
+                    if (!input.contains('@') || !input.contains('.')) {
+                      return 'Email không đúng định dạng.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: TextButton.styleFrom(foregroundColor: _muted),
+              child: const Text('Hủy'),
+            ),
+            FilledButton.icon(
+              onPressed: submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+              ),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('Gửi liên kết'),
+            ),
+          ],
+        );
+      },
+    );
+
+    resetEmailController.dispose();
+
+    if (email == null || !mounted) {
       return;
     }
 
@@ -155,19 +238,32 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         builder: (dialogContext) {
           return AlertDialog(
+            backgroundColor: const Color(0xFF111A27),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+              side: const BorderSide(color: Color(0x66F6C768)),
+            ),
             icon: const Icon(
               Icons.mark_email_read_rounded,
               color: _gold,
               size: 52,
             ),
-            title: const Text('Đã gửi email'),
+            title: const Text(
+              'Đã gửi email',
+              style: TextStyle(color: Colors.white),
+            ),
             content: Text(
               'Hướng dẫn đặt lại mật khẩu đã được gửi đến $email.',
               textAlign: TextAlign.center,
+              style: const TextStyle(color: _muted),
             ),
             actions: [
               FilledButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _ink,
+                ),
                 child: const Text('Đồng ý'),
               ),
             ],
