@@ -14,6 +14,12 @@ class BookingHistoryScreen extends StatefulWidget {
 }
 
 class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
+  static const Color _ink = Color(0xFF08111E);
+  static const Color _surface = Color(0xF2121B28);
+  static const Color _field = Color(0xFF182432);
+  static const Color _gold = Color(0xFFF6C768);
+  static const Color _muted = Color(0xFFB8C0CC);
+
   final Set<String> _startingPaymentIds = <String>{};
 
   String _formatPrice(int price) => '${price ~/ 1000}.000đ';
@@ -44,100 +50,81 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'pending':
-        return Colors.orange;
+        return const Color(0xFFFFB648);
       case 'confirmed':
-        return Colors.blue;
+        return const Color(0xFF63B3FF);
       case 'completed':
-        return Colors.green;
+        return const Color(0xFF59D38C);
       case 'cancelled':
-        return Colors.red;
+        return const Color(0xFFFF6B6B);
       default:
-        return Colors.grey;
+        return _muted;
     }
   }
 
   Future<void> _cancelBooking(BuildContext context, String bookingId) async {
     final bool? shouldCancel = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(Icons.event_busy, color: Colors.red, size: 48),
-          title: const Text('Hủy lịch hẹn'),
-          content: const Text(
-            'Bạn có chắc chắn muốn hủy lịch hẹn này không?',
-            textAlign: TextAlign.center,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _surface,
+        icon: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 46),
+        title: const Text('Hủy lịch hẹn', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc chắn muốn hủy lịch hẹn này không?',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: _muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Giữ lịch', style: TextStyle(color: _muted)),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Không'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Hủy lịch'),
-            ),
-          ],
-        );
-      },
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD94B4B)),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Hủy lịch'),
+          ),
+        ],
+      ),
     );
 
     if (shouldCancel != true) return;
-
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn cần đăng nhập để hủy lịch hẹn.'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Bạn cần đăng nhập để hủy lịch hẹn.')),
       );
       return;
     }
 
     try {
-      await BookingService().cancelBooking(
-        bookingId: bookingId,
-        userId: user.uid,
-      );
+      await BookingService().cancelBooking(bookingId: bookingId, userId: user.uid);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã hủy lịch hẹn.'),
-          backgroundColor: Colors.green,
-        ),
+        const SnackBar(content: Text('Đã hủy lịch hẹn.'), backgroundColor: Colors.green),
       );
     } on FirebaseException catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.code == 'permission-denied'
-                ? 'Bạn không có quyền hủy lịch này.'
-                : 'Không thể hủy lịch hẹn: ${error.message}',
-          ),
+          content: Text(error.code == 'permission-denied'
+              ? 'Bạn không có quyền hủy lịch này.'
+              : 'Không thể hủy lịch hẹn: ${error.message}'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _startVnpayPayment(
-    BuildContext context,
-    String bookingId,
-  ) async {
+  Future<void> _startVnpayPayment(BuildContext context, String bookingId) async {
     if (_startingPaymentIds.contains(bookingId)) return;
-
     setState(() => _startingPaymentIds.add(bookingId));
     try {
       final User? user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw const VnpayPaymentException(
-          'Bạn cần đăng nhập trước khi thanh toán.',
-        );
+        throw const VnpayPaymentException('Bạn cần đăng nhập trước khi thanh toán.');
       }
-
       final Uri paymentUri = await VnpayPaymentService().createPaymentUrl(
         bookingId: bookingId,
         user: user,
@@ -148,9 +135,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         webOnlyWindowName: '_blank',
       );
       if (!opened) {
-        throw const VnpayPaymentException(
-          'Không thể mở cổng thanh toán VNPAY.',
-        );
+        throw const VnpayPaymentException('Không thể mở cổng thanh toán VNPAY.');
       }
     } on VnpayPaymentException catch (error) {
       if (!context.mounted) return;
@@ -160,15 +145,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể bắt đầu thanh toán: $error'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Không thể bắt đầu thanh toán: $error'), backgroundColor: Colors.red),
       );
     } finally {
-      if (mounted) {
-        setState(() => _startingPaymentIds.remove(bookingId));
-      }
+      if (mounted) setState(() => _startingPaymentIds.remove(bookingId));
     }
   }
 
@@ -176,8 +156,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Bạn cần đăng nhập để xem lịch hẹn.')),
+      return _pageShell(
+        child: _messageState(
+          icon: Icons.lock_outline_rounded,
+          title: 'Bạn chưa đăng nhập',
+          message: 'Đăng nhập để xem và quản lý các lịch hẹn của bạn.',
+        ),
       );
     }
 
@@ -186,28 +170,18 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         .where('userId', isEqualTo: user.uid)
         .snapshots();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Lịch hẹn của tôi',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return _pageShell(
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: bookingStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: _gold));
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Không thể tải lịch hẹn.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return _messageState(
+              icon: Icons.cloud_off_rounded,
+              title: 'Không thể tải lịch hẹn',
+              message: '${snapshot.error}',
             );
           }
 
@@ -216,55 +190,141 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           ];
           bookings.sort((first, second) {
             final firstTimestamp = first.data()['appointmentAt'] as Timestamp?;
-            final secondTimestamp =
-                second.data()['appointmentAt'] as Timestamp?;
-            final firstDate =
-                firstTimestamp?.toDate() ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            final secondDate =
-                secondTimestamp?.toDate() ??
-                DateTime.fromMillisecondsSinceEpoch(0);
+            final secondTimestamp = second.data()['appointmentAt'] as Timestamp?;
+            final firstDate = firstTimestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final secondDate = secondTimestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
             return secondDate.compareTo(firstDate);
           });
 
           if (bookings.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.event_note, size: 72, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'Bạn chưa có lịch hẹn nào.',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text('Hãy quay lại trang chủ để đặt lịch.'),
-                  ],
-                ),
-              ),
+            return _messageState(
+              icon: Icons.event_note_rounded,
+              title: 'Chưa có lịch hẹn',
+              message: 'Lịch đã đặt sẽ xuất hiện tại đây để bạn tiện theo dõi.',
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: bookings.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final booking = bookings[index];
-              return _buildBookingCard(
-                context: context,
-                bookingId: booking.id,
-                data: booking.data(),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final double horizontal = constraints.maxWidth >= 900 ? 32 : 16;
+              return ListView.separated(
+                padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 32),
+                itemCount: bookings.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final booking = bookings[index];
+                  return _buildBookingCard(
+                    context: context,
+                    bookingId: booking.id,
+                    data: booking.data(),
+                  );
+                },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _pageShell({required Widget child}) {
+    return Scaffold(
+      backgroundColor: _ink,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/images/login_barbershop_background.jpg', fit: BoxFit.cover),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xE608111E), Color(0xFA08111E)],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _header(),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1060),
+                      child: child,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 20, 14),
+      decoration: const BoxDecoration(
+        color: Color(0xD90B1420),
+        border: Border(bottom: BorderSide(color: Color(0x33F6C768))),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Quay lại',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0x1AF6C768),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x66F6C768)),
+            ),
+            child: const Icon(Icons.calendar_month_rounded, color: _gold),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Lịch hẹn của tôi', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                SizedBox(height: 2),
+                Text('Theo dõi lịch và trạng thái thanh toán', style: TextStyle(color: _muted, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _messageState({required IconData icon, required String title, required String message}) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
+        constraints: const BoxConstraints(maxWidth: 440),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x55F6C768)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 54, color: _gold),
+            const SizedBox(height: 16),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _muted, height: 1.45)),
+          ],
+        ),
       ),
     );
   }
@@ -274,233 +334,201 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     required String bookingId,
     required Map<String, dynamic> data,
   }) {
-    final String salonName =
-        data['salonName'] as String? ?? 'Không rõ chi nhánh';
+    final String salonName = data['salonName'] as String? ?? 'Không rõ chi nhánh';
     final String salonAddress = data['salonAddress'] as String? ?? '';
     final String barberName = data['barberName'] as String? ?? 'Thợ bất kỳ';
     final String status = data['status'] as String? ?? 'pending';
     final int totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
-    final int totalDuration =
-        (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
-    final appointmentTimestamp = data['appointmentAt'] as Timestamp?;
+    final int totalDuration = (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
+    final Timestamp? appointmentTimestamp = data['appointmentAt'] as Timestamp?;
     final DateTime? appointmentDate = appointmentTimestamp?.toDate();
-    final List<dynamic> services =
-        data['services'] as List<dynamic>? ?? <dynamic>[];
+    final List<dynamic> services = data['services'] as List<dynamic>? ?? <dynamic>[];
     final List<String> serviceNames = services
-        .map(
-          (service) => service is Map ? service['name']?.toString() ?? '' : '',
-        )
+        .map((service) => service is Map ? service['name']?.toString() ?? '' : '')
         .where((name) => name.isNotEmpty)
         .toList();
-    final payment = Map<String, dynamic>.from(
-      data['payment'] as Map? ?? const <String, dynamic>{},
-    );
+    final payment = Map<String, dynamic>.from(data['payment'] as Map? ?? const <String, dynamic>{});
     final String paymentStatus = payment['status']?.toString() ?? 'unpaid';
-    final String paymentChoice =
-        payment['choice']?.toString() ?? 'pay_later';
+    final String paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final bool isPaid = paymentStatus == 'paid';
     final bool isStartingPayment = _startingPaymentIds.contains(bookingId);
     final Color statusColor = _getStatusColor(status);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x44F6C768)),
+        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 10))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFE8F0FE),
-                  child: Icon(Icons.content_cut, color: Color(0xFF1E3A5F)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    salonName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withAlpha(30),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _getStatusText(status),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (salonAddress.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _informationRow(Icons.location_on_outlined, salonAddress),
-            ],
-            const SizedBox(height: 10),
-            _informationRow(Icons.person_outline, 'Thợ: $barberName'),
-            const SizedBox(height: 10),
-            _informationRow(
-              Icons.schedule,
-              appointmentDate == null
-                  ? 'Chưa xác định thời gian'
-                  : _formatDateTime(appointmentDate),
-              bold: true,
-            ),
-            const SizedBox(height: 12),
-            const Divider(),
-            Text(
-              serviceNames.isEmpty
-                  ? 'Không có thông tin dịch vụ'
-                  : serviceNames.join(' • '),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('$totalDuration phút'),
-                const Spacer(),
-                Text(
-                  _formatPrice(totalPrice),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E3A5F),
-                  ),
-                ),
-              ],
-            ),
-            if (isPaid) ...[
-              const SizedBox(height: 12),
-              _paidBanner(payment['provider']?.toString() ?? ''),
-            ] else if (paymentChoice == 'pay_later' &&
-                status != 'cancelled') ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Thanh toán sau tại salon',
-                style: TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ] else if (paymentStatus == 'pending') ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Đang chờ VNPAY xác nhận thanh toán',
-                style: TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-            if (!isPaid &&
-                (status == 'confirmed' ||
-                    (status == 'pending' &&
-                        paymentChoice == 'pay_now'))) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: isStartingPayment
-                      ? null
-                      : () => _startVnpayPayment(
-                          context,
-                          bookingId,
+            Container(height: 3, color: _gold),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(color: const Color(0x1FF6C768), borderRadius: BorderRadius.circular(16)),
+                        child: const Icon(Icons.content_cut_rounded, color: _gold),
+                      ),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(salonName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 5),
+                            Text(serviceNames.isEmpty ? 'Dịch vụ tại salon' : serviceNames.join(' • '), style: const TextStyle(color: _muted, height: 1.35)),
+                          ],
                         ),
-                  icon: isStartingPayment
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.account_balance_wallet),
-                  label: Text(
-                    isStartingPayment
-                        ? 'Đang mở VNPAY...'
-                        : 'Thanh toán bằng VNPAY',
+                      ),
+                      const SizedBox(width: 10),
+                      _statusChip(_getStatusText(status), statusColor),
+                    ],
                   ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF005BAA),
-                    foregroundColor: Colors.white,
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: _field, borderRadius: BorderRadius.circular(17)),
+                    child: Column(
+                      children: [
+                        if (salonAddress.isNotEmpty) ...[
+                          _informationRow(Icons.location_on_outlined, salonAddress),
+                          const SizedBox(height: 11),
+                        ],
+                        _informationRow(Icons.person_outline_rounded, 'Thợ: $barberName'),
+                        const SizedBox(height: 11),
+                        _informationRow(
+                          Icons.schedule_rounded,
+                          appointmentDate == null ? 'Chưa xác định thời gian' : _formatDateTime(appointmentDate),
+                          bold: true,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.timelapse_rounded, color: _muted, size: 20),
+                      const SizedBox(width: 7),
+                      Text('$totalDuration phút', style: const TextStyle(color: _muted)),
+                      const Spacer(),
+                      Text(_formatPrice(totalPrice), style: const TextStyle(color: _gold, fontSize: 21, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  if (isPaid)
+                    _paymentBanner(
+                      icon: Icons.verified_rounded,
+                      text: payment['provider'] == 'vnpay' ? 'Đã thanh toán qua VNPAY Sandbox' : 'Đã thanh toán',
+                      color: const Color(0xFF59D38C),
+                    )
+                  else if (paymentChoice == 'pay_later' && status != 'cancelled')
+                    _paymentBanner(
+                      icon: Icons.payments_outlined,
+                      text: 'Thanh toán sau tại salon',
+                      color: _gold,
+                    )
+                  else if (paymentStatus == 'pending')
+                    _paymentBanner(
+                      icon: Icons.hourglass_top_rounded,
+                      text: 'Đang chờ VNPAY xác nhận thanh toán',
+                      color: const Color(0xFFFFB648),
+                    ),
+                  if (!isPaid && (status == 'confirmed' || (status == 'pending' && paymentChoice == 'pay_now'))) ...[
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: isStartingPayment ? null : () => _startVnpayPayment(context, bookingId),
+                        icon: isStartingPayment
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.account_balance_wallet_rounded),
+                        label: Text(isStartingPayment ? 'Đang mở VNPAY...' : 'Thanh toán bằng VNPAY', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Thanh toán toàn bộ ${_formatPrice(totalPrice)} trên môi trường VNPAY Sandbox (không trừ tiền thật).',
+                      style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.4),
+                    ),
+                  ],
+                  if (status == 'pending') ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _cancelBooking(context, bookingId),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Hủy lịch hẹn', style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFFF7777),
+                          side: const BorderSide(color: Color(0x88FF6B6B)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Thanh toán toàn bộ ${_formatPrice(totalPrice)} '
-                'trên môi trường VNPAY Sandbox (không trừ tiền thật).',
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-              ),
-            ],
-            if (status == 'pending') ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _cancelBooking(context, bookingId),
-                  icon: const Icon(Icons.close),
-                  label: const Text('Hủy lịch hẹn'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                ),
-              ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
 
+  Widget _statusChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withAlpha(100)),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+    );
+  }
+
   Widget _informationRow(IconData icon, String text, {bool bold = false}) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 8),
+        Icon(icon, size: 20, color: _gold),
+        const SizedBox(width: 9),
         Expanded(
-          child: Text(
-            text,
-            style: bold ? const TextStyle(fontWeight: FontWeight.w600) : null,
-          ),
+          child: Text(text, style: TextStyle(color: Colors.white, fontWeight: bold ? FontWeight.w700 : FontWeight.w500, height: 1.35)),
         ),
       ],
     );
   }
 
-  Widget _paidBanner(String provider) {
-    final bool isVnpay = provider == 'vnpay';
+  Widget _paymentBanner({required IconData icon, required String text, required Color color}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.green.withAlpha(25),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.green.withAlpha(90)),
+        color: color.withAlpha(22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withAlpha(100)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.verified, color: Colors.green, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isVnpay
-                  ? 'Đã thanh toán qua VNPAY Sandbox'
-                  : 'Đã thanh toán',
-              style: const TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          Icon(icon, color: color, size: 21),
+          const SizedBox(width: 9),
+          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800))),
         ],
       ),
     );
