@@ -67,6 +67,10 @@ flutter:
 
   assets:
     - assets/images/login_barbershop_background.jpg
+    - assets/images/home_editorial_hero.jpg
+    - assets/images/style_textured_crop.jpg
+    - assets/images/style_korean_layer.jpg
+    - assets/images/style_modern_mullet.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
