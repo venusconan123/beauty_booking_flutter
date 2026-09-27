@@ -32,6 +32,12 @@ class DateTimeSelectionScreen extends StatefulWidget {
 }
 
 class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
+  static const _ink = Color(0xFF071426);
+  static const _panel = Color(0xFF10233B);
+  static const _field = Color(0xFF162D49);
+  static const _gold = Color(0xFFF4C567);
+  static const _muted = Color(0xFFABB8C9);
+
   late final List<DateTime> _availableDates;
 
   late final Stream<Map<String, List<DateTime>>> _bookedSlotsStream;
@@ -43,6 +49,12 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
   int get _totalDuration {
     return widget.selectedServices.fold(0, (total, service) {
       return total + service.durationMinutes;
+    });
+  }
+
+  int get _totalPrice {
+    return widget.selectedServices.fold(0, (total, service) {
+      return total + service.price;
     });
   }
 
@@ -305,162 +317,64 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
                 _isUnavailableTime(_selectedTime!, bookedSlotsByBarber));
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Chọn ngày và giờ')),
-          body: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                widget.salon.name,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Thợ: $barberName',
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Thời gian dịch vụ: '
-                '$_totalDuration phút',
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Chọn ngày',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 82,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _availableDates.length,
-                  separatorBuilder: (context, index) {
-                    return const SizedBox(width: 10);
-                  },
-                  itemBuilder: (context, index) {
-                    final DateTime date = _availableDates[index];
-
-                    final bool isSelected =
-                        _selectedDate != null &&
-                        _isSameDate(_selectedDate!, date);
-
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        _selectDate(date);
-                      },
-                      child: Container(
-                        width: 76,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF1E3A5F)
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _weekdayName(date),
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black,
-                              ),
+          backgroundColor: _ink,
+          body: SafeArea(
+            child: Column(
+              children: [
+                _header(),
+                _stepper(),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wide = constraints.maxWidth >= 1050;
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1500),
+                              child: wide
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: _schedulePanel(
+                                            snapshot,
+                                            bookedSlotsByBarber,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        SizedBox(
+                                          width: 350,
+                                          child: _summaryPanel(
+                                            barberName,
+                                            selectedTimeUnavailable,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                        _schedulePanel(
+                                          snapshot,
+                                          bookedSlotsByBarber,
+                                        ),
+                                        const SizedBox(height: 14),
+                                        _summaryPanel(
+                                          barberName,
+                                          selectedTimeUnavailable,
+                                        ),
+                                      ],
+                                    ),
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${date.day.toString().padLeft(2, '0')}/'
-                              '${date.month.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isSelected ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (_selectedDate != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'Ngày đã chọn: '
-                  '${_formatDate(_selectedDate!)}',
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ],
-              const SizedBox(height: 28),
-              const Text(
-                'Chọn giờ',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.useAnyBarber
-                    ? 'Giờ màu xám là thời điểm tất cả '
-                          '${_salonBarbers.length} thợ đều bận.'
-                    : 'Giờ màu xám là thời gian '
-                          'thợ đã bận.',
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-              const SizedBox(height: 14),
-              if (snapshot.connectionState == ConnectionState.waiting)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (snapshot.hasError)
-                Card(
-                  color: Colors.red.shade50,
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Không thể tải lịch bận của thợ. '
-                      'Vui lòng kiểm tra kết nối.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              else
-                _buildTimeSlots(bookedSlotsByBarber),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 20,
-                runSpacing: 8,
-                children: [
-                  _buildLegend(
-                    color: const Color(0xFF1E3A5F),
-                    label: 'Đang chọn',
-                  ),
-                  _buildLegend(
-                    color: Colors.grey.shade300,
-                    label: 'Không khả dụng',
-                  ),
-                ],
-              ),
-            ],
-          ),
-          bottomNavigationBar: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                height: 52,
-                child: FilledButton(
-                  onPressed: _selectedTime == null || selectedTimeUnavailable
-                      ? null
-                      : _continueToConfirmation,
-                  child: const Text(
-                    'Tiếp tục xác nhận',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
             ),
           ),
         );
@@ -468,95 +382,577 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     );
   }
 
-  Widget _buildTimeSlots(Map<String, List<DateTime>> bookedSlotsByBarber) {
+  Widget _header() {
+    return Container(
+      height: 67,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF081A30),
+        border: Border(bottom: BorderSide(color: Color(0x44F4C567))),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Quay lại',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 6),
+          const Icon(Icons.calendar_month_rounded, color: _gold, size: 29),
+          const SizedBox(width: 11),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Chọn ngày và giờ',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  'Bước 4/4 • Hoàn tất lịch hẹn',
+                  style: TextStyle(color: _muted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepper() {
+    const steps = [
+      (Icons.storefront_rounded, 'Chi nhánh'),
+      (Icons.content_cut_rounded, 'Dịch vụ'),
+      (Icons.person_rounded, 'Nhân viên'),
+      (Icons.schedule_rounded, 'Ngày giờ'),
+    ];
+    return SizedBox(
+      height: 68,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        scrollDirection: Axis.horizontal,
+        itemCount: steps.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final active = index == steps.length - 1;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: active ? _gold : _field,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: active ? _gold : const Color(0x445D7390),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  active ? steps[index].$1 : Icons.check_circle_rounded,
+                  size: 18,
+                  color: active ? _ink : _gold,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  steps[index].$2,
+                  style: TextStyle(
+                    color: active ? _ink : Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _schedulePanel(
+    AsyncSnapshot<Map<String, List<DateTime>>> snapshot,
+    Map<String, List<DateTime>> bookedSlotsByBarber,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle(
+            icon: Icons.calendar_today_rounded,
+            title: 'Chọn ngày',
+            subtitle: 'Chọn ngày phù hợp với lịch của bạn',
+          ),
+          const SizedBox(height: 15),
+          _datePicker(),
+          if (_selectedDate != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Ngày đã chọn: ${_formatDate(_selectedDate!)}',
+              style: const TextStyle(color: _muted),
+            ),
+          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 19),
+            child: Divider(color: Color(0x445D7390)),
+          ),
+          const _SectionTitle(
+            icon: Icons.schedule_rounded,
+            title: 'Chọn giờ',
+            subtitle: 'Giờ màu xám là thời gian nhân viên đã bận',
+          ),
+          const SizedBox(height: 15),
+          if (snapshot.connectionState == ConnectionState.waiting)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(color: _gold),
+              ),
+            )
+          else if (snapshot.hasError)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0x22FF5252),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Text(
+                'Không thể tải lịch bận. Vui lòng kiểm tra kết nối.',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            )
+          else
+            _buildTimeGroups(bookedSlotsByBarber),
+        ],
+      ),
+    );
+  }
+
+  Widget _datePicker() {
+    return SizedBox(
+      height: 106,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _availableDates.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final date = _availableDates[index];
+          final selected =
+              _selectedDate != null && _isSameDate(_selectedDate!, date);
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _selectDate(date),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 100,
+              decoration: BoxDecoration(
+                color: selected ? _gold : _field,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? _gold : const Color(0x445D7390),
+                ),
+                boxShadow: selected
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x44F4C567),
+                          blurRadius: 15,
+                          offset: Offset(0, 5),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _weekdayName(date),
+                    style: TextStyle(color: selected ? _ink : _muted),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    '${date.day.toString().padLeft(2, '0')}/'
+                    '${date.month.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      color: selected ? _ink : Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTimeGroups(
+    Map<String, List<DateTime>> bookedSlotsByBarber,
+  ) {
+    final morning = <String>[];
+    final afternoon = <String>[];
+    final evening = <String>[];
+    for (final time in _availableTimeSlots) {
+      final minutes = _minutesFromClock(time);
+      if (minutes < 12 * 60 + 30) {
+        morning.add(time);
+      } else if (minutes < 17 * 60 + 30) {
+        afternoon.add(time);
+      } else {
+        evening.add(time);
+      }
+    }
+    final suggested = _availableTimeSlots.cast<String?>().firstWhere(
+          (time) =>
+              time != null &&
+              !_isUnavailableTime(time, bookedSlotsByBarber),
+          orElse: () => null,
+        );
+    return Column(
+      children: [
+        _timeGroup(
+          icon: Icons.wb_sunny_rounded,
+          title: 'Buổi sáng',
+          range: '07:00 – 12:00',
+          times: morning,
+          suggestedTime: suggested,
+          bookedSlotsByBarber: bookedSlotsByBarber,
+        ),
+        const SizedBox(height: 12),
+        _timeGroup(
+          icon: Icons.wb_twilight_rounded,
+          title: 'Buổi chiều',
+          range: '12:30 – 17:00',
+          times: afternoon,
+          suggestedTime: suggested,
+          bookedSlotsByBarber: bookedSlotsByBarber,
+        ),
+        if (evening.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _timeGroup(
+            icon: Icons.nightlight_round,
+            title: 'Buổi tối',
+            range: '17:30 – ${widget.salon.closingTime}',
+            times: evening,
+            suggestedTime: suggested,
+            bookedSlotsByBarber: bookedSlotsByBarber,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _timeGroup({
+    required IconData icon,
+    required String title,
+    required String range,
+    required List<String> times,
+    required String? suggestedTime,
+    required Map<String, List<DateTime>> bookedSlotsByBarber,
+  }) {
+    if (times.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
-        int columnCount = 3;
-
-        if (constraints.maxWidth >= 900) {
-          columnCount = 6;
-        } else if (constraints.maxWidth >= 600) {
-          columnCount = 5;
-        } else if (constraints.maxWidth >= 400) {
-          columnCount = 4;
-        }
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _availableTimeSlots.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columnCount,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 2.2,
+        final columns = constraints.maxWidth >= 820
+            ? 6
+            : constraints.maxWidth >= 560
+                ? 4
+                : 3;
+        return Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: const Color(0xAA0B1D32),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x335D7390)),
           ),
-          itemBuilder: (context, index) {
-            final String time = _availableTimeSlots[index];
-
-            final bool isSelected = _selectedTime == time;
-
-            final bool isUnavailable = _isUnavailableTime(
-              time,
-              bookedSlotsByBarber,
-            );
-
-            return InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                _selectTime(time, isUnavailable);
-              },
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isUnavailable
-                      ? Colors.grey.shade200
-                      : isSelected
-                      ? const Color(0xFF1E3A5F)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF1E3A5F)
-                        : Colors.grey.shade400,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: _gold, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                child: Text(
-                  time,
-                  style: TextStyle(
-                    color: isUnavailable
-                        ? Colors.grey
-                        : isSelected
-                        ? Colors.white
-                        : Colors.black,
-                    fontWeight: FontWeight.w600,
-                    decoration: isUnavailable
-                        ? TextDecoration.lineThrough
-                        : null,
-                  ),
-                ),
+                  const SizedBox(width: 6),
+                  Text(range, style: const TextStyle(color: _muted)),
+                ],
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: times.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 9,
+                  mainAxisSpacing: 9,
+                  childAspectRatio: 2.25,
+                ),
+                itemBuilder: (context, index) {
+                  final time = times[index];
+                  final selected = _selectedTime == time;
+                  final unavailable = _isUnavailableTime(
+                    time,
+                    bookedSlotsByBarber,
+                  );
+                  final suggested = time == suggestedTime;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _selectTime(time, unavailable),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: unavailable
+                            ? const Color(0xFF263647)
+                            : selected
+                                ? _gold
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? _gold
+                              : suggested && !unavailable
+                                  ? _gold
+                                  : const Color(0x66798AA0),
+                          width: selected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (unavailable)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 5),
+                              child: Icon(
+                                Icons.lock_rounded,
+                                color: _muted,
+                                size: 14,
+                              ),
+                            )
+                          else if (suggested)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 5),
+                              child: Icon(
+                                Icons.workspace_premium_rounded,
+                                color: _gold,
+                                size: 15,
+                              ),
+                            ),
+                          Text(
+                            time,
+                            style: TextStyle(
+                              color: unavailable
+                                  ? _muted
+                                  : selected
+                                      ? _ink
+                                      : Colors.white,
+                              fontWeight: FontWeight.w800,
+                              decoration: unavailable
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildLegend({required Color color, required String label}) {
+  Widget _summaryPanel(String barberName, bool selectedTimeUnavailable) {
+    final services = widget.selectedServices.map((service) => service.name).join(', ');
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.assignment_rounded, color: _gold),
+              SizedBox(width: 9),
+              Text(
+                'Thông tin đặt lịch',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _summaryRow(Icons.storefront_rounded, 'Chi nhánh', widget.salon.name),
+          _summaryRow(Icons.person_rounded, 'Nhân viên', barberName),
+          _summaryRow(Icons.content_cut_rounded, 'Dịch vụ', services),
+          _summaryRow(
+            Icons.timelapse_rounded,
+            'Thời gian dịch vụ',
+            '$_totalDuration phút',
+          ),
+          _summaryRow(
+            Icons.calendar_month_rounded,
+            'Ngày hẹn',
+            _selectedDate == null ? 'Chưa chọn' : _formatDate(_selectedDate!),
+          ),
+          _summaryRow(
+            Icons.schedule_rounded,
+            'Giờ hẹn',
+            _selectedTime ?? 'Chưa chọn',
+          ),
+          const Divider(color: Color(0x445D7390), height: 28),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Tổng giá dịch vụ',
+                  style: TextStyle(color: _muted),
+                ),
+              ),
+              Text(
+                _formatPrice(_totalPrice),
+                style: const TextStyle(
+                  color: _gold,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: FilledButton.icon(
+              onPressed: _selectedTime == null || selectedTimeUnavailable
+                  ? null
+                  : _continueToConfirmation,
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+                disabledBackgroundColor: const Color(0xFF263647),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: const Text(
+                'Tiếp tục xác nhận',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: _gold, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _panelDecoration() {
+    return BoxDecoration(
+      color: _panel,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: const Color(0x445D7390)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x33000000),
+          blurRadius: 18,
+          offset: Offset(0, 8),
+        ),
+      ],
+    );
+  }
+
+  String _formatPrice(int price) => '${price ~/ 1000}.000đ';
+}
+
+class _SectionTitle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _SectionTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
+        Icon(icon, color: _DateTimeSelectionScreenState._gold, size: 25),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: _DateTimeSelectionScreenState._muted,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 6),
-        Text(label),
       ],
     );
   }
