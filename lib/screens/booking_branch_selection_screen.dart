@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/salon.dart';
-import 'service_selection_screen.dart';
+import 'salon_detail_screen.dart';
 
 class BookingBranchSelectionScreen extends StatelessWidget {
   final List<Salon> salons;
@@ -19,7 +19,7 @@ class BookingBranchSelectionScreen extends StatelessWidget {
   void _selectSalon(BuildContext context, Salon salon) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ServiceSelectionScreen(salon: salon),
+        builder: (_) => SalonDetailScreen(salon: salon),
       ),
     );
   }
@@ -65,7 +65,7 @@ class BookingBranchSelectionScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 7),
                           const Text(
-                            'Sau khi chọn chi nhánh, bạn sẽ tiếp tục chọn dịch vụ và nhân viên.',
+                            'Chọn một chi nhánh để xem thông tin, dịch vụ, nhân viên và đánh giá.',
                             style: TextStyle(color: _muted, height: 1.45),
                           ),
                           const SizedBox(height: 20),
@@ -126,7 +126,7 @@ class BookingBranchSelectionScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Bước 1/4 • Tiếp theo: chọn dịch vụ',
+                  'Bước 1/4 • Tiếp theo: thông tin chi nhánh',
                   style: TextStyle(color: _muted, fontSize: 13),
                 ),
               ],
