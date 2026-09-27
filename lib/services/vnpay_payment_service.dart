@@ -19,15 +19,14 @@ class VnpayPaymentService {
   final String apiBaseUrl;
   final http.Client _client;
 
-  VnpayPaymentService({
-    String? apiBaseUrl,
-    http.Client? client,
-  })  : apiBaseUrl = apiBaseUrl ??
-            const String.fromEnvironment(
-              'VNPAY_API_BASE_URL',
-              defaultValue: _defaultApiBaseUrl,
-            ),
-        _client = client ?? http.Client();
+  VnpayPaymentService({String? apiBaseUrl, http.Client? client})
+    : apiBaseUrl =
+          apiBaseUrl ??
+          const String.fromEnvironment(
+            'VNPAY_API_BASE_URL',
+            defaultValue: _defaultApiBaseUrl,
+          ),
+      _client = client ?? http.Client();
 
   Future<Uri> createPaymentUrl({
     required String bookingId,
@@ -60,8 +59,7 @@ class VnpayPaymentService {
 
     if (response.statusCode != 200) {
       throw VnpayPaymentException(
-        result['message']?.toString() ??
-            'Không thể tạo giao dịch VNPAY.',
+        result['message']?.toString() ?? 'Không thể tạo giao dịch VNPAY.',
       );
     }
 

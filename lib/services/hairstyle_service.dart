@@ -6,11 +6,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/hairstyle.dart';
 
 class HairstyleService {
-  HairstyleService({
-    FirebaseFirestore? firestore,
-    FirebaseStorage? storage,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  HairstyleService({FirebaseFirestore? firestore, FirebaseStorage? storage})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
@@ -124,13 +122,11 @@ class HairstyleService {
     });
   }
 
-  Future<(String, String)> _upload(
-    Uint8List bytes,
-    String originalName,
-  ) async {
-    final safeName = originalName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9._-]'), '_');
+  Future<(String, String)> _upload(Uint8List bytes, String originalName) async {
+    final safeName = originalName.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9._-]'),
+      '_',
+    );
     final path =
         'hairstyles/${DateTime.now().microsecondsSinceEpoch}_$safeName';
     final ref = _storage.ref(path);

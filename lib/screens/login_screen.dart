@@ -86,8 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
           message = 'Email hoặc mật khẩu không chính xác.';
           break;
         case 'too-many-requests':
-          message =
-              'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.';
+          message = 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.';
           break;
         case 'network-request-failed':
           message = 'Không có kết nối mạng.';
@@ -97,10 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } catch (error) {
       if (!mounted) {
@@ -124,9 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _openRegisterScreen() async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => const RegisterScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (context) => const RegisterScreen()),
     );
   }
 
@@ -141,9 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (dialogContext) {
         void submit() {
           if (dialogFormKey.currentState!.validate()) {
-            Navigator.of(dialogContext).pop(
-              resetEmailController.text.trim(),
-            );
+            Navigator.of(dialogContext).pop(resetEmailController.text.trim());
           }
         }
 
@@ -153,11 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(28),
             side: const BorderSide(color: Color(0x66F6C768)),
           ),
-          icon: const Icon(
-            Icons.lock_reset_rounded,
-            color: _gold,
-            size: 48,
-          ),
+          icon: const Icon(Icons.lock_reset_rounded, color: _gold, size: 48),
           title: const Text(
             'Lấy lại mật khẩu',
             textAlign: TextAlign.center,
@@ -283,10 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
   }
@@ -492,7 +477,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                             icon: Icon(
                                               _obscurePassword
                                                   ? Icons.visibility_rounded
-                                                  : Icons.visibility_off_rounded,
+                                                  : Icons
+                                                        .visibility_off_rounded,
                                               color: _muted,
                                             ),
                                           ),
@@ -523,8 +509,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       SizedBox(
                                         height: 58,
                                         child: FilledButton(
-                                          onPressed:
-                                              _isLoading ? null : _login,
+                                          onPressed: _isLoading ? null : _login,
                                           style: FilledButton.styleFrom(
                                             backgroundColor: _gold,
                                             foregroundColor: _ink,
@@ -547,9 +532,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     height: 22,
                                                     child:
                                                         CircularProgressIndicator(
-                                                      strokeWidth: 2.4,
-                                                      color: _ink,
-                                                    ),
+                                                          strokeWidth: 2.4,
+                                                          color: _ink,
+                                                        ),
                                                   )
                                                 : const Row(
                                                     key: ValueKey('label'),
@@ -566,7 +551,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                       ),
                                                       SizedBox(width: 10),
                                                       Icon(
-                                                        Icons.arrow_forward_rounded,
+                                                        Icons
+                                                            .arrow_forward_rounded,
                                                       ),
                                                     ],
                                                   ),
@@ -635,10 +621,7 @@ class _BrandHeader extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0x99F6C768)),
             boxShadow: const [
-              BoxShadow(
-                color: Color(0x40F6C768),
-                blurRadius: 24,
-              ),
+              BoxShadow(color: Color(0x40F6C768), blurRadius: 24),
             ],
           ),
           child: const Icon(

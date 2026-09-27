@@ -64,9 +64,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openAdminBookingScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminBookingScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminBookingScreen()));
   }
 
   void _openAdminHairstyleScreen(BuildContext context) {
@@ -82,9 +82,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openNotifications(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const NotificationScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const NotificationScreen()));
   }
 
   void _openHairstyleGallery(BuildContext context) {
@@ -94,9 +94,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openMap(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SalonMapScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SalonMapScreen()));
   }
 
   void _openSalon(BuildContext context, Salon salon) {
@@ -153,21 +153,30 @@ class HomeScreen extends StatelessWidget {
               value: 'bookings',
               child: ListTile(
                 leading: Icon(Icons.calendar_month_outlined, color: _gold),
-                title: Text('Quản lý lịch hẹn', style: TextStyle(color: Colors.white)),
+                title: Text(
+                  'Quản lý lịch hẹn',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
             PopupMenuItem(
               value: 'hairstyles',
               child: ListTile(
                 leading: Icon(Icons.photo_library_outlined, color: _gold),
-                title: Text('Quản lý mẫu tóc', style: TextStyle(color: Colors.white)),
+                title: Text(
+                  'Quản lý mẫu tóc',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
             PopupMenuItem(
               value: 'notifications',
               child: ListTile(
                 leading: Icon(Icons.campaign_outlined, color: _gold),
-                title: Text('Quản lý thông báo', style: TextStyle(color: Colors.white)),
+                title: Text(
+                  'Quản lý thông báo',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -212,12 +221,7 @@ class HomeScreen extends StatelessWidget {
       color: _ink,
       child: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _buildHeader(context),
-            _buildHero(context),
-          ],
-        ),
+        child: Column(children: [_buildHeader(context), _buildHero(context)]),
       ),
     );
   }
@@ -329,11 +333,24 @@ class HomeScreen extends StatelessWidget {
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: wide
-                    ? const [Color(0xF5090E14), Color(0xB0090E14), Color(0x08090E14)]
-                    : const [Color(0xF2090E14), Color(0xB8090E14), Color(0x44090E14)],
+                    ? const [
+                        Color(0xF5090E14),
+                        Color(0xB0090E14),
+                        Color(0x08090E14),
+                      ]
+                    : const [
+                        Color(0xF2090E14),
+                        Color(0xB8090E14),
+                        Color(0x44090E14),
+                      ],
               ),
             ),
-            padding: EdgeInsets.fromLTRB(wide ? 64 : 22, 34, wide ? 64 : 22, 30),
+            padding: EdgeInsets.fromLTRB(
+              wide ? 64 : 22,
+              34,
+              wide ? 64 : 22,
+              30,
+            ),
             child: Align(
               alignment: wide ? Alignment.centerLeft : Alignment.bottomLeft,
               child: ConstrainedBox(
@@ -365,7 +382,11 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     const Text(
                       'Đặt lịch cùng stylist phù hợp và khám phá diện mạo dành riêng cho bạn.',
-                      style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     Wrap(
@@ -376,25 +397,43 @@ class HomeScreen extends StatelessWidget {
                           onPressed: sampleSalons.isEmpty
                               ? null
                               : () => _openSalon(context, sampleSalons.first),
-                          icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                          icon: const Icon(
+                            Icons.calendar_month_rounded,
+                            size: 20,
+                          ),
                           label: const Text('ĐẶT LỊCH NGAY'),
                           style: FilledButton.styleFrom(
                             backgroundColor: _gold,
                             foregroundColor: _ink,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-                            textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 18,
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _openHairstyleGallery(context),
-                          icon: const Icon(Icons.auto_awesome_rounded, size: 19),
+                          icon: const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 19,
+                          ),
                           label: const Text('XEM KIỂU TÓC'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white54),
-                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 22,
+                              vertical: 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ],
@@ -456,7 +495,8 @@ class HomeScreen extends StatelessWidget {
                             styles[index].detail,
                           ),
                         ),
-                        if (index != styles.length - 1) const SizedBox(width: 14),
+                        if (index != styles.length - 1)
+                          const SizedBox(width: 14),
                       ],
                     ],
                   ),
@@ -485,7 +525,11 @@ class HomeScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(image: AssetImage(image), fit: BoxFit.cover),
             boxShadow: const [
-              BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 8)),
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
             ],
           ),
           child: Container(
@@ -513,7 +557,10 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(detail, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(
+                  detail,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -553,7 +600,10 @@ class HomeScreen extends StatelessWidget {
                     ? null
                     : () => _openQuickBooking(context, service.$2),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -571,7 +621,10 @@ class HomeScreen extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 2),
-                          Text(service.$3, style: const TextStyle(color: Color(0xFF9B6B24))),
+                          Text(
+                            service.$3,
+                            style: const TextStyle(color: Color(0xFF9B6B24)),
+                          ),
                         ],
                       ),
                     ],
@@ -657,13 +710,19 @@ class HomeScreen extends StatelessWidget {
             color: _panel,
             borderRadius: BorderRadius.circular(20),
             boxShadow: const [
-              BoxShadow(color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 7)),
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 16,
+                offset: Offset(0, 7),
+              ),
             ],
           ),
           child: Row(
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(20),
+                ),
                 child: Image.asset(
                   'assets/images/login_barbershop_background.jpg',
                   width: 132,
@@ -681,18 +740,36 @@ class HomeScreen extends StatelessWidget {
                         salon.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 7),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, size: 18, color: _gold),
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 18,
+                            color: _gold,
+                          ),
                           const SizedBox(width: 4),
-                          Text('${salon.rating}', style: const TextStyle(color: Colors.white)),
+                          Text(
+                            '${salon.rating}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
                           const SizedBox(width: 12),
-                          const Icon(Icons.location_on_outlined, size: 17, color: _muted),
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 17,
+                            color: _muted,
+                          ),
                           const SizedBox(width: 3),
-                          Text('${salon.distance} km', style: const TextStyle(color: _muted)),
+                          Text(
+                            '${salon.distance} km',
+                            style: const TextStyle(color: _muted),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -705,9 +782,19 @@ class HomeScreen extends StatelessWidget {
                       const Spacer(),
                       const Row(
                         children: [
-                          Text('Xem salon', style: TextStyle(color: _gold, fontWeight: FontWeight.w800)),
+                          Text(
+                            'Xem salon',
+                            style: TextStyle(
+                              color: _gold,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                           SizedBox(width: 5),
-                          Icon(Icons.arrow_forward_rounded, size: 18, color: _gold),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: _gold,
+                          ),
                         ],
                       ),
                     ],
@@ -744,7 +831,14 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(name, style: const TextStyle(color: _gold, fontSize: 23, fontWeight: FontWeight.w900)),
+            Text(
+              name,
+              style: const TextStyle(
+                color: _gold,
+                fontSize: 23,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(detail, style: const TextStyle(color: _muted, height: 1.5)),
             const SizedBox(height: 18),
@@ -761,7 +855,10 @@ class HomeScreen extends StatelessWidget {
                           selectedHairstyle: selectedHairstyle,
                         );
                       },
-                style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _ink,
+                ),
                 child: const Text('Đặt lịch với kiểu tóc này'),
               ),
             ),

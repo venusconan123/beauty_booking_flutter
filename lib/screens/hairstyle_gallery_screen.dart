@@ -251,7 +251,10 @@ class _StyleCard extends StatelessWidget {
                         hairstyle.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white70, height: 1.35),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          height: 1.35,
+                        ),
                       ),
                     ],
                   ),
@@ -272,7 +275,11 @@ Widget _hairstyleImage(Hairstyle hairstyle) {
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => const ColoredBox(
         color: Color(0xFF202A35),
-        child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48),
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: Colors.white54,
+          size: 48,
+        ),
       ),
     );
   }

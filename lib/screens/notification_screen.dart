@@ -28,9 +28,15 @@ class NotificationScreen extends StatelessWidget {
   (IconData, Color) _appearance(String type) {
     return switch (type) {
       'promotion' => (Icons.local_offer_rounded, const Color(0xFFFFB648)),
-      'booking_confirmed' => (Icons.event_available_rounded, const Color(0xFF59D38C)),
+      'booking_confirmed' => (
+        Icons.event_available_rounded,
+        const Color(0xFF59D38C),
+      ),
       'booking_completed' => (Icons.task_alt_rounded, const Color(0xFF63B3FF)),
-      'booking_cancelled' => (Icons.event_busy_rounded, const Color(0xFFFF6B6B)),
+      'booking_cancelled' => (
+        Icons.event_busy_rounded,
+        const Color(0xFFFF6B6B),
+      ),
       'payment_confirmed' => (Icons.verified_rounded, const Color(0xFF59D38C)),
       _ => (Icons.notifications_active_rounded, _gold),
     };
@@ -43,14 +49,17 @@ class NotificationScreen extends StatelessWidget {
       return const Scaffold(
         backgroundColor: _ink,
         body: Center(
-          child: Text('Bạn cần đăng nhập để xem thông báo.',
-              style: TextStyle(color: Colors.white)),
+          child: Text(
+            'Bạn cần đăng nhập để xem thông báo.',
+            style: TextStyle(color: Colors.white),
+          ),
         ),
       );
     }
 
-    final announcements =
-        FirebaseFirestore.instance.collection('announcements').snapshots();
+    final announcements = FirebaseFirestore.instance
+        .collection('announcements')
+        .snapshots();
     final personal = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -62,8 +71,10 @@ class NotificationScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B1420),
         foregroundColor: Colors.white,
-        title: const Text('Thông báo',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Thông báo',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
           child: Divider(height: 1, color: Color(0x33F6C768)),
@@ -72,8 +83,10 @@ class NotificationScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/login_barbershop_background.jpg',
-              fit: BoxFit.cover),
+          Image.asset(
+            'assets/images/login_barbershop_background.jpg',
+            fit: BoxFit.cover,
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -94,10 +107,10 @@ class NotificationScreen extends StatelessWidget {
                       personalSnapshot.connectionState ==
                           ConnectionState.waiting) {
                     return const Center(
-                        child: CircularProgressIndicator(color: _gold));
+                      child: CircularProgressIndicator(color: _gold),
+                    );
                   }
-                  final notices =
-                      <({String id, Map<String, dynamic> data})>[
+                  final notices = <({String id, Map<String, dynamic> data})>[
                     ...?announcementSnapshot.data?.docs.map(
                       (doc) => (id: doc.id, data: doc.data()),
                     ),
@@ -105,8 +118,9 @@ class NotificationScreen extends StatelessWidget {
                       (doc) => (id: doc.id, data: doc.data()),
                     ),
                   ];
-                  notices.sort((a, b) =>
-                      _dateOf(b.data).compareTo(_dateOf(a.data)));
+                  notices.sort(
+                    (a, b) => _dateOf(b.data).compareTo(_dateOf(a.data)),
+                  );
                   if (notices.isEmpty) {
                     return const Center(
                       child: Padding(
@@ -114,14 +128,20 @@ class NotificationScreen extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.notifications_none_rounded,
-                                size: 64, color: _gold),
+                            Icon(
+                              Icons.notifications_none_rounded,
+                              size: 64,
+                              color: _gold,
+                            ),
                             SizedBox(height: 14),
-                            Text('Chưa có thông báo',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800)),
+                            Text(
+                              'Chưa có thông báo',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             SizedBox(height: 6),
                             Text(
                               'Ưu đãi và cập nhật lịch hẹn sẽ xuất hiện tại đây.',
@@ -139,22 +159,20 @@ class NotificationScreen extends StatelessWidget {
                       child: ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: notices.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final data = notices[index].data;
-                          final type =
-                              data['type']?.toString() ?? 'general';
+                          final type = data['type']?.toString() ?? 'general';
                           final appearance = _appearance(type);
-                          final salonName =
-                              data['salonName']?.toString() ?? '';
+                          final salonName = data['salonName']?.toString() ?? '';
                           return Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: _surface,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: appearance.$2.withAlpha(95)),
+                                color: appearance.$2.withAlpha(95),
+                              ),
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,8 +184,10 @@ class NotificationScreen extends StatelessWidget {
                                     color: appearance.$2.withAlpha(28),
                                     borderRadius: BorderRadius.circular(15),
                                   ),
-                                  child: Icon(appearance.$1,
-                                      color: appearance.$2),
+                                  child: Icon(
+                                    appearance.$1,
+                                    color: appearance.$2,
+                                  ),
                                 ),
                                 const SizedBox(width: 13),
                                 Expanded(
@@ -186,23 +206,29 @@ class NotificationScreen extends StatelessWidget {
                                       ),
                                       if (salonName.isNotEmpty) ...[
                                         const SizedBox(height: 4),
-                                        Text(salonName,
-                                            style: TextStyle(
-                                                color: appearance.$2,
-                                                fontWeight: FontWeight.w700)),
+                                        Text(
+                                          salonName,
+                                          style: TextStyle(
+                                            color: appearance.$2,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                       ],
                                       const SizedBox(height: 7),
                                       Text(
                                         data['message']?.toString() ?? '',
                                         style: const TextStyle(
-                                            color: _muted, height: 1.45),
+                                          color: _muted,
+                                          height: 1.45,
+                                        ),
                                       ),
                                       const SizedBox(height: 9),
                                       Text(
                                         _relativeTime(_dateOf(data)),
                                         style: const TextStyle(
-                                            color: Color(0xFF8792A2),
-                                            fontSize: 12),
+                                          color: Color(0xFF8792A2),
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -223,4 +249,3 @@ class NotificationScreen extends StatelessWidget {
     );
   }
 }
-

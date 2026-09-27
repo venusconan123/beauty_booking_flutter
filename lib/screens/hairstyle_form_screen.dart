@@ -95,9 +95,9 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể lưu mẫu tóc: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể lưu mẫu tóc: $error')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -139,7 +139,8 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
                           prefixIcon: Icon(Icons.content_cut_rounded),
                           border: OutlineInputBorder(),
                         ),
-                        validator: (value) => value == null || value.trim().isEmpty
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
                             ? 'Vui lòng nhập tên kiểu tóc.'
                             : null,
                       ),
@@ -154,7 +155,8 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
                           prefixIcon: Icon(Icons.notes_rounded),
                           border: OutlineInputBorder(),
                         ),
-                        validator: (value) => value == null || value.trim().isEmpty
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
                             ? 'Vui lòng nhập mô tả.'
                             : null,
                       ),
@@ -178,7 +180,9 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
                         icon: _saving
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.save_rounded),
                         label: Text(_saving ? 'ĐANG LƯU...' : 'LƯU MẪU TÓC'),
@@ -186,7 +190,9 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
                           backgroundColor: _gold,
                           foregroundColor: _ink,
                           padding: const EdgeInsets.symmetric(vertical: 17),
-                          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
@@ -217,7 +223,10 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
             children: [
               Icon(Icons.add_photo_alternate_outlined, color: _gold, size: 54),
               SizedBox(height: 8),
-              Text('Chọn ảnh từ thiết bị', style: TextStyle(color: Colors.white70)),
+              Text(
+                'Chọn ảnh từ thiết bị',
+                style: TextStyle(color: Colors.white70),
+              ),
             ],
           ),
         ),

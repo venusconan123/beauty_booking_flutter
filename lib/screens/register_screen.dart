@@ -50,11 +50,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       await credential.user?.updateDisplayName(_nameController.text.trim());
 
@@ -128,10 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } catch (error) {
       if (!mounted) {
@@ -288,10 +285,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             tooltip: 'Quay lại đăng nhập',
                                             onPressed: _isLoading
                                                 ? null
-                                                : () => Navigator.of(context).pop(),
+                                                : () => Navigator.of(
+                                                    context,
+                                                  ).pop(),
                                             style: IconButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0x1AF6C768),
+                                              backgroundColor: const Color(
+                                                0x1AF6C768,
+                                              ),
                                               foregroundColor: _gold,
                                             ),
                                             icon: const Icon(
@@ -331,7 +331,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       TextFormField(
                                         controller: _nameController,
                                         textInputAction: TextInputAction.next,
-                                        autofillHints: const [AutofillHints.name],
+                                        autofillHints: const [
+                                          AutofillHints.name,
+                                        ],
                                         cursorColor: _gold,
                                         style: const TextStyle(
                                           color: Colors.white,
@@ -420,8 +422,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                       const SizedBox(height: 16),
                                       TextFormField(
-                                        controller:
-                                            _confirmPasswordController,
+                                        controller: _confirmPasswordController,
                                         obscureText: _obscureConfirmPassword,
                                         textInputAction: TextInputAction.done,
                                         autofillHints: const [
@@ -465,8 +466,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       SizedBox(
                                         height: 58,
                                         child: FilledButton(
-                                          onPressed:
-                                              _isLoading ? null : _register,
+                                          onPressed: _isLoading
+                                              ? null
+                                              : _register,
                                           style: FilledButton.styleFrom(
                                             backgroundColor: _gold,
                                             foregroundColor: _ink,
@@ -489,9 +491,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                     height: 22,
                                                     child:
                                                         CircularProgressIndicator(
-                                                      strokeWidth: 2.4,
-                                                      color: _ink,
-                                                    ),
+                                                          strokeWidth: 2.4,
+                                                          color: _ink,
+                                                        ),
                                                   )
                                                 : const Row(
                                                     key: ValueKey('label'),
@@ -508,7 +510,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                       ),
                                                       SizedBox(width: 10),
                                                       Icon(
-                                                        Icons.person_add_rounded,
+                                                        Icons
+                                                            .person_add_rounded,
                                                       ),
                                                     ],
                                                   ),
@@ -529,7 +532,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           TextButton(
                                             onPressed: _isLoading
                                                 ? null
-                                                : () => Navigator.of(context).pop(),
+                                                : () => Navigator.of(
+                                                    context,
+                                                  ).pop(),
                                             style: TextButton.styleFrom(
                                               foregroundColor: _gold,
                                             ),

@@ -6,10 +6,7 @@ import 'package:beauty_booking_app/screens/barber_selection_screen.dart';
 class ServiceSelectionScreen extends StatefulWidget {
   final Salon salon;
 
-  const ServiceSelectionScreen({
-    super.key,
-    required this.salon,
-  });
+  const ServiceSelectionScreen({super.key, required this.salon});
 
   @override
   State<ServiceSelectionScreen> createState() {
@@ -17,30 +14,19 @@ class ServiceSelectionScreen extends StatefulWidget {
   }
 }
 
-class _ServiceSelectionScreenState
-    extends State<ServiceSelectionScreen> {
+class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
   final Set<String> _selectedServiceIds = {};
 
   int get _totalPrice {
     return widget.salon.services
-        .where(
-          (service) => _selectedServiceIds.contains(service.id),
-        )
-        .fold(
-          0,
-          (total, service) => total + service.price,
-        );
+        .where((service) => _selectedServiceIds.contains(service.id))
+        .fold(0, (total, service) => total + service.price);
   }
 
   int get _totalDuration {
     return widget.salon.services
-        .where(
-          (service) => _selectedServiceIds.contains(service.id),
-        )
-        .fold(
-          0,
-          (total, service) => total + service.durationMinutes,
-        );
+        .where((service) => _selectedServiceIds.contains(service.id))
+        .fold(0, (total, service) => total + service.durationMinutes);
   }
 
   void _toggleService(String serviceId) {
@@ -60,9 +46,7 @@ class _ServiceSelectionScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chọn dịch vụ'),
-      ),
+      appBar: AppBar(title: const Text('Chọn dịch vụ')),
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: widget.salon.services.length,
@@ -72,13 +56,10 @@ class _ServiceSelectionScreenState
         itemBuilder: (context, index) {
           final service = widget.salon.services[index];
 
-          final bool isSelected =
-              _selectedServiceIds.contains(service.id);
+          final bool isSelected = _selectedServiceIds.contains(service.id);
 
           return Card(
-            color: isSelected
-                ? const Color(0xFFE8F0FE)
-                : null,
+            color: isSelected ? const Color(0xFFE8F0FE) : null,
             child: CheckboxListTile(
               value: isSelected,
               onChanged: (value) {
@@ -90,16 +71,12 @@ class _ServiceSelectionScreenState
                     : Colors.grey.shade200,
                 child: Icon(
                   Icons.content_cut,
-                  color: isSelected
-                      ? Colors.white
-                      : const Color(0xFF1E3A5F),
+                  color: isSelected ? Colors.white : const Color(0xFF1E3A5F),
                 ),
               ),
               title: Text(
                 service.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -110,8 +87,7 @@ class _ServiceSelectionScreenState
                 ),
               ),
               isThreeLine: true,
-              controlAffinity:
-                  ListTileControlAffinity.trailing,
+              controlAffinity: ListTileControlAffinity.trailing,
             ),
           );
         },
@@ -156,9 +132,7 @@ class _ServiceSelectionScreenState
                   const Spacer(),
                   Text(
                     '$_totalDuration phút',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -170,23 +144,23 @@ class _ServiceSelectionScreenState
                   onPressed: _selectedServiceIds.isEmpty
                       ? null
                       : () {
-                         final selectedServices = widget.salon.services
-            .where(
-              (service) =>
-                  _selectedServiceIds.contains(service.id),
-            )
-            .toList();
+                          final selectedServices = widget.salon.services
+                              .where(
+                                (service) =>
+                                    _selectedServiceIds.contains(service.id),
+                              )
+                              .toList();
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => BarberSelectionScreen(
-              salon: widget.salon,
-              selectedServices: selectedServices,
-            ),
-          ),
-        );
-      },
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BarberSelectionScreen(
+                                salon: widget.salon,
+                                selectedServices: selectedServices,
+                              ),
+                            ),
+                          );
+                        },
                   child: const Text(
                     'Tiếp tục đặt lịch',
                     style: TextStyle(fontSize: 16),

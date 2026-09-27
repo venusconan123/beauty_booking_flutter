@@ -129,7 +129,5 @@ const List<Barber> sampleBarbers = [
 ];
 
 List<Barber> getBarbersBySalonId(String salonId) {
-  return sampleBarbers
-      .where((barber) => barber.salonId == salonId)
-      .toList();
+  return sampleBarbers.where((barber) => barber.salonId == salonId).toList();
 }

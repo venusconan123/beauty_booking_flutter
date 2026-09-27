@@ -27,7 +27,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
   bool _belongsToSelectedSection(String status) {
     return switch (_selectedSection) {
-      _BookingSection.registered => status == 'pending' || status == 'cancelled',
+      _BookingSection.registered =>
+        status == 'pending' || status == 'cancelled',
       _BookingSection.confirmed => status == 'confirmed',
       _BookingSection.completed => status == 'completed',
     };
@@ -81,8 +82,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _surface,
-        icon: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 46),
-        title: const Text('Hủy lịch hẹn', style: TextStyle(color: Colors.white)),
+        icon: const Icon(
+          Icons.event_busy_rounded,
+          color: Color(0xFFFF6B6B),
+          size: 46,
+        ),
+        title: const Text(
+          'Hủy lịch hẹn',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'Bạn có chắc chắn muốn hủy lịch hẹn này không?',
           textAlign: TextAlign.center,
@@ -94,7 +102,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             child: const Text('Giữ lịch', style: TextStyle(color: _muted)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD94B4B)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD94B4B),
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Hủy lịch'),
           ),
@@ -113,31 +123,44 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     }
 
     try {
-      await BookingService().cancelBooking(bookingId: bookingId, userId: user.uid);
+      await BookingService().cancelBooking(
+        bookingId: bookingId,
+        userId: user.uid,
+      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã hủy lịch hẹn.'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Đã hủy lịch hẹn.'),
+          backgroundColor: Colors.green,
+        ),
       );
     } on FirebaseException catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error.code == 'permission-denied'
-              ? 'Bạn không có quyền hủy lịch này.'
-              : 'Không thể hủy lịch hẹn: ${error.message}'),
+          content: Text(
+            error.code == 'permission-denied'
+                ? 'Bạn không có quyền hủy lịch này.'
+                : 'Không thể hủy lịch hẹn: ${error.message}',
+          ),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _startVnpayPayment(BuildContext context, String bookingId) async {
+  Future<void> _startVnpayPayment(
+    BuildContext context,
+    String bookingId,
+  ) async {
     if (_startingPaymentIds.contains(bookingId)) return;
     setState(() => _startingPaymentIds.add(bookingId));
     try {
       final User? user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw const VnpayPaymentException('Bạn cần đăng nhập trước khi thanh toán.');
+        throw const VnpayPaymentException(
+          'Bạn cần đăng nhập trước khi thanh toán.',
+        );
       }
       final Uri paymentUri = await VnpayPaymentService().createPaymentUrl(
         bookingId: bookingId,
@@ -149,7 +172,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         webOnlyWindowName: '_blank',
       );
       if (!opened) {
-        throw const VnpayPaymentException('Không thể mở cổng thanh toán VNPAY.');
+        throw const VnpayPaymentException(
+          'Không thể mở cổng thanh toán VNPAY.',
+        );
       }
     } on VnpayPaymentException catch (error) {
       if (!context.mounted) return;
@@ -159,7 +184,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể bắt đầu thanh toán: $error'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Không thể bắt đầu thanh toán: $error'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _startingPaymentIds.remove(bookingId));
@@ -183,7 +211,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           backgroundColor: _surface,
           title: Text(
             existingReview == null ? 'Đánh giá trải nghiệm' : 'Sửa đánh giá',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           content: SingleChildScrollView(
             child: SizedBox(
@@ -194,20 +225,28 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                 children: [
                   Text(
                     'Thợ ${booking['barberName'] ?? 'phục vụ'}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   _starSelector(
                     value: barberRating,
-                    onChanged: (value) => setDialogState(() => barberRating = value),
+                    onChanged: (value) =>
+                        setDialogState(() => barberRating = value),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     booking['salonName']?.toString() ?? 'Chi nhánh',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   _starSelector(
                     value: salonRating,
-                    onChanged: (value) => setDialogState(() => salonRating = value),
+                    onChanged: (value) =>
+                        setDialogState(() => salonRating = value),
                   ),
                   const SizedBox(height: 18),
                   TextField(
@@ -220,7 +259,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       labelStyle: const TextStyle(color: _muted),
                       filled: true,
                       fillColor: _field,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(color: Color(0x44F6C768)),
@@ -237,10 +278,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               child: const Text('Để sau', style: TextStyle(color: _muted)),
             ),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+              ),
               onPressed: () => Navigator.of(dialogContext).pop(true),
               icon: const Icon(Icons.send_rounded),
-              label: const Text('Gửi đánh giá', style: TextStyle(fontWeight: FontWeight.w800)),
+              label: const Text(
+                'Gửi đánh giá',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
@@ -254,35 +301,47 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     try {
-      await FirebaseFirestore.instance.collection('reviews').doc(bookingId).set({
-        'bookingId': bookingId,
-        'userId': user.uid,
-        'salonId': booking['salonId']?.toString() ?? '',
-        'salonName': booking['salonName']?.toString() ?? '',
-        'barberId': booking['barberId']?.toString() ?? '',
-        'barberName': booking['barberName']?.toString() ?? '',
-        'salonRating': salonRating,
-        'barberRating': barberRating,
-        'comment': commentController.text.trim(),
-        if (existingReview == null) 'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('reviews').doc(bookingId).set(
+        {
+          'bookingId': bookingId,
+          'userId': user.uid,
+          'salonId': booking['salonId']?.toString() ?? '',
+          'salonName': booking['salonName']?.toString() ?? '',
+          'barberId': booking['barberId']?.toString() ?? '',
+          'barberName': booking['barberName']?.toString() ?? '',
+          'salonRating': salonRating,
+          'barberRating': barberRating,
+          'comment': commentController.text.trim(),
+          if (existingReview == null) 'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
       if (!mounted) return;
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cảm ơn bạn đã gửi đánh giá!'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Cảm ơn bạn đã gửi đánh giá!'),
+          backgroundColor: Colors.green,
+        ),
       );
     } on FirebaseException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể lưu đánh giá: ${error.message}'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Không thể lưu đánh giá: ${error.message}'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       commentController.dispose();
     }
   }
 
-  Widget _starSelector({required int value, required ValueChanged<int> onChanged}) {
+  Widget _starSelector({
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
     return Wrap(
       children: List.generate(5, (index) {
         final rating = index + 1;
@@ -305,13 +364,19 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     required Map<String, dynamic> booking,
   }) {
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('reviews').doc(bookingId).get(),
+      future: FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(bookingId)
+          .get(),
       builder: (context, snapshot) {
         final review = snapshot.data?.data();
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.only(top: 14),
-            child: LinearProgressIndicator(color: _gold, backgroundColor: _field),
+            child: LinearProgressIndicator(
+              color: _gold,
+              backgroundColor: _field,
+            ),
           );
         }
         if (review == null) {
@@ -321,10 +386,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               width: double.infinity,
               height: 48,
               child: FilledButton.icon(
-                onPressed: () => _showReviewDialog(bookingId: bookingId, booking: booking),
-                style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+                onPressed: () =>
+                    _showReviewDialog(bookingId: bookingId, booking: booking),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _ink,
+                ),
                 icon: const Icon(Icons.star_rounded),
-                label: const Text('Đánh giá thợ và chi nhánh', style: TextStyle(fontWeight: FontWeight.w800)),
+                label: const Text(
+                  'Đánh giá thợ và chi nhánh',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
           );
@@ -347,23 +419,43 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                 children: [
                   const Icon(Icons.reviews_rounded, color: _gold),
                   const SizedBox(width: 8),
-                  const Expanded(child: Text('Đánh giá của bạn', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
+                  const Expanded(
+                    child: Text(
+                      'Đánh giá của bạn',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                   TextButton(
                     onPressed: () => _showReviewDialog(
                       bookingId: bookingId,
                       booking: booking,
                       existingReview: review,
                     ),
-                    child: const Text('Chỉnh sửa', style: TextStyle(color: _gold)),
+                    child: const Text(
+                      'Chỉnh sửa',
+                      style: TextStyle(color: _gold),
+                    ),
                   ),
                 ],
               ),
-              Text('Thợ: ${_ratingStars(barberRating)}', style: const TextStyle(color: _gold)),
+              Text(
+                'Thợ: ${_ratingStars(barberRating)}',
+                style: const TextStyle(color: _gold),
+              ),
               const SizedBox(height: 4),
-              Text('Chi nhánh: ${_ratingStars(salonRating)}', style: const TextStyle(color: _gold)),
+              Text(
+                'Chi nhánh: ${_ratingStars(salonRating)}',
+                style: const TextStyle(color: _gold),
+              ),
               if (comment.isNotEmpty) ...[
                 const SizedBox(height: 9),
-                Text(comment, style: const TextStyle(color: _muted, height: 1.4)),
+                Text(
+                  comment,
+                  style: const TextStyle(color: _muted, height: 1.4),
+                ),
               ],
             ],
           ),
@@ -396,65 +488,85 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           _sectionSelector(),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: bookingStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _gold));
-          }
-          if (snapshot.hasError) {
-            return _messageState(
-              icon: Icons.cloud_off_rounded,
-              title: 'Không thể tải lịch hẹn',
-              message: '${snapshot.error}',
-            );
-          }
-
-          final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[
-            ...?snapshot.data?.docs,
-          ].where((booking) {
-            final status = booking.data()['status']?.toString() ?? 'pending';
-            return _belongsToSelectedSection(status);
-          }).toList();
-          bookings.sort((first, second) {
-            final firstTimestamp = first.data()['appointmentAt'] as Timestamp?;
-            final secondTimestamp = second.data()['appointmentAt'] as Timestamp?;
-            final firstDate = firstTimestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final secondDate = secondTimestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return secondDate.compareTo(firstDate);
-          });
-
-          if (bookings.isEmpty) {
-            return _messageState(
-              icon: Icons.event_note_rounded,
-              title: 'Chưa có lịch trong mục này',
-              message: switch (_selectedSection) {
-                _BookingSection.registered => 'Lịch mới đăng ký hoặc đã hủy sẽ xuất hiện tại đây.',
-                _BookingSection.confirmed => 'Lịch được salon xác nhận sẽ xuất hiện tại đây.',
-                _BookingSection.completed => 'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
-              },
-            );
-          }
-
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final double horizontal = constraints.maxWidth >= 900 ? 32 : 16;
-              return ListView.separated(
-                padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 32),
-                itemCount: bookings.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  final booking = bookings[index];
-                  return _buildBookingCard(
-                    context: context,
-                    bookingId: booking.id,
-                    data: booking.data(),
+              stream: bookingStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: _gold),
                   );
-                },
-              );
-            },
-          );
-        },
-      ),
+                }
+                if (snapshot.hasError) {
+                  return _messageState(
+                    icon: Icons.cloud_off_rounded,
+                    title: 'Không thể tải lịch hẹn',
+                    message: '${snapshot.error}',
+                  );
+                }
+
+                final bookings =
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[
+                      ...?snapshot.data?.docs,
+                    ].where((booking) {
+                      final status =
+                          booking.data()['status']?.toString() ?? 'pending';
+                      return _belongsToSelectedSection(status);
+                    }).toList();
+                bookings.sort((first, second) {
+                  final firstTimestamp =
+                      first.data()['appointmentAt'] as Timestamp?;
+                  final secondTimestamp =
+                      second.data()['appointmentAt'] as Timestamp?;
+                  final firstDate =
+                      firstTimestamp?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final secondDate =
+                      secondTimestamp?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return secondDate.compareTo(firstDate);
+                });
+
+                if (bookings.isEmpty) {
+                  return _messageState(
+                    icon: Icons.event_note_rounded,
+                    title: 'Chưa có lịch trong mục này',
+                    message: switch (_selectedSection) {
+                      _BookingSection.registered =>
+                        'Lịch mới đăng ký hoặc đã hủy sẽ xuất hiện tại đây.',
+                      _BookingSection.confirmed =>
+                        'Lịch được salon xác nhận sẽ xuất hiện tại đây.',
+                      _BookingSection.completed =>
+                        'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
+                    },
+                  );
+                }
+
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double horizontal = constraints.maxWidth >= 900
+                        ? 32
+                        : 16;
+                    return ListView.separated(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        18,
+                        horizontal,
+                        32,
+                      ),
+                      itemCount: bookings.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        final booking = bookings[index];
+                        return _buildBookingCard(
+                          context: context,
+                          bookingId: booking.id,
+                          data: booking.data(),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -486,9 +598,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               ),
               selectedColor: _gold,
               backgroundColor: _field,
-              side: BorderSide(color: selected ? _gold : const Color(0x44F6C768)),
+              side: BorderSide(
+                color: selected ? _gold : const Color(0x44F6C768),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
             ),
           );
         }).toList(),
@@ -502,7 +618,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/login_barbershop_background.jpg', fit: BoxFit.cover),
+          Image.asset(
+            'assets/images/login_barbershop_background.jpg',
+            fit: BoxFit.cover,
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -562,9 +681,19 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Lịch hẹn của tôi', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                Text(
+                  'Lịch hẹn của tôi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 SizedBox(height: 2),
-                Text('Theo dõi lịch và trạng thái thanh toán', style: TextStyle(color: _muted, fontSize: 13)),
+                Text(
+                  'Theo dõi lịch và trạng thái thanh toán',
+                  style: TextStyle(color: _muted, fontSize: 13),
+                ),
               ],
             ),
           ),
@@ -573,7 +702,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     );
   }
 
-  Widget _messageState({required IconData icon, required String title, required String message}) {
+  Widget _messageState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
     return Center(
       child: Container(
         margin: const EdgeInsets.all(24),
@@ -589,9 +722,21 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           children: [
             Icon(icon, size: 54, color: _gold),
             const SizedBox(height: 16),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _muted, height: 1.45)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _muted, height: 1.45),
+            ),
           ],
         ),
       ),
@@ -603,20 +748,27 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     required String bookingId,
     required Map<String, dynamic> data,
   }) {
-    final String salonName = data['salonName'] as String? ?? 'Không rõ chi nhánh';
+    final String salonName =
+        data['salonName'] as String? ?? 'Không rõ chi nhánh';
     final String salonAddress = data['salonAddress'] as String? ?? '';
     final String barberName = data['barberName'] as String? ?? 'Thợ bất kỳ';
     final String status = data['status'] as String? ?? 'pending';
     final int totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
-    final int totalDuration = (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
+    final int totalDuration =
+        (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
     final Timestamp? appointmentTimestamp = data['appointmentAt'] as Timestamp?;
     final DateTime? appointmentDate = appointmentTimestamp?.toDate();
-    final List<dynamic> services = data['services'] as List<dynamic>? ?? <dynamic>[];
+    final List<dynamic> services =
+        data['services'] as List<dynamic>? ?? <dynamic>[];
     final List<String> serviceNames = services
-        .map((service) => service is Map ? service['name']?.toString() ?? '' : '')
+        .map(
+          (service) => service is Map ? service['name']?.toString() ?? '' : '',
+        )
         .where((name) => name.isNotEmpty)
         .toList();
-    final payment = Map<String, dynamic>.from(data['payment'] as Map? ?? const <String, dynamic>{});
+    final payment = Map<String, dynamic>.from(
+      data['payment'] as Map? ?? const <String, dynamic>{},
+    );
     final String paymentStatus = payment['status']?.toString() ?? 'unpaid';
     final String paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final bool isPaid = paymentStatus == 'paid';
@@ -628,7 +780,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         color: _surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0x44F6C768)),
-        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 10))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -646,17 +804,38 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       Container(
                         width: 48,
                         height: 48,
-                        decoration: BoxDecoration(color: const Color(0x1FF6C768), borderRadius: BorderRadius.circular(16)),
-                        child: const Icon(Icons.content_cut_rounded, color: _gold),
+                        decoration: BoxDecoration(
+                          color: const Color(0x1FF6C768),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.content_cut_rounded,
+                          color: _gold,
+                        ),
                       ),
                       const SizedBox(width: 13),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(salonName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                            Text(
+                              salonName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             const SizedBox(height: 5),
-                            Text(serviceNames.isEmpty ? 'Dịch vụ tại salon' : serviceNames.join(' • '), style: const TextStyle(color: _muted, height: 1.35)),
+                            Text(
+                              serviceNames.isEmpty
+                                  ? 'Dịch vụ tại salon'
+                                  : serviceNames.join(' • '),
+                              style: const TextStyle(
+                                color: _muted,
+                                height: 1.35,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -667,18 +846,29 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                   const SizedBox(height: 18),
                   Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: _field, borderRadius: BorderRadius.circular(17)),
+                    decoration: BoxDecoration(
+                      color: _field,
+                      borderRadius: BorderRadius.circular(17),
+                    ),
                     child: Column(
                       children: [
                         if (salonAddress.isNotEmpty) ...[
-                          _informationRow(Icons.location_on_outlined, salonAddress),
+                          _informationRow(
+                            Icons.location_on_outlined,
+                            salonAddress,
+                          ),
                           const SizedBox(height: 11),
                         ],
-                        _informationRow(Icons.person_outline_rounded, 'Thợ: $barberName'),
+                        _informationRow(
+                          Icons.person_outline_rounded,
+                          'Thợ: $barberName',
+                        ),
                         const SizedBox(height: 11),
                         _informationRow(
                           Icons.schedule_rounded,
-                          appointmentDate == null ? 'Chưa xác định thời gian' : _formatDateTime(appointmentDate),
+                          appointmentDate == null
+                              ? 'Chưa xác định thời gian'
+                              : _formatDateTime(appointmentDate),
                           bold: true,
                         ),
                       ],
@@ -687,21 +877,38 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.timelapse_rounded, color: _muted, size: 20),
+                      const Icon(
+                        Icons.timelapse_rounded,
+                        color: _muted,
+                        size: 20,
+                      ),
                       const SizedBox(width: 7),
-                      Text('$totalDuration phút', style: const TextStyle(color: _muted)),
+                      Text(
+                        '$totalDuration phút',
+                        style: const TextStyle(color: _muted),
+                      ),
                       const Spacer(),
-                      Text(_formatPrice(totalPrice), style: const TextStyle(color: _gold, fontSize: 21, fontWeight: FontWeight.w900)),
+                      Text(
+                        _formatPrice(totalPrice),
+                        style: const TextStyle(
+                          color: _gold,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
                   if (isPaid)
                     _paymentBanner(
                       icon: Icons.verified_rounded,
-                      text: payment['provider'] == 'vnpay' ? 'Đã thanh toán qua VNPAY Sandbox' : 'Đã thanh toán',
+                      text: payment['provider'] == 'vnpay'
+                          ? 'Đã thanh toán qua VNPAY Sandbox'
+                          : 'Đã thanh toán',
                       color: const Color(0xFF59D38C),
                     )
-                  else if (paymentChoice == 'pay_later' && status != 'cancelled')
+                  else if (paymentChoice == 'pay_later' &&
+                      status != 'cancelled')
                     _paymentBanner(
                       icon: Icons.payments_outlined,
                       text: 'Thanh toán sau tại salon',
@@ -715,24 +922,50 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     ),
                   if (status == 'completed')
                     _reviewPanel(bookingId: bookingId, booking: data),
-                  if (!isPaid && (status == 'confirmed' || (status == 'pending' && paymentChoice == 'pay_now'))) ...[
+                  if (!isPaid &&
+                      (status == 'confirmed' ||
+                          (status == 'pending' &&
+                              paymentChoice == 'pay_now'))) ...[
                     const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: FilledButton.icon(
-                        onPressed: isStartingPayment ? null : () => _startVnpayPayment(context, bookingId),
+                        onPressed: isStartingPayment
+                            ? null
+                            : () => _startVnpayPayment(context, bookingId),
                         icon: isStartingPayment
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : const Icon(Icons.account_balance_wallet_rounded),
-                        label: Text(isStartingPayment ? 'Đang mở VNPAY...' : 'Thanh toán bằng VNPAY', style: const TextStyle(fontWeight: FontWeight.w800)),
-                        style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                        label: Text(
+                          isStartingPayment
+                              ? 'Đang mở VNPAY...'
+                              : 'Thanh toán bằng VNPAY',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _gold,
+                          foregroundColor: _ink,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 7),
                     Text(
                       'Thanh toán toàn bộ ${_formatPrice(totalPrice)} trên môi trường VNPAY Sandbox (không trừ tiền thật).',
-                      style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.4),
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                   if (status == 'pending') ...[
@@ -743,11 +976,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => _cancelBooking(context, bookingId),
                         icon: const Icon(Icons.close_rounded),
-                        label: const Text('Hủy lịch hẹn', style: TextStyle(fontWeight: FontWeight.w700)),
+                        label: const Text(
+                          'Hủy lịch hẹn',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFFF7777),
                           side: const BorderSide(color: Color(0x88FF6B6B)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                       ),
                     ),
@@ -769,7 +1007,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: color.withAlpha(100)),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 
@@ -780,13 +1025,24 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         Icon(icon, size: 20, color: _gold),
         const SizedBox(width: 9),
         Expanded(
-          child: Text(text, style: TextStyle(color: Colors.white, fontWeight: bold ? FontWeight.w700 : FontWeight.w500, height: 1.35)),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _paymentBanner({required IconData icon, required String text, required Color color}) {
+  Widget _paymentBanner({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
@@ -799,7 +1055,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         children: [
           Icon(icon, color: color, size: 21),
           const SizedBox(width: 9),
-          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            ),
+          ),
         ],
       ),
     );

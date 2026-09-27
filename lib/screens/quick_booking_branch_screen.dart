@@ -268,7 +268,11 @@ class QuickBookingBranchScreen extends StatelessWidget {
                       const SizedBox(height: 7),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, color: _gold, size: 18),
+                          const Icon(
+                            Icons.star_rounded,
+                            color: _gold,
+                            size: 18,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${salon.rating}',

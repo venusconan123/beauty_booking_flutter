@@ -25,8 +25,7 @@ class BarberSelectionScreen extends StatefulWidget {
   }
 }
 
-class _BarberSelectionScreenState
-    extends State<BarberSelectionScreen> {
+class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
   String? _selectedBarberId;
 
   late final List<Barber> _barbers;
@@ -49,14 +48,11 @@ class _BarberSelectionScreenState
       return;
     }
 
-    final bool useAnyBarber =
-        _selectedBarberId == 'any_barber';
+    final bool useAnyBarber = _selectedBarberId == 'any_barber';
 
     final Barber? selectedBarber = useAnyBarber
         ? null
-        : _barbers.firstWhere(
-            (barber) => barber.id == _selectedBarberId,
-          );
+        : _barbers.firstWhere((barber) => barber.id == _selectedBarberId);
 
     Navigator.push(
       context,
@@ -75,35 +71,25 @@ class _BarberSelectionScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chọn thợ cắt tóc'),
-      ),
+      appBar: AppBar(title: const Text('Chọn thợ cắt tóc')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text(
             widget.salon.name,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
             'Đã chọn ${widget.selectedServices.length} dịch vụ',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-            ),
+            style: TextStyle(color: Colors.grey.shade700),
           ),
           const SizedBox(height: 20),
           _buildAnyBarberOption(),
           const SizedBox(height: 20),
           const Text(
             'Danh sách thợ',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
@@ -120,8 +106,7 @@ class _BarberSelectionScreenState
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _barbers.length,
-                gridDelegate:
-                    SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columnCount,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
@@ -156,55 +141,37 @@ class _BarberSelectionScreenState
   }
 
   Widget _buildAnyBarberOption() {
-    final bool isSelected =
-        _selectedBarberId == 'any_barber';
+    final bool isSelected = _selectedBarberId == 'any_barber';
 
     return Card(
-      color: isSelected
-          ? const Color(0xFFE8F0FE)
-          : null,
+      color: isSelected ? const Color(0xFFE8F0FE) : null,
       child: ListTile(
         onTap: () {
           _selectBarber('any_barber');
         },
-        leading: const CircleAvatar(
-          child: Icon(Icons.people),
-        ),
+        leading: const CircleAvatar(child: Icon(Icons.people)),
         title: const Text(
           'Chọn thợ bất kỳ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: const Text(
-          'Hệ thống sẽ chọn một thợ đang trống lịch.',
-        ),
+        subtitle: const Text('Hệ thống sẽ chọn một thợ đang trống lịch.'),
         trailing: Icon(
-          isSelected
-              ? Icons.check_circle
-              : Icons.radio_button_unchecked,
-          color: isSelected
-              ? const Color(0xFF1E3A5F)
-              : Colors.grey,
+          isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: isSelected ? const Color(0xFF1E3A5F) : Colors.grey,
         ),
       ),
     );
   }
 
   Widget _buildBarberCard(Barber barber) {
-    final bool isSelected =
-        _selectedBarberId == barber.id;
+    final bool isSelected = _selectedBarberId == barber.id;
 
     return Card(
-      color: isSelected
-          ? const Color(0xFFE8F0FE)
-          : null,
+      color: isSelected ? const Color(0xFFE8F0FE) : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: isSelected
-              ? const Color(0xFF1E3A5F)
-              : Colors.transparent,
+          color: isSelected ? const Color(0xFF1E3A5F) : Colors.transparent,
           width: 2,
         ),
       ),
@@ -225,10 +192,7 @@ class _BarberSelectionScreenState
                     ? NetworkImage(barber.imageUrl!)
                     : null,
                 child: barber.imageUrl == null
-                    ? const Icon(
-                        Icons.person,
-                        size: 48,
-                      )
+                    ? const Icon(Icons.person, size: 48)
                     : null,
               ),
               const SizedBox(height: 12),
@@ -249,21 +213,14 @@ class _BarberSelectionScreenState
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.star,
-                    size: 18,
-                    color: Colors.amber,
-                  ),
+                  const Icon(Icons.star, size: 18, color: Colors.amber),
                   const SizedBox(width: 4),
                   Text('${barber.rating}'),
                 ],
               ),
               const SizedBox(height: 6),
               if (isSelected)
-                const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF1E3A5F),
-                ),
+                const Icon(Icons.check_circle, color: Color(0xFF1E3A5F)),
             ],
           ),
         ),

@@ -90,14 +90,14 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
     try {
       await _service.delete(hairstyle);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã xóa mẫu tóc.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đã xóa mẫu tóc.')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể xóa mẫu tóc: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể xóa mẫu tóc: $error')));
     }
   }
 
@@ -118,14 +118,18 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
         foregroundColor: _ink,
         onPressed: _openForm,
         icon: const Icon(Icons.add_photo_alternate_rounded),
-        label: const Text('THÊM MẪU', style: TextStyle(fontWeight: FontWeight.w900)),
+        label: const Text(
+          'THÊM MẪU',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
       ),
       body: StreamBuilder<List<Hairstyle>>(
         stream: _service.watchHairstyles(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _buildDefaultPreview(
-              notice: 'Cần triển khai Firestore Rules để bật quyền sửa và xóa. '
+              notice:
+                  'Cần triển khai Firestore Rules để bật quyền sửa và xóa. '
                   '${snapshot.error}',
             );
           }
@@ -163,7 +167,10 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
                             SizedBox(height: 5),
                             Text(
                               'Thêm, sửa hoặc xóa mẫu tóc',
-                              style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
+                              style: TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ],
                         ),
@@ -188,17 +195,14 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
                     crossAxisSpacing: 18,
                     mainAxisSpacing: 18,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final hairstyle = hairstyles[index];
-                      return _AdminStyleCard(
-                        hairstyle: hairstyle,
-                        onEdit: () => _openForm(hairstyle),
-                        onDelete: () => _confirmDelete(hairstyle),
-                      );
-                    },
-                    childCount: hairstyles.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final hairstyle = hairstyles[index];
+                    return _AdminStyleCard(
+                      hairstyle: hairstyle,
+                      onEdit: () => _openForm(hairstyle),
+                      onDelete: () => _confirmDelete(hairstyle),
+                    );
+                  }, childCount: hairstyles.length),
                 ),
               ),
             ],
@@ -227,7 +231,10 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, color: Color(0xFF9B6B24)),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: Color(0xFF9B6B24),
+                        ),
                         const SizedBox(width: 10),
                         Expanded(child: Text(notice)),
                         TextButton(
@@ -268,9 +275,8 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
               mainAxisSpacing: 18,
             ),
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _DefaultStyleCard(
-                hairstyle: defaultHairstyles[index],
-              ),
+              (context, index) =>
+                  _DefaultStyleCard(hairstyle: defaultHairstyles[index]),
               childCount: defaultHairstyles.length,
             ),
           ),
@@ -350,7 +356,10 @@ class _AdminStyleCard extends StatelessWidget {
                   top: 12,
                   left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: hairstyle.isActive
                           ? const Color(0xE61B5E3A)
@@ -382,14 +391,20 @@ class _AdminStyleCard extends StatelessWidget {
                         hairstyle.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         hairstyle.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF66707C), height: 1.25),
+                        style: const TextStyle(
+                          color: Color(0xFF66707C),
+                          height: 1.25,
+                        ),
                       ),
                     ],
                   ),

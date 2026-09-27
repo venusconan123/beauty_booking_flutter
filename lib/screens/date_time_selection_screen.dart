@@ -30,39 +30,29 @@ class DateTimeSelectionScreen extends StatefulWidget {
   }
 }
 
-class _DateTimeSelectionScreenState
-    extends State<DateTimeSelectionScreen> {
+class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
   late final List<DateTime> _availableDates;
 
-  late final Stream<Map<String, List<DateTime>>>
-      _bookedSlotsStream;
+  late final Stream<Map<String, List<DateTime>>> _bookedSlotsStream;
 
   DateTime? _selectedDate;
   String? _selectedTime;
 
   int get _totalDuration {
-    return widget.selectedServices.fold(
-      0,
-      (total, service) {
-        return total + service.durationMinutes;
-      },
-    );
+    return widget.selectedServices.fold(0, (total, service) {
+      return total + service.durationMinutes;
+    });
   }
 
   List<String> get _availableTimeSlots {
     const int openingTime = 8 * 60;
     const int closingTime = 20 * 60;
 
-    final int latestStartTime =
-        closingTime - _totalDuration;
+    final int latestStartTime = closingTime - _totalDuration;
 
     final List<String> slots = [];
 
-    for (
-      int minutes = openingTime;
-      minutes <= latestStartTime;
-      minutes += 30
-    ) {
+    for (int minutes = openingTime; minutes <= latestStartTime; minutes += 30) {
       final int hour = minutes ~/ 60;
       final int minute = minutes % 60;
 
@@ -82,82 +72,51 @@ class _DateTimeSelectionScreenState
 
     final DateTime now = DateTime.now();
 
-    final DateTime today = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
+    final DateTime today = DateTime(now.year, now.month, now.day);
 
-    _availableDates = List<DateTime>.generate(
-      7,
-      (index) {
-        return today.add(
-          Duration(days: index),
-        );
-      },
-    );
+    _availableDates = List<DateTime>.generate(7, (index) {
+      return today.add(Duration(days: index));
+    });
 
     _selectedDate = _availableDates.first;
     _bookedSlotsStream = _createBookedSlotsStream();
   }
 
-  Stream<Map<String, List<DateTime>>>
-      _createBookedSlotsStream() {
+  Stream<Map<String, List<DateTime>>> _createBookedSlotsStream() {
     return FirebaseFirestore.instance
         .collection('booking_slots')
-        .where(
-          'salonId',
-          isEqualTo: widget.salon.id,
-        )
+        .where('salonId', isEqualTo: widget.salon.id)
         .snapshots()
-        .map(
-      (snapshot) {
-        final Map<String, List<DateTime>>
-            slotsByBarber = {};
+        .map((snapshot) {
+          final Map<String, List<DateTime>> slotsByBarber = {};
 
-        for (final document in snapshot.docs) {
-          final Map<String, dynamic> data =
-              document.data();
+          for (final document in snapshot.docs) {
+            final Map<String, dynamic> data = document.data();
 
-          final String? barberId =
-              data['barberId'] as String?;
+            final String? barberId = data['barberId'] as String?;
 
-          final Timestamp? slotTimestamp =
-              data['slotAt'] as Timestamp?;
+            final Timestamp? slotTimestamp = data['slotAt'] as Timestamp?;
 
-          if (barberId == null ||
-              slotTimestamp == null) {
-            continue;
+            if (barberId == null || slotTimestamp == null) {
+              continue;
+            }
+
+            slotsByBarber.putIfAbsent(barberId, () => []);
+
+            slotsByBarber[barberId]!.add(slotTimestamp.toDate());
           }
 
-          slotsByBarber.putIfAbsent(
-            barberId,
-            () => [],
-          );
-
-          slotsByBarber[barberId]!.add(
-            slotTimestamp.toDate(),
-          );
-        }
-
-        return slotsByBarber;
-      },
-    );
+          return slotsByBarber;
+        });
   }
 
-  bool _isSameDate(
-    DateTime first,
-    DateTime second,
-  ) {
+  bool _isSameDate(DateTime first, DateTime second) {
     return first.year == second.year &&
         first.month == second.month &&
         first.day == second.day;
   }
 
-  bool _isSameMinute(
-    DateTime first,
-    DateTime second,
-  ) {
+  bool _isSameMinute(DateTime first, DateTime second) {
     return first.year == second.year &&
         first.month == second.month &&
         first.day == second.day &&
@@ -185,8 +144,7 @@ class _DateTimeSelectionScreenState
       return false;
     }
 
-    final DateTime slotTime =
-        _createDateTimeFromTime(time);
+    final DateTime slotTime = _createDateTimeFromTime(time);
 
     return slotTime.isBefore(DateTime.now());
   }
@@ -194,33 +152,21 @@ class _DateTimeSelectionScreenState
   bool _barberHasConflict({
     required String barberId,
     required DateTime appointmentStart,
-    required Map<String, List<DateTime>>
-        bookedSlotsByBarber,
+    required Map<String, List<DateTime>> bookedSlotsByBarber,
   }) {
     final List<DateTime> barberBookedSlots =
-        bookedSlotsByBarber[barberId] ??
-            const <DateTime>[];
+        bookedSlotsByBarber[barberId] ?? const <DateTime>[];
 
-    final int numberOfSlots =
-        (_totalDuration / 30).ceil();
+    final int numberOfSlots = (_totalDuration / 30).ceil();
 
-    for (int index = 0;
-        index < numberOfSlots;
-        index++) {
-      final DateTime requiredSlot =
-          appointmentStart.add(
+    for (int index = 0; index < numberOfSlots; index++) {
+      final DateTime requiredSlot = appointmentStart.add(
         Duration(minutes: index * 30),
       );
 
-      final bool slotAlreadyBooked =
-          barberBookedSlots.any(
-        (bookedSlot) {
-          return _isSameMinute(
-            bookedSlot,
-            requiredSlot,
-          );
-        },
-      );
+      final bool slotAlreadyBooked = barberBookedSlots.any((bookedSlot) {
+        return _isSameMinute(bookedSlot, requiredSlot);
+      });
 
       if (slotAlreadyBooked) {
         return true;
@@ -232,38 +178,31 @@ class _DateTimeSelectionScreenState
 
   bool _isBookedTime(
     String time,
-    Map<String, List<DateTime>>
-        bookedSlotsByBarber,
+    Map<String, List<DateTime>> bookedSlotsByBarber,
   ) {
     if (_selectedDate == null) {
       return false;
     }
 
-    final DateTime appointmentStart =
-        _createDateTimeFromTime(time);
+    final DateTime appointmentStart = _createDateTimeFromTime(time);
 
     if (widget.useAnyBarber) {
-      final List<Barber> salonBarbers =
-          getBarbersBySalonId(widget.salon.id);
+      final List<Barber> salonBarbers = getBarbersBySalonId(widget.salon.id);
 
       if (salonBarbers.isEmpty) {
         return true;
       }
 
-      return salonBarbers.every(
-        (barber) {
-          return _barberHasConflict(
-            barberId: barber.id,
-            appointmentStart: appointmentStart,
-            bookedSlotsByBarber:
-                bookedSlotsByBarber,
-          );
-        },
-      );
+      return salonBarbers.every((barber) {
+        return _barberHasConflict(
+          barberId: barber.id,
+          appointmentStart: appointmentStart,
+          bookedSlotsByBarber: bookedSlotsByBarber,
+        );
+      });
     }
 
-    final Barber? selectedBarber =
-        widget.selectedBarber;
+    final Barber? selectedBarber = widget.selectedBarber;
 
     if (selectedBarber == null) {
       return true;
@@ -278,36 +217,21 @@ class _DateTimeSelectionScreenState
 
   bool _isUnavailableTime(
     String time,
-    Map<String, List<DateTime>>
-        bookedSlotsByBarber,
+    Map<String, List<DateTime>> bookedSlotsByBarber,
   ) {
-    return _isPastTime(time) ||
-        _isBookedTime(
-          time,
-          bookedSlotsByBarber,
-        );
+    return _isPastTime(time) || _isBookedTime(time, bookedSlotsByBarber);
   }
 
   String _weekdayName(DateTime date) {
-    const List<String> weekdays = [
-      'T2',
-      'T3',
-      'T4',
-      'T5',
-      'T6',
-      'T7',
-      'CN',
-    ];
+    const List<String> weekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
     return weekdays[date.weekday - 1];
   }
 
   String _formatDate(DateTime date) {
-    final String day =
-        date.day.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
 
-    final String month =
-        date.month.toString().padLeft(2, '0');
+    final String month = date.month.toString().padLeft(2, '0');
 
     return '$day/$month/${date.year}';
   }
@@ -319,10 +243,7 @@ class _DateTimeSelectionScreenState
     });
   }
 
-  void _selectTime(
-    String time,
-    bool isUnavailable,
-  ) {
+  void _selectTime(String time, bool isUnavailable) {
     if (isUnavailable) {
       return;
     }
@@ -333,8 +254,7 @@ class _DateTimeSelectionScreenState
   }
 
   void _continueToConfirmation() {
-    if (_selectedDate == null ||
-        _selectedTime == null) {
+    if (_selectedDate == null || _selectedTime == null) {
       return;
     }
 
@@ -359,30 +279,21 @@ class _DateTimeSelectionScreenState
   Widget build(BuildContext context) {
     final String barberName = widget.useAnyBarber
         ? 'Thợ bất kỳ'
-        : widget.selectedBarber?.name ??
-            'Chưa chọn thợ';
+        : widget.selectedBarber?.name ?? 'Chưa chọn thợ';
 
-    return StreamBuilder<
-        Map<String, List<DateTime>>>(
+    return StreamBuilder<Map<String, List<DateTime>>>(
       stream: _bookedSlotsStream,
       builder: (context, snapshot) {
-        final Map<String, List<DateTime>>
-            bookedSlotsByBarber =
-            snapshot.data ??
-                <String, List<DateTime>>{};
+        final Map<String, List<DateTime>> bookedSlotsByBarber =
+            snapshot.data ?? <String, List<DateTime>>{};
 
         final bool selectedTimeUnavailable =
             snapshot.hasError ||
-                (_selectedTime != null &&
-                    _isUnavailableTime(
-                      _selectedTime!,
-                      bookedSlotsByBarber,
-                    ));
+            (_selectedTime != null &&
+                _isUnavailableTime(_selectedTime!, bookedSlotsByBarber));
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Chọn ngày và giờ'),
-          ),
+          appBar: AppBar(title: const Text('Chọn ngày và giờ')),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -396,25 +307,18 @@ class _DateTimeSelectionScreenState
               const SizedBox(height: 6),
               Text(
                 'Thợ: $barberName',
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                ),
+                style: TextStyle(color: Colors.grey.shade700),
               ),
               const SizedBox(height: 6),
               Text(
                 'Thời gian dịch vụ: '
                 '$_totalDuration phút',
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                ),
+                style: TextStyle(color: Colors.grey.shade700),
               ),
               const SizedBox(height: 24),
               const Text(
                 'Chọn ngày',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -426,19 +330,14 @@ class _DateTimeSelectionScreenState
                     return const SizedBox(width: 10);
                   },
                   itemBuilder: (context, index) {
-                    final DateTime date =
-                        _availableDates[index];
+                    final DateTime date = _availableDates[index];
 
                     final bool isSelected =
                         _selectedDate != null &&
-                            _isSameDate(
-                              _selectedDate!,
-                              date,
-                            );
+                        _isSameDate(_selectedDate!, date);
 
                     return InkWell(
-                      borderRadius:
-                          BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12),
                       onTap: () {
                         _selectDate(date);
                       },
@@ -448,19 +347,15 @@ class _DateTimeSelectionScreenState
                           color: isSelected
                               ? const Color(0xFF1E3A5F)
                               : Colors.grey.shade100,
-                          borderRadius:
-                              BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               _weekdayName(date),
                               style: TextStyle(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.black,
+                                color: isSelected ? Colors.white : Colors.black,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -468,11 +363,8 @@ class _DateTimeSelectionScreenState
                               '${date.day.toString().padLeft(2, '0')}/'
                               '${date.month.toString().padLeft(2, '0')}',
                               style: TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.black,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected ? Colors.white : Colors.black,
                               ),
                             ),
                           ],
@@ -492,25 +384,19 @@ class _DateTimeSelectionScreenState
               const SizedBox(height: 28),
               const Text(
                 'Chọn giờ',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
                 widget.useAnyBarber
                     ? 'Giờ màu xám là thời điểm '
-                        'cả 5 thợ đều bận.'
+                          'cả 5 thợ đều bận.'
                     : 'Giờ màu xám là thời gian '
-                        'thợ đã bận.',
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                ),
+                          'thợ đã bận.',
+                style: TextStyle(color: Colors.grey.shade700),
               ),
               const SizedBox(height: 14),
-              if (snapshot.connectionState ==
-                  ConnectionState.waiting)
+              if (snapshot.connectionState == ConnectionState.waiting)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
@@ -530,9 +416,7 @@ class _DateTimeSelectionScreenState
                   ),
                 )
               else
-                _buildTimeSlots(
-                  bookedSlotsByBarber,
-                ),
+                _buildTimeSlots(bookedSlotsByBarber),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 20,
@@ -556,8 +440,7 @@ class _DateTimeSelectionScreenState
               child: SizedBox(
                 height: 52,
                 child: FilledButton(
-                  onPressed: _selectedTime == null ||
-                          selectedTimeUnavailable
+                  onPressed: _selectedTime == null || selectedTimeUnavailable
                       ? null
                       : _continueToConfirmation,
                   child: const Text(
@@ -573,10 +456,7 @@ class _DateTimeSelectionScreenState
     );
   }
 
-  Widget _buildTimeSlots(
-    Map<String, List<DateTime>>
-        bookedSlotsByBarber,
-  ) {
+  Widget _buildTimeSlots(Map<String, List<DateTime>> bookedSlotsByBarber) {
     return LayoutBuilder(
       builder: (context, constraints) {
         int columnCount = 3;
@@ -591,37 +471,28 @@ class _DateTimeSelectionScreenState
 
         return GridView.builder(
           shrinkWrap: true,
-          physics:
-              const NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: _availableTimeSlots.length,
-          gridDelegate:
-              SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columnCount,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 2.2,
           ),
           itemBuilder: (context, index) {
-            final String time =
-                _availableTimeSlots[index];
+            final String time = _availableTimeSlots[index];
 
-            final bool isSelected =
-                _selectedTime == time;
+            final bool isSelected = _selectedTime == time;
 
-            final bool isUnavailable =
-                _isUnavailableTime(
+            final bool isUnavailable = _isUnavailableTime(
               time,
               bookedSlotsByBarber,
             );
 
             return InkWell(
-              borderRadius:
-                  BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10),
               onTap: () {
-                _selectTime(
-                  time,
-                  isUnavailable,
-                );
+                _selectTime(time, isUnavailable);
               },
               child: Container(
                 alignment: Alignment.center,
@@ -629,10 +500,9 @@ class _DateTimeSelectionScreenState
                   color: isUnavailable
                       ? Colors.grey.shade200
                       : isSelected
-                          ? const Color(0xFF1E3A5F)
-                          : Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(10),
+                      ? const Color(0xFF1E3A5F)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected
                         ? const Color(0xFF1E3A5F)
@@ -645,8 +515,8 @@ class _DateTimeSelectionScreenState
                     color: isUnavailable
                         ? Colors.grey
                         : isSelected
-                            ? Colors.white
-                            : Colors.black,
+                        ? Colors.white
+                        : Colors.black,
                     fontWeight: FontWeight.w600,
                     decoration: isUnavailable
                         ? TextDecoration.lineThrough
@@ -661,10 +531,7 @@ class _DateTimeSelectionScreenState
     );
   }
 
-  Widget _buildLegend({
-    required Color color,
-    required String label,
-  }) {
+  Widget _buildLegend({required Color color, required String label}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

@@ -31,8 +31,10 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: _surface,
-          title: const Text('Tạo thông báo mới',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          title: const Text(
+            'Tạo thông báo mới',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 480,
@@ -51,8 +53,9 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                     dropdownColor: _field,
                     style: const TextStyle(color: Colors.white),
                     decoration: _decoration(
-                        label: 'Ưu đãi áp dụng tại',
-                        icon: Icons.store_mall_directory_rounded),
+                      label: 'Ưu đãi áp dụng tại',
+                      icon: Icons.store_mall_directory_rounded,
+                    ),
                     items: [
                       const DropdownMenuItem(
                         value: 'all',
@@ -61,15 +64,17 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                       ...sampleSalons.map(
                         (salon) => DropdownMenuItem(
                           value: salon.id,
-                          child: Text(salon.name,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            salon.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
                     onChanged: sending
                         ? null
                         : (value) =>
-                            setDialogState(() => salonId = value ?? 'all'),
+                              setDialogState(() => salonId = value ?? 'all'),
                   ),
                   const SizedBox(height: 14),
                   _fieldInput(
@@ -92,7 +97,9 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                  backgroundColor: _gold, foregroundColor: _ink),
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+              ),
               onPressed: sending
                   ? null
                   : () async {
@@ -101,7 +108,10 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                       if (title.isEmpty || message.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                              content: Text('Vui lòng nhập đủ tiêu đề và nội dung.')),
+                            content: Text(
+                              'Vui lòng nhập đủ tiêu đề và nội dung.',
+                            ),
+                          ),
                         );
                         return;
                       }
@@ -115,16 +125,16 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                         await FirebaseFirestore.instance
                             .collection('announcements')
                             .add({
-                          'type': 'promotion',
-                          'title': title,
-                          'message': message,
-                          'audience': salonId == 'all' ? 'all' : 'salon',
-                          'salonId': selectedSalon?.id ?? '',
-                          'salonName': selectedSalon?.name ?? '',
-                          'createdBy':
-                              FirebaseAuth.instance.currentUser?.uid ?? '',
-                          'createdAt': FieldValue.serverTimestamp(),
-                        });
+                              'type': 'promotion',
+                              'title': title,
+                              'message': message,
+                              'audience': salonId == 'all' ? 'all' : 'salon',
+                              'salonId': selectedSalon?.id ?? '',
+                              'salonName': selectedSalon?.name ?? '',
+                              'createdBy':
+                                  FirebaseAuth.instance.currentUser?.uid ?? '',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
                         if (!dialogContext.mounted) return;
                         Navigator.of(dialogContext).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -148,10 +158,13 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                   ? const SizedBox(
                       width: 17,
                       height: 17,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.send_rounded),
-              label: Text(sending ? 'Đang gửi...' : 'Gửi thông báo',
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
+              label: Text(
+                sending ? 'Đang gửi...' : 'Gửi thông báo',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
@@ -161,8 +174,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
     messageController.dispose();
   }
 
-  InputDecoration _decoration(
-      {required String label, required IconData icon}) {
+  InputDecoration _decoration({required String label, required IconData icon}) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: _muted),
@@ -198,19 +210,23 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _surface,
-        title: const Text('Xóa thông báo',
-            style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Xóa thông báo',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'Thông báo sẽ không còn hiển thị với khách hàng.',
           style: TextStyle(color: _muted),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Giữ lại')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Giữ lại'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFD94B4B)),
+              backgroundColor: const Color(0xFFD94B4B),
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Xóa'),
           ),
@@ -232,39 +248,45 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B1420),
         foregroundColor: Colors.white,
-        title: const Text('Quản lý thông báo',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Quản lý thông báo',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _composeAnnouncement,
         backgroundColor: _gold,
         foregroundColor: _ink,
         icon: const Icon(Icons.add_alert_rounded),
-        label: const Text('Tạo thông báo',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Tạo thông báo',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream:
-            FirebaseFirestore.instance.collection('announcements').snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('announcements')
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-                child: CircularProgressIndicator(color: _gold));
+            return const Center(child: CircularProgressIndicator(color: _gold));
           }
           final documents = [...?snapshot.data?.docs];
           documents.sort((a, b) {
             final first =
                 (a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                    0;
+                0;
             final second =
                 (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                    0;
+                0;
             return second.compareTo(first);
           });
           if (documents.isEmpty) {
             return const Center(
-              child: Text('Chưa có thông báo nào.',
-                  style: TextStyle(color: _muted, fontSize: 16)),
+              child: Text(
+                'Chưa có thông báo nào.',
+                style: TextStyle(color: _muted, fontSize: 16),
+              ),
             );
           }
           return Center(
@@ -283,8 +305,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                     decoration: BoxDecoration(
                       color: _surface,
                       borderRadius: BorderRadius.circular(20),
-                      border:
-                          Border.all(color: const Color(0x44F6C768)),
+                      border: Border.all(color: const Color(0x44F6C768)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,33 +320,42 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(data['title']?.toString() ?? '',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800)),
+                              Text(
+                                data['title']?.toString() ?? '',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                               const SizedBox(height: 5),
                               Text(
                                 salonName.isEmpty
                                     ? 'Áp dụng tại tất cả chi nhánh'
                                     : 'Ưu đãi tại $salonName',
                                 style: const TextStyle(
-                                    color: _gold,
-                                    fontWeight: FontWeight.w700),
+                                  color: _gold,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(height: 8),
-                              Text(data['message']?.toString() ?? '',
-                                  style: const TextStyle(
-                                      color: _muted, height: 1.45)),
+                              Text(
+                                data['message']?.toString() ?? '',
+                                style: const TextStyle(
+                                  color: _muted,
+                                  height: 1.45,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         IconButton(
                           tooltip: 'Xóa thông báo',
-                          onPressed: () =>
-                              _deleteAnnouncement(document.id),
-                          icon: const Icon(Icons.delete_outline_rounded,
-                              color: Color(0xFFFF7777)),
+                          onPressed: () => _deleteAnnouncement(document.id),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Color(0xFFFF7777),
+                          ),
                         ),
                       ],
                     ),

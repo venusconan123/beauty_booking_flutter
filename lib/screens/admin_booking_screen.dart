@@ -55,7 +55,8 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   String _relativeCreatedTime(DateTime? createdAt) {
     if (createdAt == null) return 'Vừa đăng ký';
     final difference = DateTime.now().difference(createdAt);
-    if (difference.isNegative || difference.inSeconds < 45) return 'Vừa đăng ký';
+    if (difference.isNegative || difference.inSeconds < 45)
+      return 'Vừa đăng ký';
     if (difference.inMinutes < 60) {
       return 'Đã đăng ký ${difference.inMinutes} phút trước';
     }
@@ -111,7 +112,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredBookings(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
   ) {
-    final filtered = _bookingsForBranch(bookings, _selectedSalonId).where((booking) {
+    final filtered = _bookingsForBranch(bookings, _selectedSalonId).where((
+      booking,
+    ) {
       final status = booking.data()['status'] as String? ?? 'pending';
       return switch (_selectedFilter) {
         _BookingFilter.active => status == 'pending' || status == 'confirmed',
@@ -143,7 +146,10 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _surface,
-        title: const Text('Cập nhật lịch hẹn', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Cập nhật lịch hẹn',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Bạn có chắc chắn muốn $action lịch hẹn này không?',
           style: const TextStyle(color: _muted),
@@ -184,7 +190,10 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã cập nhật lịch hẹn.'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Đã cập nhật lịch hẹn.'),
+          backgroundColor: Colors.green,
+        ),
       );
     } on FirebaseException catch (error) {
       if (!mounted) return;
@@ -205,24 +214,28 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   ) {
     return switch (status) {
       'confirmed' => (
-          title: 'Lịch hẹn đã được xác nhận',
-          message: '$salonName đã xác nhận lịch hẹn của bạn.',
-          type: 'booking_confirmed',
-        ),
+        title: 'Lịch hẹn đã được xác nhận',
+        message: '$salonName đã xác nhận lịch hẹn của bạn.',
+        type: 'booking_confirmed',
+      ),
       'completed' => (
-          title: 'Lịch hẹn đã hoàn thành',
-          message: 'Cảm ơn bạn đã sử dụng dịch vụ tại $salonName. Hãy để lại đánh giá nhé!',
-          type: 'booking_completed',
-        ),
+        title: 'Lịch hẹn đã hoàn thành',
+        message:
+            'Cảm ơn bạn đã sử dụng dịch vụ tại $salonName. Hãy để lại đánh giá nhé!',
+        type: 'booking_completed',
+      ),
       _ => (
-          title: 'Lịch hẹn đã được cập nhật',
-          message: 'Trạng thái lịch hẹn tại $salonName vừa thay đổi.',
-          type: 'booking_updated',
-        ),
+        title: 'Lịch hẹn đã được cập nhật',
+        message: 'Trạng thái lịch hẹn tại $salonName vừa thay đổi.',
+        type: 'booking_updated',
+      ),
     };
   }
 
-  Future<void> _updateBookingAndNotify(String bookingId, String newStatus) async {
+  Future<void> _updateBookingAndNotify(
+    String bookingId,
+    String newStatus,
+  ) async {
     final firestore = FirebaseFirestore.instance;
     final bookingReference = firestore.collection('bookings').doc(bookingId);
     final bookingSnapshot = await bookingReference.get();
@@ -258,7 +271,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   Future<void> _cancelBookingAsAdmin(String bookingId) async {
     final firestore = FirebaseFirestore.instance;
     final bookingReference = firestore.collection('bookings').doc(bookingId);
-    final notificationReference = firestore.collection('_notification_ids').doc();
+    final notificationReference = firestore
+        .collection('_notification_ids')
+        .doc();
     await firestore.runTransaction<void>((transaction) async {
       final bookingSnapshot = await transaction.get(bookingReference);
       if (!bookingSnapshot.exists) return;
@@ -293,13 +308,18 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookingStream = FirebaseFirestore.instance.collection('bookings').snapshots();
+    final bookingStream = FirebaseFirestore.instance
+        .collection('bookings')
+        .snapshots();
     return Scaffold(
       backgroundColor: _ink,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/login_barbershop_background.jpg', fit: BoxFit.cover),
+          Image.asset(
+            'assets/images/login_barbershop_background.jpg',
+            fit: BoxFit.cover,
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -318,14 +338,20 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                     stream: bookingStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator(color: _gold));
+                        return const Center(
+                          child: CircularProgressIndicator(color: _gold),
+                        );
                       }
                       if (snapshot.hasError) {
-                        return _emptyState(Icons.cloud_off_rounded, 'Không thể tải danh sách lịch hẹn.');
+                        return _emptyState(
+                          Icons.cloud_off_rounded,
+                          'Không thể tải danh sách lịch hẹn.',
+                        );
                       }
-                      final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[
-                        ...?snapshot.data?.docs,
-                      ];
+                      final bookings =
+                          <QueryDocumentSnapshot<Map<String, dynamic>>>[
+                            ...?snapshot.data?.docs,
+                          ];
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final wide = constraints.maxWidth >= 980;
@@ -334,16 +360,24 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                               constraints: const BoxConstraints(maxWidth: 1440),
                               child: wide
                                   ? Row(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
                                       children: [
-                                        SizedBox(width: 294, child: _buildBranchSidebar(bookings)),
-                                        Expanded(child: _buildBranchContent(bookings)),
+                                        SizedBox(
+                                          width: 294,
+                                          child: _buildBranchSidebar(bookings),
+                                        ),
+                                        Expanded(
+                                          child: _buildBranchContent(bookings),
+                                        ),
                                       ],
                                     )
                                   : Column(
                                       children: [
                                         _buildMobileBranches(bookings),
-                                        Expanded(child: _buildBranchContent(bookings)),
+                                        Expanded(
+                                          child: _buildBranchContent(bookings),
+                                        ),
                                       ],
                                     ),
                             ),
@@ -391,9 +425,19 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Quản lý lịch hẹn', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
+                Text(
+                  'Quản lý lịch hẹn',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 SizedBox(height: 2),
-                Text('Theo dõi riêng từng chi nhánh', style: TextStyle(color: _muted, fontSize: 13)),
+                Text(
+                  'Theo dõi riêng từng chi nhánh',
+                  style: TextStyle(color: _muted, fontSize: 13),
+                ),
               ],
             ),
           ),
@@ -402,7 +446,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
-  Widget _buildBranchSidebar(List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings) {
+  Widget _buildBranchSidebar(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(18, 18, 8, 18),
       padding: const EdgeInsets.all(12),
@@ -416,7 +462,15 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(8, 7, 8, 12),
-            child: Text('3 CHI NHÁNH', style: TextStyle(color: _gold, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            child: Text(
+              '3 CHI NHÁNH',
+              style: TextStyle(
+                color: _gold,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+              ),
+            ),
           ),
           for (final salon in sampleSalons) ...[
             _branchButton(salon, bookings, compact: false),
@@ -427,7 +481,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
-  Widget _buildMobileBranches(List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings) {
+  Widget _buildMobileBranches(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  ) {
     return SizedBox(
       height: 112,
       child: ListView.separated(
@@ -468,14 +524,19 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           padding: EdgeInsets.all(compact ? 12 : 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: selected ? _gold : const Color(0x1FFFFFFF)),
+            border: Border.all(
+              color: selected ? _gold : const Color(0x1FFFFFFF),
+            ),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: compact ? 20 : 22,
                 backgroundColor: selected ? _gold : const Color(0x1FF6C768),
-                child: Icon(Icons.storefront_rounded, color: selected ? _ink : _gold),
+                child: Icon(
+                  Icons.storefront_rounded,
+                  color: selected ? _ink : _gold,
+                ),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -487,10 +548,20 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                       salon.name.replaceFirst('30Shine ', ''),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, height: 1.25),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
                     ),
                     const SizedBox(height: 5),
-                    Text('$activeCount lịch đang xử lý', style: TextStyle(color: selected ? _gold : _muted, fontSize: 12)),
+                    Text(
+                      '$activeCount lịch đang xử lý',
+                      style: TextStyle(
+                        color: selected ? _gold : _muted,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -501,15 +572,21 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
-  Widget _buildBranchContent(List<QueryDocumentSnapshot<Map<String, dynamic>>> allBookings) {
+  Widget _buildBranchContent(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allBookings,
+  ) {
     final branchBookings = _bookingsForBranch(allBookings, _selectedSalonId);
     final filtered = _filteredBookings(allBookings);
-    final selectedSalon = sampleSalons.firstWhere((salon) => salon.id == _selectedSalonId);
+    final selectedSalon = sampleSalons.firstWhere(
+      (salon) => salon.id == _selectedSalonId,
+    );
     final paidCount = branchBookings.where((booking) {
       final payment = booking.data()['payment'] as Map?;
       return payment?['status'] == 'paid';
     }).length;
-    final pendingCount = branchBookings.where((booking) => booking.data()['status'] == 'pending').length;
+    final pendingCount = branchBookings
+        .where((booking) => booking.data()['status'] == 'pending')
+        .length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -519,17 +596,39 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(selectedSalon.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+              Text(
+                selectedSalon.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(selectedSalon.address, style: const TextStyle(color: _muted)),
+              Text(
+                selectedSalon.address,
+                style: const TextStyle(color: _muted),
+              ),
               const SizedBox(height: 14),
               Wrap(
                 spacing: 9,
                 runSpacing: 9,
                 children: [
-                  _summaryPill(Icons.pending_actions_rounded, '$pendingCount chờ xử lý', const Color(0xFFFFB648)),
-                  _summaryPill(Icons.verified_rounded, '$paidCount đã thanh toán', const Color(0xFF59D38C)),
-                  _summaryPill(Icons.receipt_long_rounded, '${branchBookings.length} tổng lịch', const Color(0xFF63B3FF)),
+                  _summaryPill(
+                    Icons.pending_actions_rounded,
+                    '$pendingCount chờ xử lý',
+                    const Color(0xFFFFB648),
+                  ),
+                  _summaryPill(
+                    Icons.verified_rounded,
+                    '$paidCount đã thanh toán',
+                    const Color(0xFF59D38C),
+                  ),
+                  _summaryPill(
+                    Icons.receipt_long_rounded,
+                    '${branchBookings.length} tổng lịch',
+                    const Color(0xFF63B3FF),
+                  ),
                 ],
               ),
               const SizedBox(height: 15),
@@ -539,14 +638,20 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? _emptyState(_filterIcon(_selectedFilter), _filterEmptyMessage(_selectedFilter))
+              ? _emptyState(
+                  _filterIcon(_selectedFilter),
+                  _filterEmptyMessage(_selectedFilter),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 8, 18, 32),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 15),
                   itemBuilder: (_, index) {
                     final booking = filtered[index];
-                    return _buildBookingCard(bookingId: booking.id, data: booking.data());
+                    return _buildBookingCard(
+                      bookingId: booking.id,
+                      data: booking.data(),
+                    );
                   },
                 ),
         ),
@@ -567,13 +672,18 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         children: [
           Icon(icon, size: 17, color: color),
           const SizedBox(width: 6),
-          Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+          Text(
+            text,
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
   }
 
-  Widget _filterBar(List<QueryDocumentSnapshot<Map<String, dynamic>>> branchBookings) {
+  Widget _filterBar(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> branchBookings,
+  ) {
     int countFor(_BookingFilter filter) {
       return branchBookings.where((booking) {
         final status = booking.data()['status'];
@@ -616,14 +726,21 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(_filterIcon(filter), size: 19, color: selected ? _ink : _muted),
+            Icon(
+              _filterIcon(filter),
+              size: 19,
+              color: selected ? _ink : _muted,
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 '${_filterLabel(filter)} ($count)',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: selected ? _ink : _muted, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: selected ? _ink : _muted,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -633,22 +750,22 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   }
 
   String _filterLabel(_BookingFilter filter) => switch (filter) {
-        _BookingFilter.active => 'Đang xử lý',
-        _BookingFilter.cancelled => 'Đã hủy',
-        _BookingFilter.completed => 'Hoàn thành',
-      };
+    _BookingFilter.active => 'Đang xử lý',
+    _BookingFilter.cancelled => 'Đã hủy',
+    _BookingFilter.completed => 'Hoàn thành',
+  };
 
   IconData _filterIcon(_BookingFilter filter) => switch (filter) {
-        _BookingFilter.active => Icons.pending_actions_rounded,
-        _BookingFilter.cancelled => Icons.event_busy_rounded,
-        _BookingFilter.completed => Icons.event_available_rounded,
-      };
+    _BookingFilter.active => Icons.pending_actions_rounded,
+    _BookingFilter.cancelled => Icons.event_busy_rounded,
+    _BookingFilter.completed => Icons.event_available_rounded,
+  };
 
   String _filterEmptyMessage(_BookingFilter filter) => switch (filter) {
-        _BookingFilter.active => 'Chi nhánh này không có lịch đang xử lý.',
-        _BookingFilter.cancelled => 'Chi nhánh này chưa có lịch bị hủy.',
-        _BookingFilter.completed => 'Chi nhánh này chưa có lịch hoàn thành.',
-      };
+    _BookingFilter.active => 'Chi nhánh này không có lịch đang xử lý.',
+    _BookingFilter.cancelled => 'Chi nhánh này chưa có lịch bị hủy.',
+    _BookingFilter.completed => 'Chi nhánh này chưa có lịch hoàn thành.',
+  };
 
   Widget _emptyState(IconData icon, String message) {
     return Center(
@@ -665,14 +782,25 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           children: [
             Icon(icon, size: 54, color: _gold),
             const SizedBox(height: 14),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _muted, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _muted,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBookingCard({required String bookingId, required Map<String, dynamic> data}) {
+  Widget _buildBookingCard({
+    required String bookingId,
+    required Map<String, dynamic> data,
+  }) {
     final status = data['status'] as String? ?? 'pending';
     final barberName = data['barberName'] as String? ?? 'Chưa có thợ';
     final userName = data['userName'] as String? ?? '';
@@ -683,10 +811,14 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
     final services = data['services'] as List<dynamic>? ?? <dynamic>[];
     final serviceNames = services
-        .map((service) => service is Map ? service['name']?.toString() ?? '' : '')
+        .map(
+          (service) => service is Map ? service['name']?.toString() ?? '' : '',
+        )
         .where((name) => name.isNotEmpty)
         .toList();
-    final payment = Map<String, dynamic>.from(data['payment'] as Map? ?? const <String, dynamic>{});
+    final payment = Map<String, dynamic>.from(
+      data['payment'] as Map? ?? const <String, dynamic>{},
+    );
     final paymentStatus = payment['status']?.toString() ?? 'unpaid';
     final paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final isPaid = paymentStatus == 'paid';
@@ -694,7 +826,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         ? Map<String, dynamic>.from(data['hairstyle'] as Map)
         : const <String, dynamic>{};
     final hairstyleName = hairstyle['name']?.toString() ?? '';
-    final effectiveStatus = isPaid && status == 'pending' ? 'confirmed' : status;
+    final effectiveStatus = isPaid && status == 'pending'
+        ? 'confirmed'
+        : status;
     final isUpdating = _updatingBookingIds.contains(bookingId);
     final statusColor = _statusColor(effectiveStatus, isPaid: isPaid);
 
@@ -724,7 +858,13 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         color: _surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0x44F6C768)),
-        boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 22, offset: Offset(0, 9))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x55000000),
+            blurRadius: 22,
+            offset: Offset(0, 9),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -746,16 +886,28 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              hairstyleName.isEmpty ? 'Khách chưa chọn mẫu tóc' : hairstyleName,
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                              hairstyleName.isEmpty
+                                  ? 'Khách chưa chọn mẫu tóc'
+                                  : hairstyleName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                             const SizedBox(height: 7),
                             Wrap(
                               spacing: 8,
                               runSpacing: 7,
                               children: [
-                                _statusChip(_statusText(effectiveStatus, isPaid: isPaid), statusColor),
-                                _statusChip(_relativeCreatedTime(createdAt), const Color(0xFF9EC5FF)),
+                                _statusChip(
+                                  _statusText(effectiveStatus, isPaid: isPaid),
+                                  statusColor,
+                                ),
+                                _statusChip(
+                                  _relativeCreatedTime(createdAt),
+                                  const Color(0xFF9EC5FF),
+                                ),
                               ],
                             ),
                           ],
@@ -764,41 +916,92 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                       if (isUpdating)
                         const Padding(
                           padding: EdgeInsets.all(10),
-                          child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(color: _gold, strokeWidth: 2)),
+                          child: SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(
+                              color: _gold,
+                              strokeWidth: 2,
+                            ),
+                          ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 15),
                   Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: _field, borderRadius: BorderRadius.circular(17)),
+                    decoration: BoxDecoration(
+                      color: _field,
+                      borderRadius: BorderRadius.circular(17),
+                    ),
                     child: Column(
                       children: [
-                        _buildInfoRow(icon: Icons.person_outline_rounded, label: 'Khách hàng', value: userName.isEmpty ? userEmail : '$userName ($userEmail)'),
+                        _buildInfoRow(
+                          icon: Icons.person_outline_rounded,
+                          label: 'Khách hàng',
+                          value: userName.isEmpty
+                              ? userEmail
+                              : '$userName ($userEmail)',
+                        ),
                         const SizedBox(height: 10),
-                        _buildInfoRow(icon: Icons.badge_outlined, label: 'Thợ', value: barberName),
+                        _buildInfoRow(
+                          icon: Icons.badge_outlined,
+                          label: 'Thợ',
+                          value: barberName,
+                        ),
                         const SizedBox(height: 10),
-                        _buildInfoRow(icon: Icons.schedule_rounded, label: 'Lịch hẹn', value: appointmentAt == null ? 'Chưa xác định' : _formatDateTime(appointmentAt)),
+                        _buildInfoRow(
+                          icon: Icons.schedule_rounded,
+                          label: 'Lịch hẹn',
+                          value: appointmentAt == null
+                              ? 'Chưa xác định'
+                              : _formatDateTime(appointmentAt),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Text(serviceNames.isEmpty ? 'Không có thông tin dịch vụ' : serviceNames.join(' • '), style: const TextStyle(color: Colors.white, height: 1.4)),
+                  Text(
+                    serviceNames.isEmpty
+                        ? 'Không có thông tin dịch vụ'
+                        : serviceNames.join(' • '),
+                    style: const TextStyle(color: Colors.white, height: 1.4),
+                  ),
                   const SizedBox(height: 11),
                   Row(
                     children: [
-                      const Icon(Icons.timelapse_rounded, color: _muted, size: 20),
+                      const Icon(
+                        Icons.timelapse_rounded,
+                        color: _muted,
+                        size: 20,
+                      ),
                       const SizedBox(width: 7),
-                      Text('$totalDuration phút', style: const TextStyle(color: _muted)),
+                      Text(
+                        '$totalDuration phút',
+                        style: const TextStyle(color: _muted),
+                      ),
                       const Spacer(),
-                      Text(_formatPrice(totalPrice), style: const TextStyle(color: _gold, fontSize: 21, fontWeight: FontWeight.w900)),
+                      Text(
+                        _formatPrice(totalPrice),
+                        style: const TextStyle(
+                          color: _gold,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 13),
                   _paymentBanner(paymentIcon, paymentLabel, paymentColor),
-                  if (!isUpdating && (effectiveStatus == 'pending' || effectiveStatus == 'confirmed')) ...[
+                  if (!isUpdating &&
+                      (effectiveStatus == 'pending' ||
+                          effectiveStatus == 'confirmed')) ...[
                     const SizedBox(height: 14),
-                    _actionButtons(bookingId: bookingId, status: effectiveStatus, paymentChoice: paymentChoice, isPaid: isPaid),
+                    _actionButtons(
+                      bookingId: bookingId,
+                      status: effectiveStatus,
+                      paymentChoice: paymentChoice,
+                      isPaid: isPaid,
+                    ),
                   ],
                 ],
               ),
@@ -842,23 +1045,41 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       children: [
         if (status == 'pending' && paymentChoice == 'pay_later' && !isPaid)
           FilledButton.icon(
-            onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'confirmed'),
+            onPressed: () => _requestStatusChange(
+              bookingId: bookingId,
+              newStatus: 'confirmed',
+            ),
             icon: const Icon(Icons.check_circle_outline_rounded),
             label: const Text('Xác nhận lịch'),
-            style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+            style: FilledButton.styleFrom(
+              backgroundColor: _gold,
+              foregroundColor: _ink,
+            ),
           ),
         if (status == 'confirmed')
           FilledButton.icon(
-            onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'completed'),
+            onPressed: () => _requestStatusChange(
+              bookingId: bookingId,
+              newStatus: 'completed',
+            ),
             icon: const Icon(Icons.task_alt_rounded),
             label: const Text('Hoàn thành'),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF59D38C), foregroundColor: _ink),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF59D38C),
+              foregroundColor: _ink,
+            ),
           ),
         OutlinedButton.icon(
-          onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'cancelled'),
+          onPressed: () => _requestStatusChange(
+            bookingId: bookingId,
+            newStatus: 'cancelled',
+          ),
           icon: const Icon(Icons.cancel_outlined),
           label: const Text('Hủy lịch'),
-          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF7777), side: const BorderSide(color: Color(0x88FF7777))),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFFF7777),
+            side: const BorderSide(color: Color(0x88FF7777)),
+          ),
         ),
       ],
     );
@@ -872,7 +1093,14 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: color.withAlpha(95)),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 
@@ -889,20 +1117,41 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         children: [
           Icon(icon, color: color, size: 21),
           const SizedBox(width: 9),
-          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 20, color: _gold),
         const SizedBox(width: 9),
-        SizedBox(width: 88, child: Text(label, style: const TextStyle(color: _muted))),
-        Expanded(child: Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, height: 1.3))),
+        SizedBox(
+          width: 88,
+          child: Text(label, style: const TextStyle(color: _muted)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+        ),
       ],
     );
   }

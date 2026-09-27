@@ -132,9 +132,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             webOnlyWindowName: '_blank',
           );
           if (!opened) {
-            throw const VnpayPaymentException(
-              'Không thể mở trang VNPAY.',
-            );
+            throw const VnpayPaymentException('Không thể mở trang VNPAY.');
           }
         } catch (error) {
           if (!mounted) {
@@ -144,13 +142,15 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
               ? error.message
               : 'Không thể kết nối VNPAY.';
           await _showSuccessDialog(
-            message: 'Lịch đã được lưu, nhưng chưa mở được VNPAY. '
+            message:
+                'Lịch đã được lưu, nhưng chưa mở được VNPAY. '
                 '$paymentError Bạn có thể thử lại trong Lịch hẹn của tôi.',
           );
         }
       } else {
         await _showSuccessDialog(
-          message: 'Lịch đã được lưu và đang chờ xác nhận. '
+          message:
+              'Lịch đã được lưu và đang chờ xác nhận. '
               'Bạn đã chọn thanh toán sau tại salon.',
         );
       }
