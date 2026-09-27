@@ -92,10 +92,13 @@ class HairstyleService {
   }
 
   Future<void> seedDefaults() async {
-    final existing = await _collection.limit(1).get();
-    if (existing.docs.isNotEmpty) return;
-
     for (final hairstyle in defaultHairstyles) {
+      final existing = await _collection
+          .where('name', isEqualTo: hairstyle.name)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) continue;
+
       final data = await rootBundle.load(hairstyle.assetPath);
       final bytes = data.buffer.asUint8List(
         data.offsetInBytes,
