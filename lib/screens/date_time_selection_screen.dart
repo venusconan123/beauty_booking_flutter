@@ -6,6 +6,7 @@ import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import '../services/barber_service.dart';
 import 'booking_confirmation_screen.dart';
 
 class DateTimeSelectionScreen extends StatefulWidget {
@@ -37,6 +38,7 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
 
   DateTime? _selectedDate;
   String? _selectedTime;
+  late List<Barber> _salonBarbers;
 
   int get _totalDuration {
     return widget.selectedServices.fold(0, (total, service) {
@@ -45,8 +47,8 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
   }
 
   List<String> get _availableTimeSlots {
-    const int openingTime = 8 * 60;
-    const int closingTime = 20 * 60;
+    final int openingTime = _minutesFromClock(widget.salon.openingTime);
+    final int closingTime = _minutesFromClock(widget.salon.closingTime);
 
     final int latestStartTime = closingTime - _totalDuration;
 
@@ -66,6 +68,13 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     return slots;
   }
 
+  int _minutesFromClock(String value) {
+    final parts = value.split(':');
+    if (parts.length != 2) return 0;
+    return (int.tryParse(parts[0]) ?? 0) * 60 +
+        (int.tryParse(parts[1]) ?? 0);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +88,11 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     });
 
     _selectedDate = _availableDates.first;
+    _salonBarbers = getBarbersBySalonId(widget.salon.id);
+    BarberService().getBySalon(widget.salon.id).then((barbers) {
+      if (!mounted) return;
+      setState(() => _salonBarbers = barbers);
+    });
     _bookedSlotsStream = _createBookedSlotsStream();
   }
 
@@ -187,13 +201,11 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     final DateTime appointmentStart = _createDateTimeFromTime(time);
 
     if (widget.useAnyBarber) {
-      final List<Barber> salonBarbers = getBarbersBySalonId(widget.salon.id);
-
-      if (salonBarbers.isEmpty) {
+      if (_salonBarbers.isEmpty) {
         return true;
       }
 
-      return salonBarbers.every((barber) {
+      return _salonBarbers.every((barber) {
         return _barberHasConflict(
           barberId: barber.id,
           appointmentStart: appointmentStart,
@@ -389,8 +401,8 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
               const SizedBox(height: 6),
               Text(
                 widget.useAnyBarber
-                    ? 'Giờ màu xám là thời điểm '
-                          'cả 5 thợ đều bận.'
+                    ? 'Giờ màu xám là thời điểm tất cả '
+                          '${_salonBarbers.length} thợ đều bận.'
                     : 'Giờ màu xám là thời gian '
                           'thợ đã bận.',
                 style: TextStyle(color: Colors.grey.shade700),

@@ -7,8 +7,10 @@ import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'admin_booking_screen.dart';
+import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
 import 'admin_notification_screen.dart';
+import 'admin_report_screen.dart';
 import 'booking_history_screen.dart';
 import 'hairstyle_gallery_screen.dart';
 import 'quick_booking_branch_screen.dart';
@@ -69,6 +71,12 @@ class HomeScreen extends StatelessWidget {
     ).push(MaterialPageRoute<void>(builder: (_) => const AdminBookingScreen()));
   }
 
+  void _openAdminBarberScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminBarberScreen()),
+    );
+  }
+
   void _openAdminHairstyleScreen(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const AdminHairstyleScreen()),
@@ -78,6 +86,12 @@ class HomeScreen extends StatelessWidget {
   void _openAdminNotificationScreen(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const AdminNotificationScreen()),
+    );
+  }
+
+  void _openAdminReportScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminReportScreen()),
     );
   }
 
@@ -142,8 +156,12 @@ class HomeScreen extends StatelessWidget {
           onSelected: (value) {
             if (value == 'hairstyles') {
               _openAdminHairstyleScreen(context);
+            } else if (value == 'employees') {
+              _openAdminBarberScreen(context);
             } else if (value == 'notifications') {
               _openAdminNotificationScreen(context);
+            } else if (value == 'reports') {
+              _openAdminReportScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -155,6 +173,16 @@ class HomeScreen extends StatelessWidget {
                 leading: Icon(Icons.calendar_month_outlined, color: _gold),
                 title: Text(
                   'Quản lý lịch hẹn',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'employees',
+              child: ListTile(
+                leading: Icon(Icons.badge_outlined, color: _gold),
+                title: Text(
+                  'Quản lý nhân viên',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
@@ -175,6 +203,16 @@ class HomeScreen extends StatelessWidget {
                 leading: Icon(Icons.campaign_outlined, color: _gold),
                 title: Text(
                   'Quản lý thông báo',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'reports',
+              child: ListTile(
+                leading: Icon(Icons.flag_outlined, color: _gold),
+                title: Text(
+                  'Quản lý báo cáo',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
