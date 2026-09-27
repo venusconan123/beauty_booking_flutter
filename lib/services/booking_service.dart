@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import 'barber_service.dart';
 
 class BookingConflictException implements Exception {
   final String message;
@@ -52,7 +52,7 @@ class BookingService {
     final List<Barber> candidateBarbers;
 
     if (useAnyBarber) {
-      candidateBarbers = getBarbersBySalonId(salon.id);
+      candidateBarbers = await BarberService().getBySalon(salon.id);
     } else if (selectedBarber != null) {
       candidateBarbers = [selectedBarber];
     } else {
