@@ -92,7 +92,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   }
 
   Future<void> _chooseVoucher() async {
-    final selected = await showModalBottomSheet<Voucher?>(
+    final selected = await showModalBottomSheet<Voucher>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
