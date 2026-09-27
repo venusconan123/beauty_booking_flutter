@@ -14,6 +14,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow create, read, update: if signedIn() &&
           request.auth.uid == userId;
+
+      match /notifications/{notificationId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create: if admin();
+        allow update, delete: if false;
+      }
     }
 
     match /admins/{adminId} {
@@ -24,6 +30,48 @@ service cloud.firestore {
     match /hairstyles/{hairstyleId} {
       allow read: if signedIn();
       allow create, update, delete: if admin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    match /reviews/{bookingId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.bookingId == bookingId &&
+          request.resource.data.barberRating is int &&
+          request.resource.data.barberRating >= 1 &&
+          request.resource.data.barberRating <= 5 &&
+          request.resource.data.salonRating is int &&
+          request.resource.data.salonRating >= 1 &&
+          request.resource.data.salonRating <= 5 &&
+          request.resource.data.comment is string &&
+          request.resource.data.comment.size() <= 500 &&
+          get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId ==
+              request.auth.uid &&
+          get(/databases/$(database)/documents/bookings/$(bookingId)).data.status ==
+              'completed';
+
+      allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.bookingId == bookingId &&
+          request.resource.data.barberRating is int &&
+          request.resource.data.barberRating >= 1 &&
+          request.resource.data.barberRating <= 5 &&
+          request.resource.data.salonRating is int &&
+          request.resource.data.salonRating >= 1 &&
+          request.resource.data.salonRating <= 5 &&
+          request.resource.data.comment is string &&
+          request.resource.data.comment.size() <= 500 &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['barberRating', 'salonRating', 'comment', 'updatedAt']);
+
+      allow delete: if false;
     }
 
     match /bookings/{bookingId} {

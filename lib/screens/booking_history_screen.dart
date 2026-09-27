@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/booking_service.dart';
 import '../services/vnpay_payment_service.dart';
 
+enum _BookingSection { registered, confirmed, completed }
+
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
 
@@ -21,8 +23,20 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   static const Color _muted = Color(0xFFB8C0CC);
 
   final Set<String> _startingPaymentIds = <String>{};
+  _BookingSection _selectedSection = _BookingSection.registered;
+
+  bool _belongsToSelectedSection(String status) {
+    return switch (_selectedSection) {
+      _BookingSection.registered => status == 'pending' || status == 'cancelled',
+      _BookingSection.confirmed => status == 'confirmed',
+      _BookingSection.completed => status == 'completed',
+    };
+  }
 
   String _formatPrice(int price) => '${price ~/ 1000}.000đ';
+
+  String _ratingStars(int rating) =>
+      List<String>.generate(5, (index) => index < rating ? '★' : '☆').join();
 
   String _formatDateTime(DateTime dateTime) {
     final String day = dateTime.day.toString().padLeft(2, '0');
@@ -152,6 +166,212 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     }
   }
 
+  Future<void> _showReviewDialog({
+    required String bookingId,
+    required Map<String, dynamic> booking,
+    Map<String, dynamic>? existingReview,
+  }) async {
+    int barberRating = (existingReview?['barberRating'] as num?)?.toInt() ?? 5;
+    int salonRating = (existingReview?['salonRating'] as num?)?.toInt() ?? 5;
+    final commentController = TextEditingController(
+      text: existingReview?['comment']?.toString() ?? '',
+    );
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _surface,
+          title: Text(
+            existingReview == null ? 'Đánh giá trải nghiệm' : 'Sửa đánh giá',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 430,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Thợ ${booking['barberName'] ?? 'phục vụ'}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                  _starSelector(
+                    value: barberRating,
+                    onChanged: (value) => setDialogState(() => barberRating = value),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    booking['salonName']?.toString() ?? 'Chi nhánh',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                  _starSelector(
+                    value: salonRating,
+                    onChanged: (value) => setDialogState(() => salonRating = value),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Chia sẻ cảm nhận của bạn',
+                      labelStyle: const TextStyle(color: _muted),
+                      filled: true,
+                      fillColor: _field,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0x44F6C768)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Để sau', style: TextStyle(color: _muted)),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('Gửi đánh giá', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (shouldSave != true) {
+      commentController.dispose();
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('reviews').doc(bookingId).set({
+        'bookingId': bookingId,
+        'userId': user.uid,
+        'salonId': booking['salonId']?.toString() ?? '',
+        'salonName': booking['salonName']?.toString() ?? '',
+        'barberId': booking['barberId']?.toString() ?? '',
+        'barberName': booking['barberName']?.toString() ?? '',
+        'salonRating': salonRating,
+        'barberRating': barberRating,
+        'comment': commentController.text.trim(),
+        if (existingReview == null) 'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cảm ơn bạn đã gửi đánh giá!'), backgroundColor: Colors.green),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể lưu đánh giá: ${error.message}'), backgroundColor: Colors.red),
+      );
+    } finally {
+      commentController.dispose();
+    }
+  }
+
+  Widget _starSelector({required int value, required ValueChanged<int> onChanged}) {
+    return Wrap(
+      children: List.generate(5, (index) {
+        final rating = index + 1;
+        return IconButton(
+          tooltip: '$rating sao',
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onChanged(rating),
+          icon: Icon(
+            rating <= value ? Icons.star_rounded : Icons.star_border_rounded,
+            color: _gold,
+            size: 31,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _reviewPanel({
+    required String bookingId,
+    required Map<String, dynamic> booking,
+  }) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('reviews').doc(bookingId).get(),
+      builder: (context, snapshot) {
+        final review = snapshot.data?.data();
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 14),
+            child: LinearProgressIndicator(color: _gold, backgroundColor: _field),
+          );
+        }
+        if (review == null) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: () => _showReviewDialog(bookingId: bookingId, booking: booking),
+                style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+                icon: const Icon(Icons.star_rounded),
+                label: const Text('Đánh giá thợ và chi nhánh', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          );
+        }
+        final barberRating = (review['barberRating'] as num?)?.toInt() ?? 0;
+        final salonRating = (review['salonRating'] as num?)?.toInt() ?? 0;
+        final comment = review['comment']?.toString() ?? '';
+        return Container(
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0x1AF6C768),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: const Color(0x55F6C768)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.reviews_rounded, color: _gold),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('Đánh giá của bạn', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
+                  TextButton(
+                    onPressed: () => _showReviewDialog(
+                      bookingId: bookingId,
+                      booking: booking,
+                      existingReview: review,
+                    ),
+                    child: const Text('Chỉnh sửa', style: TextStyle(color: _gold)),
+                  ),
+                ],
+              ),
+              Text('Thợ: ${_ratingStars(barberRating)}', style: const TextStyle(color: _gold)),
+              const SizedBox(height: 4),
+              Text('Chi nhánh: ${_ratingStars(salonRating)}', style: const TextStyle(color: _gold)),
+              if (comment.isNotEmpty) ...[
+                const SizedBox(height: 9),
+                Text(comment, style: const TextStyle(color: _muted, height: 1.4)),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -171,7 +391,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         .snapshots();
 
     return _pageShell(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      child: Column(
+        children: [
+          _sectionSelector(),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: bookingStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -187,7 +411,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
           final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[
             ...?snapshot.data?.docs,
-          ];
+          ].where((booking) {
+            final status = booking.data()['status']?.toString() ?? 'pending';
+            return _belongsToSelectedSection(status);
+          }).toList();
           bookings.sort((first, second) {
             final firstTimestamp = first.data()['appointmentAt'] as Timestamp?;
             final secondTimestamp = second.data()['appointmentAt'] as Timestamp?;
@@ -199,8 +426,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           if (bookings.isEmpty) {
             return _messageState(
               icon: Icons.event_note_rounded,
-              title: 'Chưa có lịch hẹn',
-              message: 'Lịch đã đặt sẽ xuất hiện tại đây để bạn tiện theo dõi.',
+              title: 'Chưa có lịch trong mục này',
+              message: switch (_selectedSection) {
+                _BookingSection.registered => 'Lịch mới đăng ký hoặc đã hủy sẽ xuất hiện tại đây.',
+                _BookingSection.confirmed => 'Lịch được salon xác nhận sẽ xuất hiện tại đây.',
+                _BookingSection.completed => 'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
+              },
             );
           }
 
@@ -223,6 +454,44 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             },
           );
         },
+      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionSelector() {
+    const items = <(_BookingSection, IconData, String)>[
+      (_BookingSection.registered, Icons.edit_calendar_rounded, 'Đã đăng ký'),
+      (_BookingSection.confirmed, Icons.event_available_rounded, 'Đã xác nhận'),
+      (_BookingSection.completed, Icons.task_alt_rounded, 'Đã hoàn thành'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Row(
+        children: items.map((item) {
+          final selected = item.$1 == _selectedSection;
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: ChoiceChip(
+              selected: selected,
+              onSelected: (_) => setState(() => _selectedSection = item.$1),
+              avatar: Icon(item.$2, size: 19, color: selected ? _ink : _muted),
+              label: Text(item.$3),
+              labelStyle: TextStyle(
+                color: selected ? _ink : Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+              selectedColor: _gold,
+              backgroundColor: _field,
+              side: BorderSide(color: selected ? _gold : const Color(0x44F6C768)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -444,6 +713,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       text: 'Đang chờ VNPAY xác nhận thanh toán',
                       color: const Color(0xFFFFB648),
                     ),
+                  if (status == 'completed')
+                    _reviewPanel(bookingId: bookingId, booking: data),
                   if (!isPaid && (status == 'confirmed' || (status == 'pending' && paymentChoice == 'pay_now'))) ...[
                     const SizedBox(height: 14),
                     SizedBox(

@@ -8,11 +8,13 @@ import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'admin_booking_screen.dart';
 import 'admin_hairstyle_screen.dart';
+import 'admin_notification_screen.dart';
 import 'booking_history_screen.dart';
 import 'hairstyle_gallery_screen.dart';
 import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
 import 'salon_map_screen.dart';
+import 'notification_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -73,6 +75,18 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminNotificationScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminNotificationScreen()),
+    );
+  }
+
+  void _openNotifications(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const NotificationScreen()),
+    );
+  }
+
   void _openHairstyleGallery(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const HairstyleGalleryScreen()),
@@ -128,6 +142,8 @@ class HomeScreen extends StatelessWidget {
           onSelected: (value) {
             if (value == 'hairstyles') {
               _openAdminHairstyleScreen(context);
+            } else if (value == 'notifications') {
+              _openAdminNotificationScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -145,6 +161,13 @@ class HomeScreen extends StatelessWidget {
               child: ListTile(
                 leading: Icon(Icons.photo_library_outlined, color: _gold),
                 title: Text('Quản lý mẫu tóc', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'notifications',
+              child: ListTile(
+                leading: Icon(Icons.campaign_outlined, color: _gold),
+                title: Text('Quản lý thông báo', style: TextStyle(color: Colors.white)),
               ),
             ),
           ],
@@ -243,6 +266,11 @@ class HomeScreen extends StatelessWidget {
                 tooltip: 'Lịch hẹn của tôi',
                 icon: Icons.calendar_month_outlined,
                 onPressed: () => _openBookingHistory(context),
+              ),
+              _headerIcon(
+                tooltip: 'Thông báo',
+                icon: Icons.notifications_none_rounded,
+                onPressed: () => _openNotifications(context),
               ),
               _headerIcon(
                 tooltip: 'Đăng xuất',
