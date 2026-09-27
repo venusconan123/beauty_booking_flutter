@@ -331,6 +331,18 @@ export function bookingStatusAfterPayment(currentStatus, paymentStatus) {
   return paymentStatus === 'paid' ? 'confirmed' : currentStatus;
 }
 
+export function paymentNotification(booking, paymentStatus) {
+  if (paymentStatus !== 'paid') return null;
+  const salonName = booking.salonName || 'salon';
+  return {
+    type: 'payment_confirmed',
+    title: 'Thanh toán VNPAY thành công',
+    message: `Lịch hẹn tại ${salonName} đã được thanh toán và tự động xác nhận.`,
+    salonId: booking.salonId || '',
+    salonName,
+  };
+}
+
 async function commitPayment(
   env,
   bookingDocument,
@@ -375,6 +387,24 @@ async function commitPayment(
       currentDocument: { updateTime: orderDocument.updateTime },
     },
   ];
+  const notification = paymentNotification(booking, payment.status);
+  if (notification && order.userId) {
+    const documentsRoot = bookingName.slice(0, bookingName.indexOf('/bookings/'));
+    const safeOrderId = String(payment.orderId || 'payment')
+      .replace(/[^A-Za-z0-9_-]/g, '')
+      .slice(0, 120);
+    writes.push({
+      update: {
+        name: `${documentsRoot}/users/${order.userId}/notifications/vnpay_${safeOrderId}`,
+        fields: encodeFields({
+          ...notification,
+          bookingId: order.bookingId,
+          createdAt: now,
+        }),
+      },
+      currentDocument: { exists: false },
+    });
+  }
   const response = await fetch(
     `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/databases/(default)/documents:commit`,
     {

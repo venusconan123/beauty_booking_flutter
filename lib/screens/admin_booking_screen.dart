@@ -180,10 +180,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       if (newStatus == 'cancelled') {
         await _cancelBookingAsAdmin(bookingId);
       } else {
-        await FirebaseFirestore.instance.collection('bookings').doc(bookingId).update({
-          'status': newStatus,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        await _updateBookingAndNotify(bookingId, newStatus);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -202,9 +199,66 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     }
   }
 
+  ({String title, String message, String type}) _notificationForStatus(
+    String status,
+    String salonName,
+  ) {
+    return switch (status) {
+      'confirmed' => (
+          title: 'Lịch hẹn đã được xác nhận',
+          message: '$salonName đã xác nhận lịch hẹn của bạn.',
+          type: 'booking_confirmed',
+        ),
+      'completed' => (
+          title: 'Lịch hẹn đã hoàn thành',
+          message: 'Cảm ơn bạn đã sử dụng dịch vụ tại $salonName. Hãy để lại đánh giá nhé!',
+          type: 'booking_completed',
+        ),
+      _ => (
+          title: 'Lịch hẹn đã được cập nhật',
+          message: 'Trạng thái lịch hẹn tại $salonName vừa thay đổi.',
+          type: 'booking_updated',
+        ),
+    };
+  }
+
+  Future<void> _updateBookingAndNotify(String bookingId, String newStatus) async {
+    final firestore = FirebaseFirestore.instance;
+    final bookingReference = firestore.collection('bookings').doc(bookingId);
+    final bookingSnapshot = await bookingReference.get();
+    if (!bookingSnapshot.exists) return;
+    final data = bookingSnapshot.data()!;
+    final userId = data['userId']?.toString() ?? '';
+    final salonName = data['salonName']?.toString() ?? 'salon';
+    final notice = _notificationForStatus(newStatus, salonName);
+    final batch = firestore.batch();
+    batch.update(bookingReference, {
+      'status': newStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (userId.isNotEmpty) {
+      final notificationReference = firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .doc();
+      batch.set(notificationReference, {
+        'type': notice.type,
+        'title': notice.title,
+        'message': notice.message,
+        'bookingId': bookingId,
+        'salonId': data['salonId']?.toString() ?? '',
+        'salonName': salonName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
   Future<void> _cancelBookingAsAdmin(String bookingId) async {
     final firestore = FirebaseFirestore.instance;
     final bookingReference = firestore.collection('bookings').doc(bookingId);
+    final notificationReference = firestore.collection('_notification_ids').doc();
     await firestore.runTransaction<void>((transaction) async {
       final bookingSnapshot = await transaction.get(bookingReference);
       if (!bookingSnapshot.exists) return;
@@ -214,6 +268,23 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         'status': 'cancelled',
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      final userId = data['userId']?.toString() ?? '';
+      if (userId.isNotEmpty) {
+        final userNotification = firestore
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .doc(notificationReference.id);
+        transaction.set(userNotification, {
+          'type': 'booking_cancelled',
+          'title': 'Lịch hẹn đã bị hủy',
+          'message': 'Lịch hẹn tại ${data['salonName'] ?? 'salon'} đã bị hủy.',
+          'bookingId': bookingId,
+          'salonId': data['salonId']?.toString() ?? '',
+          'salonName': data['salonName']?.toString() ?? '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
       for (final slotId in rawSlotIds.map((value) => value.toString())) {
         transaction.delete(firestore.collection('booking_slots').doc(slotId));
       }

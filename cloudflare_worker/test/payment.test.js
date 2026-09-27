@@ -11,6 +11,7 @@ const {
   formatVietnamTime,
   canPayBooking,
   bookingStatusAfterPayment,
+  paymentNotification,
 } = await import('../src/index.js');
 
 test('auto-confirms a booking only after a successful VNPAY payment', () => {
@@ -18,6 +19,20 @@ test('auto-confirms a booking only after a successful VNPAY payment', () => {
   assert.equal(bookingStatusAfterPayment('pending', 'failed'), 'pending');
   assert.equal(bookingStatusAfterPayment('pending', 'pending'), 'pending');
   assert.equal(bookingStatusAfterPayment('confirmed', 'paid'), 'confirmed');
+});
+
+test('creates a personal notification only for a successful payment', () => {
+  assert.deepEqual(
+    paymentNotification({ salonId: 'salon-1', salonName: 'Men Hair Center' }, 'paid'),
+    {
+      type: 'payment_confirmed',
+      title: 'Thanh toán VNPAY thành công',
+      message: 'Lịch hẹn tại Men Hair Center đã được thanh toán và tự động xác nhận.',
+      salonId: 'salon-1',
+      salonName: 'Men Hair Center',
+    },
+  );
+  assert.equal(paymentNotification({}, 'failed'), null);
 });
 
 test('permits immediate payment for a pending booking only when chosen', () => {
