@@ -1,0 +1,64 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class Voucher {
+  final String id;
+  final String code;
+  final String title;
+  final String description;
+  final int discountPercent;
+  final int minOrderAmount;
+  final bool isActive;
+  final bool isUsed;
+  final bool isPersonal;
+  final String source;
+  final DateTime? expiresAt;
+
+  const Voucher({
+    required this.id,
+    required this.code,
+    required this.title,
+    required this.description,
+    required this.discountPercent,
+    required this.minOrderAmount,
+    required this.isActive,
+    required this.isUsed,
+    required this.isPersonal,
+    required this.source,
+    required this.expiresAt,
+  });
+
+  factory Voucher.fromDocument(
+    DocumentSnapshot<Map<String, dynamic>> document, {
+    required bool isPersonal,
+  }) {
+    final data = document.data() ?? <String, dynamic>{};
+    return Voucher(
+      id: document.id,
+      code: data['code']?.toString() ?? '',
+      title: data['title']?.toString() ?? 'Voucher ưu đãi',
+      description: data['description']?.toString() ?? '',
+      discountPercent: (data['discountPercent'] as num?)?.toInt() ?? 0,
+      minOrderAmount: (data['minOrderAmount'] as num?)?.toInt() ?? 0,
+      isActive: data['isActive'] as bool? ?? false,
+      isUsed: data['isUsed'] as bool? ?? false,
+      isPersonal: isPersonal,
+      source: data['source']?.toString() ?? (isPersonal ? 'loyalty' : 'admin'),
+      expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  bool canApply(int orderAmount) {
+    final now = DateTime.now();
+    return isActive &&
+        !isUsed &&
+        discountPercent > 0 &&
+        discountPercent <= 100 &&
+        orderAmount >= minOrderAmount &&
+        (expiresAt == null || expiresAt!.isAfter(now));
+  }
+
+  int discountFor(int orderAmount) {
+    if (!canApply(orderAmount)) return 0;
+    return orderAmount * discountPercent ~/ 100;
+  }
+}

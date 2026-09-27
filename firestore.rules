@@ -20,6 +20,20 @@ service cloud.firestore {
         allow create: if admin();
         allow update, delete: if false;
       }
+
+      match /vouchers/{voucherId} {
+        allow read: if signedIn() &&
+            (request.auth.uid == userId || admin());
+        allow create, delete: if admin();
+        allow update: if admin() ||
+            (signedIn() &&
+             request.auth.uid == userId &&
+             resource.data.isActive == true &&
+             resource.data.isUsed == false &&
+             request.resource.data.isUsed == true &&
+             request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['isUsed', 'usedBookingId', 'usedAt', 'updatedAt']));
+      }
     }
 
     match /admins/{adminId} {
@@ -46,6 +60,11 @@ service cloud.firestore {
     }
 
     match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    match /voucher_templates/{voucherId} {
       allow read: if signedIn();
       allow create, update, delete: if admin();
     }

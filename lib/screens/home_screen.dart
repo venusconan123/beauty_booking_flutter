@@ -11,6 +11,7 @@ import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_report_screen.dart';
+import 'admin_voucher_screen.dart';
 import 'booking_branch_selection_screen.dart';
 import 'booking_history_screen.dart';
 import 'hairstyle_gallery_screen.dart';
@@ -96,6 +97,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminVoucherScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminVoucherScreen()),
+    );
+  }
+
   void _openNotifications(BuildContext context) {
     Navigator.of(
       context,
@@ -173,6 +180,8 @@ class HomeScreen extends StatelessWidget {
               _openAdminNotificationScreen(context);
             } else if (value == 'reports') {
               _openAdminReportScreen(context);
+            } else if (value == 'vouchers') {
+              _openAdminVoucherScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -214,6 +223,19 @@ class HomeScreen extends StatelessWidget {
                 leading: Icon(Icons.campaign_outlined, color: _gold),
                 title: Text(
                   'Quản lý thông báo',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'vouchers',
+              child: ListTile(
+                leading: Icon(
+                  Icons.confirmation_number_outlined,
+                  color: _gold,
+                ),
+                title: Text(
+                  'Quản lý voucher',
                   style: TextStyle(color: Colors.white),
                 ),
               ),

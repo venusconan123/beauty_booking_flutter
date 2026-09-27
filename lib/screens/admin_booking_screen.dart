@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
+import '../services/voucher_service.dart';
 
 enum _BookingFilter { active, cancelled, completed }
 
@@ -266,6 +267,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       });
     }
     await batch.commit();
+    if (newStatus == 'completed' && userId.isNotEmpty) {
+      await VoucherService().awardLoyaltyVoucherIfEligible(userId);
+    }
   }
 
   Future<void> _cancelBookingAsAdmin(String bookingId) async {
@@ -822,6 +826,14 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final paymentStatus = payment['status']?.toString() ?? 'unpaid';
     final paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final isPaid = paymentStatus == 'paid';
+    final voucher = data['voucher'] is Map
+        ? Map<String, dynamic>.from(data['voucher'] as Map)
+        : const <String, dynamic>{};
+    final voucherCode = voucher['code']?.toString() ?? '';
+    final discountPercent =
+        (voucher['discountPercent'] as num?)?.toInt() ?? 0;
+    final discountAmount =
+        (data['discountAmount'] as num?)?.toInt() ?? 0;
     final hairstyle = data['hairstyle'] is Map
         ? Map<String, dynamic>.from(data['hairstyle'] as Map)
         : const <String, dynamic>{};
@@ -992,6 +1004,15 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                   ),
                   const SizedBox(height: 13),
                   _paymentBanner(paymentIcon, paymentLabel, paymentColor),
+                  if (voucherCode.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _paymentBanner(
+                      Icons.confirmation_number_rounded,
+                      'Voucher $voucherCode · giảm $discountPercent% '
+                      '(-${_formatPrice(discountAmount)})',
+                      _gold,
+                    ),
+                  ],
                   if (!isUpdating &&
                       (effectiveStatus == 'pending' ||
                           effectiveStatus == 'confirmed')) ...[

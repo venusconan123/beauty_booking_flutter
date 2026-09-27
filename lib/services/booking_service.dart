@@ -5,6 +5,7 @@ import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import '../models/voucher.dart';
 import 'barber_service.dart';
 
 class BookingConflictException implements Exception {
@@ -36,12 +37,13 @@ class BookingService {
     required DateTime appointmentAt,
     required String selectedTime,
     required String paymentChoice,
+    Voucher? selectedVoucher,
   }) async {
     if (paymentChoice != 'pay_now' && paymentChoice != 'pay_later') {
       throw ArgumentError.value(paymentChoice, 'paymentChoice');
     }
 
-    final int totalPrice = selectedServices.fold(0, (total, service) {
+    final int originalPrice = selectedServices.fold(0, (total, service) {
       return total + service.price;
     });
 
@@ -74,6 +76,17 @@ class BookingService {
         .collection('bookings')
         .doc();
 
+    final DocumentReference<Map<String, dynamic>>? voucherReference =
+        selectedVoucher == null
+        ? null
+        : selectedVoucher.isPersonal
+        ? _firestore
+              .collection('users')
+              .doc(user.uid)
+              .collection('vouchers')
+              .doc(selectedVoucher.id)
+        : _firestore.collection('voucher_templates').doc(selectedVoucher.id);
+
     final Map<String, List<DocumentReference<Map<String, dynamic>>>>
     slotReferencesByBarber = {};
 
@@ -92,6 +105,47 @@ class BookingService {
     final bool bookingCreated = await _firestore.runTransaction<bool>((
       transaction,
     ) async {
+      int discountAmount = 0;
+      int totalPrice = originalPrice;
+      Map<String, dynamic>? appliedVoucher;
+
+      if (voucherReference != null && selectedVoucher != null) {
+        final voucherSnapshot = await transaction.get(voucherReference);
+        if (!voucherSnapshot.exists) {
+          throw StateError('Voucher không còn tồn tại.');
+        }
+        final voucherData = voucherSnapshot.data()!;
+        final isActive = voucherData['isActive'] as bool? ?? false;
+        final isUsed = voucherData['isUsed'] as bool? ?? false;
+        final discountPercent =
+            (voucherData['discountPercent'] as num?)?.toInt() ?? 0;
+        final minOrderAmount =
+            (voucherData['minOrderAmount'] as num?)?.toInt() ?? 0;
+        final expiresAt = (voucherData['expiresAt'] as Timestamp?)?.toDate();
+        final isExpired = expiresAt != null && !expiresAt.isAfter(DateTime.now());
+
+        if (!isActive ||
+            (selectedVoucher.isPersonal && isUsed) ||
+            discountPercent <= 0 ||
+            discountPercent > 100 ||
+            originalPrice < minOrderAmount ||
+            isExpired) {
+          throw StateError('Voucher không còn đủ điều kiện sử dụng.');
+        }
+
+        discountAmount = originalPrice * discountPercent ~/ 100;
+        totalPrice = originalPrice - discountAmount;
+        appliedVoucher = {
+          'id': voucherSnapshot.id,
+          'code': voucherData['code']?.toString() ?? '',
+          'title': voucherData['title']?.toString() ?? 'Voucher ưu đãi',
+          'discountPercent': discountPercent,
+          'minOrderAmount': minOrderAmount,
+          'source': voucherData['source']?.toString() ?? 'admin',
+          'isPersonal': selectedVoucher.isPersonal,
+        };
+      }
+
       final Map<String, List<DocumentSnapshot<Map<String, dynamic>>>>
       slotSnapshotsByBarber = {};
 
@@ -172,7 +226,10 @@ class BookingService {
               },
         'appointmentAt': Timestamp.fromDate(appointmentAt),
         'selectedTime': selectedTime,
+        'originalPrice': originalPrice,
+        'discountAmount': discountAmount,
         'totalPrice': totalPrice,
+        'voucher': appliedVoucher,
         'totalDurationMinutes': totalDuration,
         'slotIds': slotIds,
         'status': 'pending',
@@ -186,6 +243,15 @@ class BookingService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      if (voucherReference != null && selectedVoucher!.isPersonal) {
+        transaction.update(voucherReference, {
+          'isUsed': true,
+          'usedBookingId': bookingReference.id,
+          'usedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       for (int index = 0; index < selectedSlotReferences.length; index++) {
         transaction.set(selectedSlotReferences[index], {
