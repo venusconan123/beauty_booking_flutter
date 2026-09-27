@@ -375,6 +375,7 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
           ],
         ),
         child: Center(
+          heightFactor: 1,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1088),
             child: LayoutBuilder(
