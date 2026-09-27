@@ -32,6 +32,7 @@ class Hairstyle {
       name: data['name'] as String? ?? '',
       description: data['description'] as String? ?? '',
       imageUrl: data['imageUrl'] as String? ?? '',
+      assetPath: data['assetPath'] as String? ?? '',
       storagePath: data['storagePath'] as String? ?? '',
       isActive: data['isActive'] as bool? ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),

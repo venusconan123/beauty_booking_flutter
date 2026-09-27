@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'barber_selection_screen.dart';
 
 class QuickBookingBranchScreen extends StatelessWidget {
   final HairService selectedService;
+  final Hairstyle? selectedHairstyle;
   final List<Salon> salons;
 
   const QuickBookingBranchScreen({
     super.key,
     required this.selectedService,
+    this.selectedHairstyle,
     required this.salons,
   });
 
@@ -33,6 +36,7 @@ class QuickBookingBranchScreen extends StatelessWidget {
         builder: (_) => BarberSelectionScreen(
           salon: salon,
           selectedServices: <HairService>[serviceAtSalon],
+          selectedHairstyle: selectedHairstyle,
         ),
       ),
     );

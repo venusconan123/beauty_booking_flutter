@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'booking_confirmation_screen.dart';
 
 class DateTimeSelectionScreen extends StatefulWidget {
   final Salon salon;
   final List<HairService> selectedServices;
+  final Hairstyle? selectedHairstyle;
   final Barber? selectedBarber;
   final bool useAnyBarber;
 
@@ -17,6 +19,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
     super.key,
     required this.salon,
     required this.selectedServices,
+    this.selectedHairstyle,
     required this.selectedBarber,
     required this.useAnyBarber,
   });
@@ -341,6 +344,7 @@ class _DateTimeSelectionScreenState
           return BookingConfirmationScreen(
             salon: widget.salon,
             selectedServices: widget.selectedServices,
+            selectedHairstyle: widget.selectedHairstyle,
             selectedBarber: widget.selectedBarber,
             useAnyBarber: widget.useAnyBarber,
             selectedDate: _selectedDate!,

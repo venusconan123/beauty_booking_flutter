@@ -18,6 +18,16 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
 
   final _service = HairstyleService();
   bool _seeding = false;
+  bool _defaultsReady = false;
+  String? _seedError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seedDefaults(showSuccess: false);
+    });
+  }
 
   Future<void> _openForm([Hairstyle? hairstyle]) async {
     await Navigator.of(context).push<bool>(
@@ -27,19 +37,28 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
     );
   }
 
-  Future<void> _seedDefaults() async {
+  Future<void> _seedDefaults({bool showSuccess = true}) async {
     setState(() => _seeding = true);
     try {
-      await _service.seedDefaults();
+      await _service.ensureDefaults();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã tạo 6 mẫu tóc ban đầu.')),
-      );
+      setState(() {
+        _seedError = null;
+        _defaultsReady = true;
+      });
+      if (showSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã đồng bộ 6 mẫu tóc ban đầu.')),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể tạo dữ liệu mẫu: $error')),
-      );
+      setState(() => _seedError = error.toString());
+      if (showSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể đồng bộ dữ liệu mẫu: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
@@ -104,19 +123,22 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
       body: StreamBuilder<List<Hairstyle>>(
         stream: _service.watchHairstyles(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _gold));
-          }
           if (snapshot.hasError) {
-            return _MessageState(
-              icon: Icons.cloud_off_rounded,
-              title: 'Không tải được dữ liệu',
-              message: '${snapshot.error}',
+            return _buildDefaultPreview(
+              notice: 'Cần triển khai Firestore Rules để bật quyền sửa và xóa. '
+                  '${snapshot.error}',
             );
           }
 
           final hairstyles = snapshot.data ?? const <Hairstyle>[];
-          if (hairstyles.isEmpty) return _buildEmptyState();
+          if (hairstyles.isEmpty) {
+            if (_defaultsReady) return _buildManagedEmptyState();
+            return _buildDefaultPreview(
+              notice: _seeding
+                  ? 'Đang đồng bộ 6 mẫu tóc vào hệ thống quản lý...'
+                  : _seedError,
+            );
+          }
 
           return CustomScrollView(
             slivers: [
@@ -186,26 +208,111 @@ class _AdminHairstyleScreenState extends State<AdminHairstyleScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return _MessageState(
-      icon: Icons.photo_library_outlined,
-      title: 'Chưa có mẫu tóc được quản lý',
-      message:
-          'Tạo nhanh bộ 6 ảnh mẫu có sẵn, sau đó admin có thể sửa hoặc xóa từng mẫu.',
-      action: FilledButton.icon(
-        onPressed: _seeding ? null : _seedDefaults,
-        icon: _seeding
-            ? const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.auto_awesome_rounded),
-        label: Text(_seeding ? 'ĐANG TẠO...' : 'TẠO 6 ẢNH MẪU'),
-        style: FilledButton.styleFrom(
-          backgroundColor: _gold,
-          foregroundColor: _ink,
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+  Widget _buildDefaultPreview({String? notice}) {
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (notice != null)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3D5),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0x66B7791F)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, color: Color(0xFF9B6B24)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(notice)),
+                        TextButton(
+                          onPressed: _seeding
+                              ? null
+                              : () => _seedDefaults(showSuccess: true),
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 18),
+                const Text(
+                  '6 MẪU TÓC CÓ SẴN',
+                  style: TextStyle(
+                    color: Color(0xFF9B6B24),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Bộ sưu tập mặc định của salon',
+                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 96),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 430,
+              mainAxisExtent: 330,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 18,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _DefaultStyleCard(
+                hairstyle: defaultHairstyles[index],
+              ),
+              childCount: defaultHairstyles.length,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManagedEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.photo_library_outlined,
+              size: 66,
+              color: Color(0xFF9B6B24),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Thư viện mẫu tóc đang trống',
+              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Bấm “Thêm mẫu” để tải một ảnh kiểu tóc mới.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF66707C)),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _openForm,
+              icon: const Icon(Icons.add_photo_alternate_rounded),
+              label: const Text('THÊM MẪU TÓC'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -238,14 +345,7 @@ class _AdminStyleCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  hairstyle.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const ColoredBox(
-                    color: Color(0xFF202A35),
-                    child: Icon(Icons.broken_image_outlined, color: Colors.white54),
-                  ),
-                ),
+                _managedImage(hairstyle),
                 Positioned(
                   top: 12,
                   left: 12,
@@ -314,47 +414,85 @@ class _AdminStyleCard extends StatelessWidget {
   }
 }
 
-class _MessageState extends StatelessWidget {
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.action,
-  });
+class _DefaultStyleCard extends StatelessWidget {
+  const _DefaultStyleCard({required this.hairstyle});
 
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
+  final Hairstyle hairstyle;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 66, color: const Color(0xFF9B6B24)),
-              const SizedBox(height: 18),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(hairstyle.assetPath, fit: BoxFit.cover),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Color(0xEE090E14)],
+                stops: [.42, 1],
               ),
-              const SizedBox(height: 9),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF66707C), height: 1.5),
-              ),
-              if (action != null) ...[const SizedBox(height: 22), action!],
-            ],
+            ),
           ),
-        ),
+          const Positioned(
+            top: 12,
+            left: 12,
+            child: Chip(
+              avatar: Icon(Icons.auto_awesome_rounded, size: 17),
+              label: Text('Mẫu có sẵn'),
+            ),
+          ),
+          Positioned(
+            left: 17,
+            right: 17,
+            bottom: 17,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hairstyle.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  hairstyle.description,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+Widget _managedImage(Hairstyle hairstyle) {
+  if (hairstyle.imageUrl.isNotEmpty) {
+    return Image.network(
+      hairstyle.imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const ColoredBox(
+        color: Color(0xFF202A35),
+        child: Icon(Icons.broken_image_outlined, color: Colors.white54),
+      ),
+    );
+  }
+  if (hairstyle.assetPath.isNotEmpty) {
+    return Image.asset(hairstyle.assetPath, fit: BoxFit.cover);
+  }
+  return const ColoredBox(
+    color: Color(0xFF202A35),
+    child: Icon(Icons.image_not_supported_outlined, color: Colors.white54),
+  );
 }

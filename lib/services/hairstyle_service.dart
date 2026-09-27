@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/services.dart';
 
 import '../models/hairstyle.dart';
 
@@ -22,6 +21,7 @@ class HairstyleService {
   Stream<List<Hairstyle>> watchHairstyles({bool activeOnly = false}) {
     return _collection.snapshots().map((snapshot) {
       final items = snapshot.docs
+          .where((document) => document.id != '_catalog')
           .map(Hairstyle.fromDocument)
           .where((item) => !activeOnly || item.isActive)
           .toList();
@@ -91,7 +91,10 @@ class HairstyleService {
     }
   }
 
-  Future<void> seedDefaults() async {
+  Future<void> ensureDefaults() async {
+    final marker = await _collection.doc('_catalog').get();
+    if (marker.data()?['defaultsInitialized'] == true) return;
+
     for (final hairstyle in defaultHairstyles) {
       final existing = await _collection
           .where('name', isEqualTo: hairstyle.name)
@@ -99,19 +102,26 @@ class HairstyleService {
           .get();
       if (existing.docs.isNotEmpty) continue;
 
-      final data = await rootBundle.load(hairstyle.assetPath);
-      final bytes = data.buffer.asUint8List(
-        data.offsetInBytes,
-        data.lengthInBytes,
-      );
-      final fileName = hairstyle.assetPath.split('/').last;
-      await create(
-        name: hairstyle.name,
-        description: hairstyle.description,
-        imageBytes: bytes,
-        fileName: fileName,
-      );
+      final id = hairstyle.name
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
+      await _collection.doc(id).set({
+        'name': hairstyle.name,
+        'description': hairstyle.description,
+        'imageUrl': '',
+        'assetPath': hairstyle.assetPath,
+        'storagePath': '',
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
+    await _collection.doc('_catalog').set({
+      'type': 'configuration',
+      'defaultsInitialized': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<(String, String)> _upload(

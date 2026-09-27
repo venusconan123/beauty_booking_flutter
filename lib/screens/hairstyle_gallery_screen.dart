@@ -164,6 +164,7 @@ class HairstyleGalleryScreen extends StatelessWidget {
                             MaterialPageRoute<void>(
                               builder: (_) => QuickBookingBranchScreen(
                                 selectedService: hairStyling,
+                                selectedHairstyle: hairstyle,
                                 salons: sampleSalons,
                               ),
                             ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'admin_booking_screen.dart';
 import 'admin_hairstyle_screen.dart';
@@ -90,11 +91,16 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _openQuickBooking(BuildContext context, HairService service) {
+  void _openQuickBooking(
+    BuildContext context,
+    HairService service, {
+    Hairstyle? selectedHairstyle,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => QuickBookingBranchScreen(
           selectedService: service,
+          selectedHairstyle: selectedHairstyle,
           salons: sampleSalons,
         ),
       ),
@@ -697,6 +703,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _showStyleDetail(BuildContext context, String name, String detail) {
+    final selectedHairstyle = defaultHairstyles.firstWhere(
+      (hairstyle) => hairstyle.name == name,
+    );
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: _panel,
@@ -718,7 +727,11 @@ class HomeScreen extends StatelessWidget {
                     ? null
                     : () {
                         Navigator.of(context).pop();
-                        _openQuickBooking(context, hairStyling);
+                        _openQuickBooking(
+                          context,
+                          hairStyling,
+                          selectedHairstyle: selectedHairstyle,
+                        );
                       },
                 style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
                 child: const Text('Đặt lịch với kiểu tóc này'),
