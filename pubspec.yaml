@@ -37,6 +37,8 @@ dependencies:
   firebase_core: ^4.14.0
   firebase_auth: ^6.6.1
   cloud_firestore: ^6.9.0
+  firebase_storage: ^13.6.0
+  image_picker: ^1.2.3
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.0.3
@@ -71,6 +73,9 @@ flutter:
     - assets/images/style_textured_crop.jpg
     - assets/images/style_korean_layer.jpg
     - assets/images/style_modern_mullet.jpg
+    - assets/images/style_modern_side_part.jpg
+    - assets/images/style_modern_quiff.jpg
+    - assets/images/style_buzz_fade.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

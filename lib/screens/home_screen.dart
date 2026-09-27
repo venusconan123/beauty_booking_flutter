@@ -6,7 +6,9 @@ import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
 import 'admin_booking_screen.dart';
+import 'admin_hairstyle_screen.dart';
 import 'booking_history_screen.dart';
+import 'hairstyle_gallery_screen.dart';
 import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
 import 'salon_map_screen.dart';
@@ -64,6 +66,18 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminHairstyleScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminHairstyleScreen()),
+    );
+  }
+
+  void _openHairstyleGallery(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const HairstyleGalleryScreen()),
+    );
+  }
+
   void _openMap(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const SalonMapScreen()),
@@ -100,10 +114,34 @@ class HomeScreen extends StatelessWidget {
         if (!(snapshot.data?.exists ?? false)) {
           return const SizedBox.shrink();
         }
-        return _headerIcon(
-          tooltip: 'Quản lý lịch hẹn',
-          icon: Icons.admin_panel_settings_rounded,
-          onPressed: () => _openAdminBookingScreen(context),
+        return PopupMenuButton<String>(
+          tooltip: 'Khu vực quản trị',
+          color: _panel,
+          iconColor: Colors.white,
+          icon: const Icon(Icons.admin_panel_settings_rounded),
+          onSelected: (value) {
+            if (value == 'hairstyles') {
+              _openAdminHairstyleScreen(context);
+            } else {
+              _openAdminBookingScreen(context);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'bookings',
+              child: ListTile(
+                leading: Icon(Icons.calendar_month_outlined, color: _gold),
+                title: Text('Quản lý lịch hẹn', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'hairstyles',
+              child: ListTile(
+                leading: Icon(Icons.photo_library_outlined, color: _gold),
+                title: Text('Quản lý mẫu tóc', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -315,7 +353,7 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => _showStyleGuide(context),
+                          onPressed: () => _openHairstyleGallery(context),
                           icon: const Icon(Icons.auto_awesome_rounded, size: 19),
                           label: const Text('XEM KIỂU TÓC'),
                           style: OutlinedButton.styleFrom(
@@ -654,26 +692,6 @@ class HomeScreen extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1420),
         child: child,
-      ),
-    );
-  }
-
-  void _showStyleGuide(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _panel,
-      showDragHandle: true,
-      builder: (context) => const Padding(
-        padding: EdgeInsets.fromLTRB(24, 4, 24, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Chọn kiểu tóc phù hợp', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
-            SizedBox(height: 10),
-            Text('Chạm vào từng mẫu tóc để xem mô tả. Khi đặt lịch, bạn có thể trao đổi mẫu mong muốn với stylist.', style: TextStyle(color: _muted, height: 1.5)),
-          ],
-        ),
       ),
     );
   }
