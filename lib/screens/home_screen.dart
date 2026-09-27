@@ -11,6 +11,7 @@ import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_report_screen.dart';
+import 'booking_branch_selection_screen.dart';
 import 'booking_history_screen.dart';
 import 'hairstyle_gallery_screen.dart';
 import 'quick_booking_branch_screen.dart';
@@ -116,6 +117,16 @@ class HomeScreen extends StatelessWidget {
   void _openSalon(BuildContext context, Salon salon) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => SalonDetailScreen(salon: salon)),
+    );
+  }
+
+  void _openBookingBranchSelection(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const BookingBranchSelectionScreen(
+          salons: sampleSalons,
+        ),
+      ),
     );
   }
 
@@ -434,7 +445,7 @@ class HomeScreen extends StatelessWidget {
                         FilledButton.icon(
                           onPressed: sampleSalons.isEmpty
                               ? null
-                              : () => _openSalon(context, sampleSalons.first),
+                              : () => _openBookingBranchSelection(context),
                           icon: const Icon(
                             Icons.calendar_month_rounded,
                             size: 20,
