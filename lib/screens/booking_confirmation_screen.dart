@@ -6,8 +6,10 @@ import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import '../models/voucher.dart';
 import '../services/booking_service.dart';
 import '../services/vnpay_payment_service.dart';
+import '../services/voucher_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   final Salon salon;
@@ -37,8 +39,17 @@ class BookingConfirmationScreen extends StatefulWidget {
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   bool _isSaving = false;
+  bool _isLoadingVouchers = true;
+  List<Voucher> _availableVouchers = const [];
+  Voucher? _selectedVoucher;
 
   final BookingService _bookingService = BookingService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVouchers();
+  }
 
   int get _totalPrice {
     return widget.selectedServices.fold(
@@ -53,8 +64,110 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     });
   }
 
+  int get _discountAmount =>
+      _selectedVoucher?.discountFor(_totalPrice) ?? 0;
+
+  int get _finalPrice => _totalPrice - _discountAmount;
+
+  Future<void> _loadVouchers() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingVouchers = false);
+      return;
+    }
+    try {
+      final vouchers = await VoucherService().getAvailableVouchers(
+        userId: user.uid,
+        orderAmount: _totalPrice,
+      );
+      if (mounted) {
+        setState(() {
+          _availableVouchers = vouchers;
+          _isLoadingVouchers = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingVouchers = false);
+    }
+  }
+
+  Future<void> _chooseVoucher() async {
+    final selected = await showModalBottomSheet<Voucher>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chọn voucher',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              if (_availableVouchers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: Text('Chưa có voucher phù hợp với đơn này.'),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _availableVouchers.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final voucher = _availableVouchers[index];
+                      return ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: Color(0x33F6C768)),
+                        ),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.confirmation_number_rounded),
+                        ),
+                        title: Text(
+                          '${voucher.code} · Giảm ${voucher.discountPercent}%',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Text(
+                          voucher.minOrderAmount == 0
+                              ? voucher.title
+                              : '${voucher.title}\nĐơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
+                        ),
+                        isThreeLine: voucher.minOrderAmount > 0,
+                        onTap: () => Navigator.pop(sheetContext, voucher),
+                      );
+                    },
+                  ),
+                ),
+              if (_selectedVoucher != null)
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Không dùng voucher'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _selectedVoucher = selected);
+  }
+
   String _formatPrice(int price) {
-    return '${price ~/ 1000}.000đ';
+    final value = price.toString();
+    final result = StringBuffer();
+    for (var index = 0; index < value.length; index++) {
+      if (index > 0 && (value.length - index) % 3 == 0) result.write('.');
+      result.write(value[index]);
+    }
+    return '${result}đ';
   }
 
   String _formatDate(DateTime date) {
@@ -114,6 +227,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         appointmentAt: appointmentDateTime,
         selectedTime: widget.selectedTime,
         paymentChoice: payNow ? 'pay_now' : 'pay_later',
+        selectedVoucher: _selectedVoucher,
       );
 
       if (!mounted) {
@@ -351,6 +465,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          _buildVoucherCard(),
+          const SizedBox(height: 24),
           const Text(
             'Dịch vụ đã chọn',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -393,6 +509,33 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     );
                   }),
                   const Divider(),
+                  if (_selectedVoucher != null) ...[
+                    Row(
+                      children: [
+                        Text('Tạm tính (${_selectedVoucher!.code})'),
+                        const Spacer(),
+                        Text(_formatPrice(_totalPrice)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Text(
+                          'Voucher giảm',
+                          style: TextStyle(color: Colors.green),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '-${_formatPrice(_discountAmount)}',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                  ],
                   Row(
                     children: [
                       const Text('Tổng thời gian'),
@@ -415,7 +558,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                       ),
                       const Spacer(),
                       Text(
-                        _formatPrice(_totalPrice),
+                        _formatPrice(_finalPrice),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -509,6 +652,42 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVoucherCard() {
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: const CircleAvatar(
+          backgroundColor: Color(0x1F2E7D32),
+          child: Icon(Icons.confirmation_number_rounded, color: Colors.green),
+        ),
+        title: Text(
+          _selectedVoucher?.title ?? 'Voucher ưu đãi',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          _isLoadingVouchers
+              ? 'Đang kiểm tra voucher của bạn...'
+              : _selectedVoucher == null
+              ? _availableVouchers.isEmpty
+                    ? 'Bạn chưa có voucher phù hợp.'
+                    : 'Có ${_availableVouchers.length} voucher có thể sử dụng.'
+              : '${_selectedVoucher!.code} · Giảm ${_selectedVoucher!.discountPercent}%',
+        ),
+        trailing: _isLoadingVouchers
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: _chooseVoucher,
+                child: Text(_selectedVoucher == null ? 'Chọn' : 'Đổi'),
+              ),
+        onTap: _isLoadingVouchers ? null : _chooseVoucher,
+      ),
     );
   }
 }
