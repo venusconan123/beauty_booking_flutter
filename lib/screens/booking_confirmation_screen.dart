@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/barber.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import '../services/booking_service.dart';
 import '../services/vnpay_payment_service.dart';
@@ -11,6 +12,7 @@ import '../services/vnpay_payment_service.dart';
 class BookingConfirmationScreen extends StatefulWidget {
   final Salon salon;
   final List<HairService> selectedServices;
+  final Hairstyle? selectedHairstyle;
   final Barber? selectedBarber;
   final bool useAnyBarber;
   final DateTime selectedDate;
@@ -20,6 +22,7 @@ class BookingConfirmationScreen extends StatefulWidget {
     super.key,
     required this.salon,
     required this.selectedServices,
+    this.selectedHairstyle,
     required this.selectedBarber,
     required this.useAnyBarber,
     required this.selectedDate,
@@ -105,6 +108,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         user: user,
         salon: widget.salon,
         selectedServices: widget.selectedServices,
+        selectedHairstyle: widget.selectedHairstyle,
         selectedBarber: widget.selectedBarber,
         useAnyBarber: widget.useAnyBarber,
         appointmentAt: appointmentDateTime,
@@ -260,6 +264,53 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
+          if (widget.selectedHairstyle != null) ...[
+            const SizedBox(height: 24),
+            const Text(
+              'Mẫu tóc đã chọn',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 116,
+                    height: 104,
+                    child: widget.selectedHairstyle!.imageUrl.isNotEmpty
+                        ? Image.network(
+                            widget.selectedHairstyle!.imageUrl,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.asset(
+                            widget.selectedHairstyle!.assetPath,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.selectedHairstyle!.name,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(widget.selectedHairstyle!.description),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           Card(
             child: Padding(

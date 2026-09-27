@@ -206,6 +206,8 @@ class _HairstyleFormScreenState extends State<HairstyleFormScreen> {
       preview = Image.memory(_imageBytes!, fit: BoxFit.cover);
     } else if (widget.hairstyle?.imageUrl.isNotEmpty == true) {
       preview = Image.network(widget.hairstyle!.imageUrl, fit: BoxFit.cover);
+    } else if (widget.hairstyle?.assetPath.isNotEmpty == true) {
+      preview = Image.asset(widget.hairstyle!.assetPath, fit: BoxFit.cover);
     } else {
       preview = const ColoredBox(
         color: Color(0xFF111923),

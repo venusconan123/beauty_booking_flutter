@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'date_time_selection_screen.dart';
 
 class BarberSelectionScreen extends StatefulWidget {
   final Salon salon;
   final List<HairService> selectedServices;
+  final Hairstyle? selectedHairstyle;
 
   const BarberSelectionScreen({
     super.key,
     required this.salon,
     required this.selectedServices,
+    this.selectedHairstyle,
   });
 
   @override
@@ -61,6 +64,7 @@ class _BarberSelectionScreenState
         builder: (context) => DateTimeSelectionScreen(
           salon: widget.salon,
           selectedServices: widget.selectedServices,
+          selectedHairstyle: widget.selectedHairstyle,
           selectedBarber: selectedBarber,
           useAnyBarber: useAnyBarber,
         ),

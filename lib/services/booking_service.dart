@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
 
 class BookingConflictException implements Exception {
@@ -29,6 +30,7 @@ class BookingService {
     required User user,
     required Salon salon,
     required List<HairService> selectedServices,
+    required Hairstyle? selectedHairstyle,
     required Barber? selectedBarber,
     required bool useAnyBarber,
     required DateTime appointmentAt,
@@ -159,6 +161,15 @@ class BookingService {
             'durationMinutes': service.durationMinutes,
           };
         }).toList(),
+        'hairstyle': selectedHairstyle == null
+            ? null
+            : {
+                'id': selectedHairstyle.id,
+                'name': selectedHairstyle.name,
+                'description': selectedHairstyle.description,
+                'imageUrl': selectedHairstyle.imageUrl,
+                'assetPath': selectedHairstyle.assetPath,
+              },
         'appointmentAt': Timestamp.fromDate(appointmentAt),
         'selectedTime': selectedTime,
         'totalPrice': totalPrice,

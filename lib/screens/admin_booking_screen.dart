@@ -1,5 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../data/sample_salons.dart';
+import '../models/salon.dart';
+
+enum _BookingFilter { active, cancelled, completed }
 
 class AdminBookingScreen extends StatefulWidget {
   const AdminBookingScreen({super.key});
@@ -16,98 +23,129 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   static const Color _muted = Color(0xFFB8C0CC);
 
   final Set<String> _updatingBookingIds = <String>{};
+  late String _selectedSalonId;
+  _BookingFilter _selectedFilter = _BookingFilter.active;
+  Timer? _relativeTimeTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSalonId = sampleSalons.first.id;
+    _relativeTimeTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _relativeTimeTicker?.cancel();
+    super.dispose();
+  }
 
   String _formatPrice(int price) => '${price ~/ 1000}.000đ';
 
   String _formatDateTime(DateTime dateTime) {
-    final String day = dateTime.day.toString().padLeft(2, '0');
-    final String month = dateTime.month.toString().padLeft(2, '0');
-    final String hour = dateTime.hour.toString().padLeft(2, '0');
-    final String minute = dateTime.minute.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$hour:$minute - $day/$month/${dateTime.year}';
   }
 
-  String _statusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Chờ xác nhận';
-      case 'confirmed':
-        return 'Đã xác nhận';
-      case 'completed':
-        return 'Đã hoàn thành';
-      case 'cancelled':
-        return 'Đã hủy';
-      default:
-        return 'Không xác định';
+  String _relativeCreatedTime(DateTime? createdAt) {
+    if (createdAt == null) return 'Vừa đăng ký';
+    final difference = DateTime.now().difference(createdAt);
+    if (difference.isNegative || difference.inSeconds < 45) return 'Vừa đăng ký';
+    if (difference.inMinutes < 60) {
+      return 'Đã đăng ký ${difference.inMinutes} phút trước';
     }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return const Color(0xFFFFB648);
-      case 'confirmed':
-        return const Color(0xFF63B3FF);
-      case 'completed':
-        return const Color(0xFF59D38C);
-      case 'cancelled':
-        return const Color(0xFFFF6B6B);
-      default:
-        return _muted;
+    if (difference.inHours < 24) {
+      return 'Đã đăng ký ${difference.inHours} giờ trước';
     }
-  }
-
-  String _actionText(String status) {
-    switch (status) {
-      case 'confirmed':
-        return 'xác nhận';
-      case 'completed':
-        return 'đánh dấu hoàn thành';
-      case 'cancelled':
-        return 'hủy';
-      default:
-        return 'cập nhật';
+    if (difference.inDays < 7) {
+      return 'Đã đăng ký ${difference.inDays} ngày trước';
     }
+    return 'Đăng ký ngày ${createdAt.day.toString().padLeft(2, '0')}/'
+        '${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}';
   }
 
-  DateTime _appointmentDate(QueryDocumentSnapshot<Map<String, dynamic>> booking) {
-    final Timestamp? timestamp = booking.data()['appointmentAt'] as Timestamp?;
-    return timestamp?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+  String _statusText(String status, {required bool isPaid}) {
+    if (isPaid && (status == 'pending' || status == 'confirmed')) {
+      return 'Đã xác nhận tự động';
+    }
+    return switch (status) {
+      'pending' => 'Chờ admin xác nhận',
+      'confirmed' => 'Đã xác nhận',
+      'completed' => 'Đã hoàn thành',
+      'cancelled' => 'Đã hủy',
+      _ => 'Không xác định',
+    };
   }
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _getActiveBookings(
+  Color _statusColor(String status, {required bool isPaid}) {
+    if (isPaid && (status == 'pending' || status == 'confirmed')) {
+      return const Color(0xFF59D38C);
+    }
+    return switch (status) {
+      'pending' => const Color(0xFFFFB648),
+      'confirmed' => const Color(0xFF63B3FF),
+      'completed' => const Color(0xFF59D38C),
+      'cancelled' => const Color(0xFFFF6B6B),
+      _ => _muted,
+    };
+  }
+
+  DateTime? _createdAt(QueryDocumentSnapshot<Map<String, dynamic>> booking) {
+    return (booking.data()['createdAt'] as Timestamp?)?.toDate();
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _bookingsForBranch(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+    String salonId,
   ) {
-    final activeBookings = bookings.where((booking) {
-      final String status = booking.data()['status'] as String? ?? 'pending';
-      return status == 'pending' || status == 'confirmed';
+    return bookings.where((booking) {
+      return booking.data()['salonId'] == salonId;
     }).toList();
-    activeBookings.sort((first, second) {
-      final String firstStatus = first.data()['status'] as String? ?? 'pending';
-      final String secondStatus = second.data()['status'] as String? ?? 'pending';
-      final int statusComparison = (firstStatus == 'pending' ? 0 : 1).compareTo(secondStatus == 'pending' ? 0 : 1);
-      return statusComparison != 0 ? statusComparison : _appointmentDate(first).compareTo(_appointmentDate(second));
-    });
-    return activeBookings;
   }
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _getBookingsByStatus(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredBookings(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
-    String status,
   ) {
-    final filtered = bookings.where((booking) => booking.data()['status'] == status).toList();
-    filtered.sort((first, second) => _appointmentDate(second).compareTo(_appointmentDate(first)));
+    final filtered = _bookingsForBranch(bookings, _selectedSalonId).where((booking) {
+      final status = booking.data()['status'] as String? ?? 'pending';
+      return switch (_selectedFilter) {
+        _BookingFilter.active => status == 'pending' || status == 'confirmed',
+        _BookingFilter.cancelled => status == 'cancelled',
+        _BookingFilter.completed => status == 'completed',
+      };
+    }).toList();
+
+    // Lịch mới đăng ký nằm trên, lịch đăng ký trước được đưa xuống dưới.
+    filtered.sort((first, second) {
+      final firstTime = _createdAt(first)?.millisecondsSinceEpoch ?? 0;
+      final secondTime = _createdAt(second)?.millisecondsSinceEpoch ?? 0;
+      return secondTime.compareTo(firstTime);
+    });
     return filtered;
   }
 
-  Future<void> _requestStatusChange({required String bookingId, required String newStatus}) async {
-    final bool? shouldUpdate = await showDialog<bool>(
+  Future<void> _requestStatusChange({
+    required String bookingId,
+    required String newStatus,
+  }) async {
+    final action = switch (newStatus) {
+      'confirmed' => 'xác nhận',
+      'completed' => 'đánh dấu hoàn thành',
+      'cancelled' => 'hủy',
+      _ => 'cập nhật',
+    };
+    final shouldUpdate = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _surface,
         title: const Text('Cập nhật lịch hẹn', style: TextStyle(color: Colors.white)),
         content: Text(
-          'Bạn có chắc chắn muốn ${_actionText(newStatus)} lịch hẹn này không?',
+          'Bạn có chắc chắn muốn $action lịch hẹn này không?',
           style: const TextStyle(color: _muted),
         ),
         actions: [
@@ -117,7 +155,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: newStatus == 'cancelled' ? const Color(0xFFD94B4B) : _gold,
+              backgroundColor: newStatus == 'cancelled'
+                  ? const Color(0xFFD94B4B)
+                  : _gold,
               foregroundColor: newStatus == 'cancelled' ? Colors.white : _ink,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -126,10 +166,15 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         ],
       ),
     );
-    if (shouldUpdate == true) await _updateStatus(bookingId: bookingId, newStatus: newStatus);
+    if (shouldUpdate == true) {
+      await _updateStatus(bookingId: bookingId, newStatus: newStatus);
+    }
   }
 
-  Future<void> _updateStatus({required String bookingId, required String newStatus}) async {
+  Future<void> _updateStatus({
+    required String bookingId,
+    required String newStatus,
+  }) async {
     setState(() => _updatingBookingIds.add(bookingId));
     try {
       if (newStatus == 'cancelled') {
@@ -142,35 +187,34 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã cập nhật: ${_statusText(newStatus)}.'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Đã cập nhật lịch hẹn.'), backgroundColor: Colors.green),
       );
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      String message = 'Không thể cập nhật lịch hẹn.';
-      if (error.code == 'permission-denied') {
-        message = 'Tài khoản này không có quyền quản trị.';
-      } else if (error.message != null) {
-        message = error.message!;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+      final message = error.code == 'permission-denied'
+          ? 'Tài khoản này không có quyền quản trị.'
+          : error.message ?? 'Không thể cập nhật lịch hẹn.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) setState(() => _updatingBookingIds.remove(bookingId));
     }
   }
 
   Future<void> _cancelBookingAsAdmin(String bookingId) async {
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final firestore = FirebaseFirestore.instance;
     final bookingReference = firestore.collection('bookings').doc(bookingId);
     await firestore.runTransaction<void>((transaction) async {
       final bookingSnapshot = await transaction.get(bookingReference);
       if (!bookingSnapshot.exists) return;
-      final Map<String, dynamic> data = bookingSnapshot.data()!;
-      final List<dynamic> rawSlotIds = data['slotIds'] as List<dynamic>? ?? <dynamic>[];
+      final data = bookingSnapshot.data()!;
+      final rawSlotIds = data['slotIds'] as List<dynamic>? ?? <dynamic>[];
       transaction.update(bookingReference, {
         'status': 'cancelled',
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      for (final String slotId in rawSlotIds.map((value) => value.toString())) {
+      for (final slotId in rawSlotIds.map((value) => value.toString())) {
         transaction.delete(firestore.collection('booking_slots').doc(slotId));
       }
     });
@@ -179,70 +223,80 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   @override
   Widget build(BuildContext context) {
     final bookingStream = FirebaseFirestore.instance.collection('bookings').snapshots();
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: _ink,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset('assets/images/login_barbershop_background.jpg', fit: BoxFit.cover),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xEB08111E), Color(0xFC08111E)]),
+    return Scaffold(
+      backgroundColor: _ink,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/images/login_barbershop_background.jpg', fit: BoxFit.cover),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xF008111E), Color(0xFF08111E)],
               ),
             ),
-            SafeArea(
-              child: Column(
-                children: [
-                  _header(),
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _header(),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: bookingStream,
                     builder: (context, snapshot) {
-                      final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[...?snapshot.data?.docs];
-                      final int pendingCount = bookings.where((booking) => booking.data()['status'] == 'pending').length;
-                      return _tabBar(pendingCount);
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator(color: _gold));
+                      }
+                      if (snapshot.hasError) {
+                        return _emptyState(Icons.cloud_off_rounded, 'Không thể tải danh sách lịch hẹn.');
+                      }
+                      final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[
+                        ...?snapshot.data?.docs,
+                      ];
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          final wide = constraints.maxWidth >= 980;
+                          return Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1440),
+                              child: wide
+                                  ? Row(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        SizedBox(width: 294, child: _buildBranchSidebar(bookings)),
+                                        Expanded(child: _buildBranchContent(bookings)),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                        _buildMobileBranches(bookings),
+                                        Expanded(child: _buildBranchContent(bookings)),
+                                      ],
+                                    ),
+                            ),
+                          );
+                        },
+                      );
                     },
                   ),
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: bookingStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator(color: _gold));
-                        }
-                        if (snapshot.hasError) {
-                          return _emptyState(Icons.cloud_off_rounded, 'Không thể tải danh sách lịch hẹn.');
-                        }
-                        final bookings = <QueryDocumentSnapshot<Map<String, dynamic>>>[...?snapshot.data?.docs];
-                        return Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1180),
-                            child: TabBarView(
-                              children: [
-                                _buildBookingList(bookings: _getActiveBookings(bookings), emptyIcon: Icons.pending_actions_rounded, emptyMessage: 'Không có lịch nào đang chờ xử lý.'),
-                                _buildBookingList(bookings: _getBookingsByStatus(bookings, 'cancelled'), emptyIcon: Icons.event_busy_rounded, emptyMessage: 'Chưa có lịch nào bị hủy.'),
-                                _buildBookingList(bookings: _getBookingsByStatus(bookings, 'completed'), emptyIcon: Icons.event_available_rounded, emptyMessage: 'Chưa có lịch nào hoàn thành.'),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 20, 13),
-      decoration: const BoxDecoration(color: Color(0xD90B1420)),
+      padding: const EdgeInsets.fromLTRB(10, 10, 20, 13),
+      decoration: const BoxDecoration(
+        color: Color(0xEB0B1420),
+        border: Border(bottom: BorderSide(color: Color(0x33F6C768))),
+      ),
       child: Row(
         children: [
           IconButton(
@@ -254,7 +308,11 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           Container(
             width: 43,
             height: 43,
-            decoration: BoxDecoration(color: const Color(0x1AF6C768), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0x66F6C768))),
+            decoration: BoxDecoration(
+              color: const Color(0x1AF6C768),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x66F6C768)),
+            ),
             child: const Icon(Icons.admin_panel_settings_rounded, color: _gold),
           ),
           const SizedBox(width: 12),
@@ -262,9 +320,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Quản lý lịch hẹn', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                Text('Quản lý lịch hẹn', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
                 SizedBox(height: 2),
-                Text('Điều phối lịch và theo dõi thanh toán', style: TextStyle(color: _muted, fontSize: 13)),
+                Text('Theo dõi riêng từng chi nhánh', style: TextStyle(color: _muted, fontSize: 13)),
               ],
             ),
           ),
@@ -273,62 +331,264 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
-  Widget _tabBar(int pendingCount) {
+  Widget _buildBranchSidebar(List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings) {
     return Container(
-      color: const Color(0xD90B1420),
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(color: _field, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x33F6C768))),
-            child: TabBar(
-              dividerColor: Colors.transparent,
-              labelColor: _ink,
-              unselectedLabelColor: _muted,
-              indicatorSize: TabBarIndicatorSize.tab,
-              indicator: BoxDecoration(color: _gold, borderRadius: BorderRadius.circular(12)),
-              tabs: [
-                Tab(icon: Badge(isLabelVisible: pendingCount > 0, label: Text('$pendingCount'), child: const Icon(Icons.pending_actions_rounded)), text: 'Đang xử lý'),
-                const Tab(icon: Icon(Icons.event_busy_rounded), text: 'Đã hủy'),
-                const Tab(icon: Icon(Icons.event_available_rounded), text: 'Hoàn thành'),
-              ],
-            ),
+      margin: const EdgeInsets.fromLTRB(18, 18, 8, 18),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x33F6C768)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(8, 7, 8, 12),
+            child: Text('3 CHI NHÁNH', style: TextStyle(color: _gold, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          ),
+          for (final salon in sampleSalons) ...[
+            _branchButton(salon, bookings, compact: false),
+            const SizedBox(height: 9),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileBranches(List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings) {
+    return SizedBox(
+      height: 112,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+        itemCount: sampleSalons.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, index) => SizedBox(
+          width: 248,
+          child: _branchButton(sampleSalons[index], bookings, compact: true),
+        ),
+      ),
+    );
+  }
+
+  Widget _branchButton(
+    Salon salon,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings, {
+    required bool compact,
+  }) {
+    final selected = salon.id == _selectedSalonId;
+    final branchBookings = _bookingsForBranch(bookings, salon.id);
+    final activeCount = branchBookings.where((booking) {
+      final status = booking.data()['status'];
+      return status == 'pending' || status == 'confirmed';
+    }).length;
+
+    return Material(
+      color: selected ? const Color(0x26F6C768) : _field,
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: () => setState(() {
+          _selectedSalonId = salon.id;
+          _selectedFilter = _BookingFilter.active;
+        }),
+        child: Container(
+          padding: EdgeInsets.all(compact ? 12 : 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: selected ? _gold : const Color(0x1FFFFFFF)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: compact ? 20 : 22,
+                backgroundColor: selected ? _gold : const Color(0x1FF6C768),
+                child: Icon(Icons.storefront_rounded, color: selected ? _ink : _gold),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      salon.name.replaceFirst('30Shine ', ''),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, height: 1.25),
+                    ),
+                    const SizedBox(height: 5),
+                    Text('$activeCount lịch đang xử lý', style: TextStyle(color: selected ? _gold : _muted, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBookingList({
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
-    required IconData emptyIcon,
-    required String emptyMessage,
-  }) {
-    if (bookings.isEmpty) return _emptyState(emptyIcon, emptyMessage);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double horizontal = constraints.maxWidth >= 900 ? 28 : 14;
-        return ListView.separated(
-          padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 32),
-          itemCount: bookings.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            final booking = bookings[index];
-            return _buildBookingCard(bookingId: booking.id, data: booking.data());
-          },
-        );
-      },
+  Widget _buildBranchContent(List<QueryDocumentSnapshot<Map<String, dynamic>>> allBookings) {
+    final branchBookings = _bookingsForBranch(allBookings, _selectedSalonId);
+    final filtered = _filteredBookings(allBookings);
+    final selectedSalon = sampleSalons.firstWhere((salon) => salon.id == _selectedSalonId);
+    final paidCount = branchBookings.where((booking) {
+      final payment = booking.data()['payment'] as Map?;
+      return payment?['status'] == 'paid';
+    }).length;
+    final pendingCount = branchBookings.where((booking) => booking.data()['status'] == 'pending').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 18, 18, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(selectedSalon.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(selectedSalon.address, style: const TextStyle(color: _muted)),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 9,
+                runSpacing: 9,
+                children: [
+                  _summaryPill(Icons.pending_actions_rounded, '$pendingCount chờ xử lý', const Color(0xFFFFB648)),
+                  _summaryPill(Icons.verified_rounded, '$paidCount đã thanh toán', const Color(0xFF59D38C)),
+                  _summaryPill(Icons.receipt_long_rounded, '${branchBookings.length} tổng lịch', const Color(0xFF63B3FF)),
+                ],
+              ),
+              const SizedBox(height: 15),
+              _filterBar(branchBookings),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? _emptyState(_filterIcon(_selectedFilter), _filterEmptyMessage(_selectedFilter))
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 18, 32),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 15),
+                  itemBuilder: (_, index) {
+                    final booking = filtered[index];
+                    return _buildBookingCard(bookingId: booking.id, data: booking.data());
+                  },
+                ),
+        ),
+      ],
     );
   }
+
+  Widget _summaryPill(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withAlpha(24),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withAlpha(90)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 6),
+          Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterBar(List<QueryDocumentSnapshot<Map<String, dynamic>>> branchBookings) {
+    int countFor(_BookingFilter filter) {
+      return branchBookings.where((booking) {
+        final status = booking.data()['status'];
+        return switch (filter) {
+          _BookingFilter.active => status == 'pending' || status == 'confirmed',
+          _BookingFilter.cancelled => status == 'cancelled',
+          _BookingFilter.completed => status == 'completed',
+        };
+      }).length;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: _field,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0x33F6C768)),
+      ),
+      child: Row(
+        children: [
+          for (final filter in _BookingFilter.values)
+            Expanded(child: _filterButton(filter, countFor(filter))),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterButton(_BookingFilter filter, int count) {
+    final selected = filter == _selectedFilter;
+    return InkWell(
+      borderRadius: BorderRadius.circular(13),
+      onTap: () => setState(() => _selectedFilter = filter),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? _gold : Colors.transparent,
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(_filterIcon(filter), size: 19, color: selected ? _ink : _muted),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                '${_filterLabel(filter)} ($count)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: selected ? _ink : _muted, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _filterLabel(_BookingFilter filter) => switch (filter) {
+        _BookingFilter.active => 'Đang xử lý',
+        _BookingFilter.cancelled => 'Đã hủy',
+        _BookingFilter.completed => 'Hoàn thành',
+      };
+
+  IconData _filterIcon(_BookingFilter filter) => switch (filter) {
+        _BookingFilter.active => Icons.pending_actions_rounded,
+        _BookingFilter.cancelled => Icons.event_busy_rounded,
+        _BookingFilter.completed => Icons.event_available_rounded,
+      };
+
+  String _filterEmptyMessage(_BookingFilter filter) => switch (filter) {
+        _BookingFilter.active => 'Chi nhánh này không có lịch đang xử lý.',
+        _BookingFilter.cancelled => 'Chi nhánh này chưa có lịch bị hủy.',
+        _BookingFilter.completed => 'Chi nhánh này chưa có lịch hoàn thành.',
+      };
 
   Widget _emptyState(IconData icon, String message) {
     return Center(
       child: Container(
         margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(color: _surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0x44F6C768))),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x44F6C768)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -342,28 +602,36 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   }
 
   Widget _buildBookingCard({required String bookingId, required Map<String, dynamic> data}) {
-    final String status = data['status'] as String? ?? 'pending';
-    final String salonName = data['salonName'] as String? ?? 'Không rõ salon';
-    final String barberName = data['barberName'] as String? ?? 'Chưa có thợ';
-    final String userName = data['userName'] as String? ?? '';
-    final String userEmail = data['userEmail'] as String? ?? '';
-    final int totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
-    final int totalDuration = (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
-    final DateTime? appointmentAt = (data['appointmentAt'] as Timestamp?)?.toDate();
-    final List<dynamic> services = data['services'] as List<dynamic>? ?? <dynamic>[];
-    final List<String> serviceNames = services
+    final status = data['status'] as String? ?? 'pending';
+    final barberName = data['barberName'] as String? ?? 'Chưa có thợ';
+    final userName = data['userName'] as String? ?? '';
+    final userEmail = data['userEmail'] as String? ?? '';
+    final totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
+    final totalDuration = (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
+    final appointmentAt = (data['appointmentAt'] as Timestamp?)?.toDate();
+    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+    final services = data['services'] as List<dynamic>? ?? <dynamic>[];
+    final serviceNames = services
         .map((service) => service is Map ? service['name']?.toString() ?? '' : '')
         .where((name) => name.isNotEmpty)
         .toList();
-    final Map<String, dynamic> payment = Map<String, dynamic>.from(data['payment'] as Map? ?? const <String, dynamic>{});
-    final String paymentStatus = payment['status']?.toString() ?? 'unpaid';
-    final String paymentChoice = payment['choice']?.toString() ?? 'pay_later';
+    final payment = Map<String, dynamic>.from(data['payment'] as Map? ?? const <String, dynamic>{});
+    final paymentStatus = payment['status']?.toString() ?? 'unpaid';
+    final paymentChoice = payment['choice']?.toString() ?? 'pay_later';
+    final isPaid = paymentStatus == 'paid';
+    final hairstyle = data['hairstyle'] is Map
+        ? Map<String, dynamic>.from(data['hairstyle'] as Map)
+        : const <String, dynamic>{};
+    final hairstyleName = hairstyle['name']?.toString() ?? '';
+    final effectiveStatus = isPaid && status == 'pending' ? 'confirmed' : status;
+    final isUpdating = _updatingBookingIds.contains(bookingId);
+    final statusColor = _statusColor(effectiveStatus, isPaid: isPaid);
 
     late final String paymentLabel;
     late final Color paymentColor;
     late final IconData paymentIcon;
-    if (paymentStatus == 'paid') {
-      paymentLabel = payment['provider'] == 'vnpay' ? 'Đã thanh toán qua VNPAY Sandbox' : 'Đã thanh toán';
+    if (isPaid) {
+      paymentLabel = 'Đã thanh toán qua VNPAY Sandbox';
       paymentColor = const Color(0xFF59D38C);
       paymentIcon = Icons.verified_rounded;
     } else if (paymentStatus == 'pending') {
@@ -380,56 +648,56 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       paymentIcon = Icons.account_balance_wallet_outlined;
     }
 
-    final bool isUpdating = _updatingBookingIds.contains(bookingId);
-    final bool canUpdate = status == 'pending' || status == 'confirmed';
-    final Color statusColor = _statusColor(status);
-
     return Container(
-      decoration: BoxDecoration(color: _surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0x44F6C768)), boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 10))]),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x44F6C768)),
+        boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 22, offset: Offset(0, 9))],
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Column(
           children: [
-            Container(height: 3, color: _gold),
+            Container(height: 3, color: statusColor),
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0x1FF6C768), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.content_cut_rounded, color: _gold)),
+                      _hairstyleThumbnail(hairstyle),
                       const SizedBox(width: 13),
                       Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(salonName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 7),
-                          _statusChip(_statusText(status), statusColor),
-                        ]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hairstyleName.isEmpty ? 'Khách chưa chọn mẫu tóc' : hairstyleName,
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 7),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 7,
+                              children: [
+                                _statusChip(_statusText(effectiveStatus, isPaid: isPaid), statusColor),
+                                _statusChip(_relativeCreatedTime(createdAt), const Color(0xFF9EC5FF)),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                       if (isUpdating)
-                        const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: _gold, strokeWidth: 2)))
-                      else if (canUpdate)
-                        Theme(
-                          data: Theme.of(context).copyWith(cardColor: _field),
-                          child: PopupMenuButton<String>(
-                            tooltip: 'Cập nhật trạng thái',
-                            color: _field,
-                            iconColor: _gold,
-                            onSelected: (newStatus) => _requestStatusChange(bookingId: bookingId, newStatus: newStatus),
-                            itemBuilder: (context) => [
-                              if (status == 'pending' && paymentChoice == 'pay_later')
-                                const PopupMenuItem(value: 'confirmed', child: Text('Xác nhận lịch', style: TextStyle(color: Colors.white))),
-                              if (status == 'confirmed')
-                                const PopupMenuItem(value: 'completed', child: Text('Đánh dấu hoàn thành', style: TextStyle(color: Colors.white))),
-                              const PopupMenuItem(value: 'cancelled', child: Text('Hủy lịch', style: TextStyle(color: Color(0xFFFF7777)))),
-                            ],
-                          ),
+                        const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(color: _gold, strokeWidth: 2)),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 17),
+                  const SizedBox(height: 15),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: _field, borderRadius: BorderRadius.circular(17)),
@@ -439,22 +707,28 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                         const SizedBox(height: 10),
                         _buildInfoRow(icon: Icons.badge_outlined, label: 'Thợ', value: barberName),
                         const SizedBox(height: 10),
-                        _buildInfoRow(icon: Icons.schedule_rounded, label: 'Thời gian', value: appointmentAt == null ? 'Chưa xác định' : _formatDateTime(appointmentAt)),
+                        _buildInfoRow(icon: Icons.schedule_rounded, label: 'Lịch hẹn', value: appointmentAt == null ? 'Chưa xác định' : _formatDateTime(appointmentAt)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 15),
-                  Text(serviceNames.isEmpty ? 'Không có thông tin dịch vụ' : serviceNames.join(' • '), style: const TextStyle(color: Colors.white, height: 1.4)),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    const Icon(Icons.timelapse_rounded, color: _muted, size: 20),
-                    const SizedBox(width: 7),
-                    Text('$totalDuration phút', style: const TextStyle(color: _muted)),
-                    const Spacer(),
-                    Text(_formatPrice(totalPrice), style: const TextStyle(color: _gold, fontSize: 21, fontWeight: FontWeight.w900)),
-                  ]),
                   const SizedBox(height: 14),
+                  Text(serviceNames.isEmpty ? 'Không có thông tin dịch vụ' : serviceNames.join(' • '), style: const TextStyle(color: Colors.white, height: 1.4)),
+                  const SizedBox(height: 11),
+                  Row(
+                    children: [
+                      const Icon(Icons.timelapse_rounded, color: _muted, size: 20),
+                      const SizedBox(width: 7),
+                      Text('$totalDuration phút', style: const TextStyle(color: _muted)),
+                      const Spacer(),
+                      Text(_formatPrice(totalPrice), style: const TextStyle(color: _gold, fontSize: 21, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  const SizedBox(height: 13),
                   _paymentBanner(paymentIcon, paymentLabel, paymentColor),
+                  if (!isUpdating && (effectiveStatus == 'pending' || effectiveStatus == 'confirmed')) ...[
+                    const SizedBox(height: 14),
+                    _actionButtons(bookingId: bookingId, status: effectiveStatus, paymentChoice: paymentChoice, isPaid: isPaid),
+                  ],
                 ],
               ),
             ),
@@ -464,14 +738,70 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
+  Widget _hairstyleThumbnail(Map<String, dynamic> hairstyle) {
+    final imageUrl = hairstyle['imageUrl']?.toString() ?? '';
+    final assetPath = hairstyle['assetPath']?.toString() ?? '';
+    Widget image;
+    if (imageUrl.isNotEmpty) {
+      image = Image.network(imageUrl, fit: BoxFit.cover);
+    } else if (assetPath.isNotEmpty) {
+      image = Image.asset(assetPath, fit: BoxFit.cover);
+    } else {
+      image = const ColoredBox(
+        color: Color(0x1FF6C768),
+        child: Icon(Icons.content_cut_rounded, color: _gold, size: 28),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(width: 58, height: 58, child: image),
+    );
+  }
+
+  Widget _actionButtons({
+    required String bookingId,
+    required String status,
+    required String paymentChoice,
+    required bool isPaid,
+  }) {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 9,
+      runSpacing: 9,
+      children: [
+        if (status == 'pending' && paymentChoice == 'pay_later' && !isPaid)
+          FilledButton.icon(
+            onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'confirmed'),
+            icon: const Icon(Icons.check_circle_outline_rounded),
+            label: const Text('Xác nhận lịch'),
+            style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: _ink),
+          ),
+        if (status == 'confirmed')
+          FilledButton.icon(
+            onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'completed'),
+            icon: const Icon(Icons.task_alt_rounded),
+            label: const Text('Hoàn thành'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF59D38C), foregroundColor: _ink),
+          ),
+        OutlinedButton.icon(
+          onPressed: () => _requestStatusChange(bookingId: bookingId, newStatus: 'cancelled'),
+          icon: const Icon(Icons.cancel_outlined),
+          label: const Text('Hủy lịch'),
+          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF7777), side: const BorderSide(color: Color(0x88FF7777))),
+        ),
+      ],
+    );
+  }
+
   Widget _statusChip(String text, Color color) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(color: color.withAlpha(28), borderRadius: BorderRadius.circular(30), border: Border.all(color: color.withAlpha(100))),
-        child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(24),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withAlpha(95)),
       ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
     );
   }
 
@@ -479,12 +809,18 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-      decoration: BoxDecoration(color: color.withAlpha(22), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withAlpha(100))),
-      child: Row(children: [
-        Icon(icon, color: color, size: 21),
-        const SizedBox(width: 9),
-        Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800))),
-      ]),
+      decoration: BoxDecoration(
+        color: color.withAlpha(22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withAlpha(100)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 21),
+          const SizedBox(width: 9),
+          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800))),
+        ],
+      ),
     );
   }
 
