@@ -21,6 +21,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /hairstyles/{hairstyleId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
     match /bookings/{bookingId} {
       allow read: if signedIn() &&
           (resource.data.userId == request.auth.uid || admin());
