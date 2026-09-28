@@ -42,7 +42,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   bool _isLoadingVouchers = true;
   bool _isApplyingPromotionCode = false;
   List<Voucher> _availableLoyaltyVouchers = const [];
-  Voucher? _selectedVoucher;
+  final List<Voucher> _selectedLoyaltyVouchers = [];
+  Voucher? _selectedPromotionVoucher;
   final TextEditingController _promotionCodeController =
       TextEditingController();
 
@@ -73,8 +74,17 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     });
   }
 
-  int get _discountAmount =>
-      _selectedVoucher?.discountFor(_totalPrice) ?? 0;
+  List<Voucher> get _selectedVouchers => _selectedPromotionVoucher != null
+      ? [_selectedPromotionVoucher!]
+      : List.unmodifiable(_selectedLoyaltyVouchers);
+
+  int get _discountAmount {
+    final discount = _selectedVouchers.fold<int>(
+      0,
+      (total, voucher) => total + voucher.discountFor(_totalPrice),
+    );
+    return discount > _totalPrice ? _totalPrice : discount;
+  }
 
   int get _finalPrice => _totalPrice - _discountAmount;
 
@@ -101,64 +111,101 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   }
 
   Future<void> _chooseVoucher() async {
-    final selected = await showModalBottomSheet<Voucher>(
+    final temporarySelection = List<Voucher>.from(_selectedLoyaltyVouchers);
+    final selected = await showModalBottomSheet<List<Voucher>>(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Chọn voucher tích lũy',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              if (_availableLoyaltyVouchers.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 28),
-                  child: Center(
-                    child: Text(
-                      'Bạn chưa có voucher tích lũy phù hợp với đơn này.',
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Chọn voucher tích lũy',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Có thể chọn chung 1 voucher theo số lần và 1 voucher theo giá trị đơn.',
+                ),
+                const SizedBox(height: 12),
+                if (_availableLoyaltyVouchers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child: Center(
+                      child: Text(
+                        'Bạn chưa có voucher tích lũy phù hợp với đơn này.',
+                      ),
                     ),
                   ),
-                )
-              else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _availableLoyaltyVouchers.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final voucher = _availableLoyaltyVouchers[index];
-                      final details = <String>[voucher.title];
-                      if (voucher.minOrderAmount > 0) {
-                        details.add(
-                          'Đơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _availableLoyaltyVouchers.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final voucher = _availableLoyaltyVouchers[index];
+                        final isSelected = temporarySelection.any(
+                          (item) => item.id == voucher.id,
                         );
-                      }
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: Color(0x33F6C768)),
-                        ),
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.confirmation_number_rounded),
-                        ),
-                        title: Text(
-                          '${voucher.code} · Giảm ${voucher.discountPercent}%',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(details.join('\n')),
-                        isThreeLine: details.length > 1,
-                        onTap: () => Navigator.pop(sheetContext, voucher),
-                      );
-                    },
+                        final typeLabel = voucher.rewardType == 'minimum_order'
+                            ? 'Theo giá trị đơn'
+                            : 'Theo số lần dịch vụ';
+                        return CheckboxListTile(
+                          value: isSelected,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Color(0x33F6C768)),
+                          ),
+                          secondary: const CircleAvatar(
+                            child: Icon(Icons.confirmation_number_rounded),
+                          ),
+                          title: Text(
+                            '${voucher.code} · Giảm ${voucher.discountPercent}%',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text('$typeLabel\n${voucher.title}'),
+                          isThreeLine: true,
+                          onChanged: (_) {
+                            setSheetState(() {
+                              if (isSelected) {
+                                temporarySelection.removeWhere(
+                                  (item) => item.id == voucher.id,
+                                );
+                              } else {
+                                temporarySelection.removeWhere(
+                                  (item) =>
+                                      item.rewardType == voucher.rewardType,
+                                );
+                                temporarySelection.add(voucher);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(
+                      sheetContext,
+                      List<Voucher>.from(temporarySelection),
+                    ),
+                    child: Text(
+                      temporarySelection.isEmpty
+                          ? 'Không dùng voucher tích lũy'
+                          : 'Áp dụng ${temporarySelection.length} voucher',
+                    ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -166,7 +213,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     if (!mounted) return;
     if (selected != null) {
       setState(() {
-        _selectedVoucher = selected;
+        _selectedPromotionVoucher = null;
+        _selectedLoyaltyVouchers
+          ..clear()
+          ..addAll(selected);
         _promotionCodeController.clear();
       });
     }
@@ -185,7 +235,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       );
       if (!mounted) return;
       _promotionCodeController.text = voucher.code;
-      setState(() => _selectedVoucher = voucher);
+      setState(() {
+        _selectedPromotionVoucher = voucher;
+        _selectedLoyaltyVouchers.clear();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Đã áp dụng mã ${voucher.code}.'),
@@ -210,10 +263,14 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     }
   }
 
-  void _clearVoucher() {
+  void _clearVoucher(Voucher voucher) {
     setState(() {
-      _selectedVoucher = null;
-      _promotionCodeController.clear();
+      if (voucher.isPersonal) {
+        _selectedLoyaltyVouchers.removeWhere((item) => item.id == voucher.id);
+      } else {
+        _selectedPromotionVoucher = null;
+        _promotionCodeController.clear();
+      }
     });
   }
 
@@ -284,7 +341,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         appointmentAt: appointmentDateTime,
         selectedTime: widget.selectedTime,
         paymentChoice: payNow ? 'pay_now' : 'pay_later',
-        selectedVoucher: _selectedVoucher,
+        selectedVouchers: _selectedVouchers,
       );
 
       if (!mounted) {
@@ -574,11 +631,15 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     );
                   }),
                   const Divider(),
-                  if (_selectedVoucher != null) ...[
+                  if (_selectedVouchers.isNotEmpty) ...[
                     Row(
                       children: [
-                        Text('Tạm tính (${_selectedVoucher!.code})'),
-                        const Spacer(),
+                        Expanded(
+                          child: Text(
+                            'Tạm tính (${_selectedVouchers.map((voucher) => voucher.code).join(' + ')})',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Text(_formatPrice(_totalPrice)),
                       ],
                     ),
@@ -808,35 +869,40 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     ),
               onTap: _isLoadingVouchers ? null : _chooseVoucher,
             ),
-            if (_selectedVoucher != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0x142E7D32),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x552E7D32)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle_rounded, color: Colors.green),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${_selectedVoucher!.isPersonal ? 'Voucher tích lũy' : 'Mã khuyến mãi'} '
-                        '${_selectedVoucher!.code} · Giảm ${_selectedVoucher!.discountPercent}%',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+            ..._selectedVouchers.map((voucher) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x142E7D32),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0x552E7D32)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.green,
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Bỏ voucher',
-                      onPressed: _clearVoucher,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${voucher.isPersonal ? 'Voucher tích lũy' : 'Mã khuyến mãi'} '
+                          '${voucher.code} · Giảm ${voucher.discountPercent}%',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Bỏ voucher',
+                        onPressed: () => _clearVoucher(voucher),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              );
+            }),
           ],
         ),
       ),

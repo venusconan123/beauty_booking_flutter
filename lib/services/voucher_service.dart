@@ -113,14 +113,11 @@ class VoucherService {
           (bookingData['price'] as num?)?.toInt() ??
           0;
       if (totalPrice >= settings.minimumOrderAmount) {
-        final shortBookingId = bookingId.length > 6
-            ? bookingId.substring(0, 6).toUpperCase()
-            : bookingId.toUpperCase();
         await _awardVoucher(
           userId: userId,
           bookingId: bookingId,
           voucherId: 'loyalty_order_$bookingId',
-          code: 'DON$shortBookingId',
+          code: 'CHITIEU',
           title: 'Ưu đãi cho đơn hàng đủ điều kiện',
           description:
               'Giảm ${settings.orderDiscountPercent}% cho lần đặt lịch tiếp theo.',

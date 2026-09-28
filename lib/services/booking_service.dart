@@ -37,7 +37,7 @@ class BookingService {
     required DateTime appointmentAt,
     required String selectedTime,
     required String paymentChoice,
-    Voucher? selectedVoucher,
+    List<Voucher> selectedVouchers = const [],
   }) async {
     if (paymentChoice != 'pay_now' && paymentChoice != 'pay_later') {
       throw ArgumentError.value(paymentChoice, 'paymentChoice');
@@ -76,24 +76,44 @@ class BookingService {
         .collection('bookings')
         .doc();
 
-    final DocumentReference<Map<String, dynamic>>? voucherReference =
-        selectedVoucher == null
-        ? null
-        : selectedVoucher.isPersonal
-        ? _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('vouchers')
-              .doc(selectedVoucher.id)
-        : _firestore.collection('voucher_templates').doc(selectedVoucher.id);
-    final DocumentReference<Map<String, dynamic>>? redemptionReference =
-        selectedVoucher != null && !selectedVoucher.isPersonal
-        ? _firestore
-              .collection('voucher_templates')
-              .doc(selectedVoucher.id)
-              .collection('redemptions')
-              .doc(user.uid)
-        : null;
+    if (selectedVouchers.where((voucher) => !voucher.isPersonal).length > 1 ||
+        (selectedVouchers.length > 1 &&
+            selectedVouchers.any((voucher) => !voucher.isPersonal))) {
+      throw StateError(
+        'Mã khuyến mãi không thể dùng chung với voucher tích lũy.',
+      );
+    }
+    if (selectedVouchers.map((voucher) => voucher.id).toSet().length !=
+        selectedVouchers.length) {
+      throw StateError('Không thể áp dụng trùng một voucher.');
+    }
+    final personalRewardTypes = selectedVouchers
+        .where((voucher) => voucher.isPersonal)
+        .map((voucher) => voucher.rewardType)
+        .toList();
+    if (personalRewardTypes.toSet().length != personalRewardTypes.length) {
+      throw StateError(
+        'Chỉ được chọn một voucher cho mỗi loại tích lũy.',
+      );
+    }
+    final voucherReferences = selectedVouchers.map((voucher) {
+      return voucher.isPersonal
+          ? _firestore
+                .collection('users')
+                .doc(user.uid)
+                .collection('vouchers')
+                .doc(voucher.id)
+          : _firestore.collection('voucher_templates').doc(voucher.id);
+    }).toList();
+    final redemptionReferences = selectedVouchers.map((voucher) {
+      return voucher.isPersonal
+          ? null
+          : _firestore
+                .collection('voucher_templates')
+                .doc(voucher.id)
+                .collection('redemptions')
+                .doc(user.uid);
+    }).toList();
 
     final Map<String, List<DocumentReference<Map<String, dynamic>>>>
     slotReferencesByBarber = {};
@@ -115,10 +135,13 @@ class BookingService {
     ) async {
       int discountAmount = 0;
       int totalPrice = originalPrice;
-      int voucherUsedCount = 0;
-      Map<String, dynamic>? appliedVoucher;
+      final appliedVouchers = <Map<String, dynamic>>[];
+      final voucherUsedCounts = <int>[];
 
-      if (voucherReference != null && selectedVoucher != null) {
+      for (var index = 0; index < selectedVouchers.length; index++) {
+        final selectedVoucher = selectedVouchers[index];
+        final voucherReference = voucherReferences[index];
+        final redemptionReference = redemptionReferences[index];
         final voucherSnapshot = await transaction.get(voucherReference);
         if (!voucherSnapshot.exists) {
           throw StateError('Voucher không còn tồn tại.');
@@ -126,8 +149,9 @@ class BookingService {
         final voucherData = voucherSnapshot.data()!;
         final isActive = voucherData['isActive'] as bool? ?? false;
         final isUsed = voucherData['isUsed'] as bool? ?? false;
-        voucherUsedCount =
+        final voucherUsedCount =
             (voucherData['usedCount'] as num?)?.toInt() ?? 0;
+        voucherUsedCounts.add(voucherUsedCount);
         final usageLimit =
             (voucherData['usageLimit'] as num?)?.toInt() ?? 1;
         final discountPercent =
@@ -157,19 +181,28 @@ class BookingService {
           throw StateError('Voucher không còn đủ điều kiện sử dụng.');
         }
 
-        discountAmount = originalPrice * discountPercent ~/ 100;
-        totalPrice = originalPrice - discountAmount;
-        appliedVoucher = {
+        discountAmount += originalPrice * discountPercent ~/ 100;
+        final storedCode = voucherData['code']?.toString() ?? '';
+        final source = voucherData['source']?.toString() ?? 'admin';
+        final rewardType = voucherData['rewardType']?.toString() ??
+            (source == 'loyalty_order' ||
+                    storedCode.toUpperCase().startsWith('DON')
+                ? 'minimum_order'
+                : 'visit_count');
+        appliedVouchers.add({
           'id': voucherSnapshot.id,
-          'code': voucherData['code']?.toString() ?? '',
+          'code': rewardType == 'minimum_order' ? 'CHITIEU' : storedCode,
           'title': voucherData['title']?.toString() ?? 'Voucher ưu đãi',
           'discountPercent': discountPercent,
           'minOrderAmount': minOrderAmount,
           'usageLimit': usageLimit,
-          'source': voucherData['source']?.toString() ?? 'admin',
+          'source': source,
           'isPersonal': selectedVoucher.isPersonal,
-        };
+          'rewardType': rewardType,
+        });
       }
+      if (discountAmount > originalPrice) discountAmount = originalPrice;
+      totalPrice = originalPrice - discountAmount;
 
       final Map<String, List<DocumentSnapshot<Map<String, dynamic>>>>
       slotSnapshotsByBarber = {};
@@ -254,7 +287,11 @@ class BookingService {
         'originalPrice': originalPrice,
         'discountAmount': discountAmount,
         'totalPrice': totalPrice,
-        'voucher': appliedVoucher,
+        'voucher': appliedVouchers.isEmpty ? null : appliedVouchers.first,
+        'vouchers': appliedVouchers,
+        'voucherIds': appliedVouchers
+            .map((voucher) => voucher['id'].toString())
+            .toList(),
         'totalDurationMinutes': totalDuration,
         'slotIds': slotIds,
         'status': 'pending',
@@ -269,24 +306,29 @@ class BookingService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      if (voucherReference != null && selectedVoucher!.isPersonal) {
-        transaction.update(voucherReference, {
-          'isUsed': true,
-          'usedBookingId': bookingReference.id,
-          'usedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else if (voucherReference != null && redemptionReference != null) {
-        transaction.update(voucherReference, {
-          'usedCount': voucherUsedCount + 1,
-          'lastBookingId': bookingReference.id,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        transaction.set(redemptionReference, {
-          'userId': user.uid,
-          'bookingId': bookingReference.id,
-          'usedAt': FieldValue.serverTimestamp(),
-        });
+      for (var index = 0; index < selectedVouchers.length; index++) {
+        final selectedVoucher = selectedVouchers[index];
+        final voucherReference = voucherReferences[index];
+        final redemptionReference = redemptionReferences[index];
+        if (selectedVoucher.isPersonal) {
+          transaction.update(voucherReference, {
+            'isUsed': true,
+            'usedBookingId': bookingReference.id,
+            'usedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else if (redemptionReference != null) {
+          transaction.update(voucherReference, {
+            'usedCount': voucherUsedCounts[index] + 1,
+            'lastBookingId': bookingReference.id,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          transaction.set(redemptionReference, {
+            'userId': user.uid,
+            'bookingId': bookingReference.id,
+            'usedAt': FieldValue.serverTimestamp(),
+          });
+        }
       }
 
       for (int index = 0; index < selectedSlotReferences.length; index++) {
