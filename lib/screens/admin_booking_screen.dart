@@ -841,11 +841,12 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final voucherSummary = vouchers.map((voucher) {
       final storedCode = voucher['code']?.toString() ?? '';
       final source = voucher['source']?.toString() ?? '';
-      final rewardType = voucher['rewardType']?.toString() ??
-          (source == 'loyalty_order' ||
-                  storedCode.toUpperCase().startsWith('DON')
-              ? 'minimum_order'
-              : 'visit_count');
+      final storedRewardType = voucher['rewardType']?.toString() ?? '';
+      final isOrderReward = storedRewardType == 'minimum_order' ||
+          source == 'loyalty_order' ||
+          storedCode.toUpperCase().startsWith('DON') ||
+          storedCode.toUpperCase() == 'CHITIEU';
+      final rewardType = isOrderReward ? 'minimum_order' : 'visit_count';
       final code = rewardType == 'minimum_order' ? 'CHITIEU' : storedCode;
       final percent = (voucher['discountPercent'] as num?)?.toInt() ?? 0;
       return '$code ($percent%)';

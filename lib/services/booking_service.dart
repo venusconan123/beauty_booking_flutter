@@ -184,11 +184,13 @@ class BookingService {
         discountAmount += originalPrice * discountPercent ~/ 100;
         final storedCode = voucherData['code']?.toString() ?? '';
         final source = voucherData['source']?.toString() ?? 'admin';
-        final rewardType = voucherData['rewardType']?.toString() ??
-            (source == 'loyalty_order' ||
-                    storedCode.toUpperCase().startsWith('DON')
-                ? 'minimum_order'
-                : 'visit_count');
+        final storedRewardType = voucherData['rewardType']?.toString() ?? '';
+        final isOrderReward = storedRewardType == 'minimum_order' ||
+            voucherSnapshot.id.startsWith('loyalty_order_') ||
+            source == 'loyalty_order' ||
+            storedCode.toUpperCase().startsWith('DON') ||
+            storedCode.toUpperCase() == 'CHITIEU';
+        final rewardType = isOrderReward ? 'minimum_order' : 'visit_count';
         appliedVouchers.add({
           'id': voucherSnapshot.id,
           'code': rewardType == 'minimum_order' ? 'CHITIEU' : storedCode,
