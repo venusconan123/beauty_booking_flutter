@@ -10,12 +10,14 @@
 - Khi admin tạo voucher, hệ thống chỉ gửi thông báo chung kèm chi tiết mã; voucher không tự được cấp vào tài khoản người dùng.
 - Voucher do admin tạo phải được khách nhập mã thủ công. Danh sách chọn voucher chỉ hiển thị voucher tích lũy cá nhân.
 - Voucher chỉ bị trừ lượt khi khách thực sự dùng trong lúc đặt lịch.
+- Admin có màn `Quản lý tích điểm` để chọn thưởng theo số lần hoàn thành hoặc theo giá trị từng đơn, đồng thời chỉnh điều kiện và phần trăm giảm.
 
 ## Dữ liệu Firestore
 
 - `voucher_templates/{voucherId}`: voucher dùng chung do admin quản lý.
 - `voucher_templates/{voucherId}/redemptions/{userId}`: ghi nhận khách đã dùng voucher để ngăn dùng lặp.
 - `users/{userId}/vouchers/{voucherId}`: voucher cá nhân từ chương trình tích điểm.
+- `app_settings/loyalty`: chính sách tích lũy hiện hành do admin cấu hình.
 - Booking lưu thêm `originalPrice`, `discountAmount`, `totalPrice` và `voucher`.
 
 Voucher cá nhân được đánh dấu đã dùng trong cùng transaction tạo booking. Với voucher dùng chung, transaction đồng thời kiểm tra tồn lượt, tăng `usedCount` và tạo redemption theo người dùng, nên nhiều khách đặt cùng lúc cũng không thể vượt `usageLimit`. `totalPrice` sau giảm cũng là số tiền Cloudflare Worker gửi sang VNPAY.

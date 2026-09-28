@@ -268,7 +268,10 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     }
     await batch.commit();
     if (newStatus == 'completed' && userId.isNotEmpty) {
-      await VoucherService().awardLoyaltyVoucherIfEligible(userId);
+      await VoucherService().awardLoyaltyVoucherIfEligible(
+        userId: userId,
+        bookingId: bookingId,
+      );
     }
   }
 
