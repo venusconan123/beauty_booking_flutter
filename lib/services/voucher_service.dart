@@ -8,38 +8,18 @@ class VoucherService {
   VoucherService({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  Future<List<Voucher>> getAvailableVouchers({
+  Future<List<Voucher>> getAvailableLoyaltyVouchers({
     required String userId,
     required int orderAmount,
   }) async {
-    final results = await Future.wait([
-      _firestore.collection('users').doc(userId).collection('vouchers').get(),
-      _firestore.collection('voucher_templates').get(),
-    ]);
-
-    final personalVouchers = <Voucher>[
-      ...results[0].docs.map(
-        (document) => Voucher.fromDocument(document, isPersonal: true),
-      ),
-    ];
-    final templateDocuments = results[1].docs;
-    final redemptionSnapshots = await Future.wait(
-      templateDocuments.map(
-        (document) => document.reference
-            .collection('redemptions')
-            .doc(userId)
-            .get(),
-      ),
-    );
-    final sharedVouchers = <Voucher>[];
-    for (var index = 0; index < templateDocuments.length; index++) {
-      if (!redemptionSnapshots[index].exists) {
-        sharedVouchers.add(
-          Voucher.fromDocument(templateDocuments[index], isPersonal: false),
-        );
-      }
-    }
-    final vouchers = <Voucher>[...personalVouchers, ...sharedVouchers];
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('vouchers')
+        .get();
+    final vouchers = snapshot.docs
+        .map((document) => Voucher.fromDocument(document, isPersonal: true))
+        .toList();
 
     vouchers.sort((first, second) {
       final discountCompare = second.discountPercent.compareTo(
@@ -49,6 +29,53 @@ class VoucherService {
       return first.minOrderAmount.compareTo(second.minOrderAmount);
     });
     return vouchers.where((voucher) => voucher.canApply(orderAmount)).toList();
+  }
+
+  Future<Voucher> validatePromotionCode({
+    required String userId,
+    required String code,
+    required int orderAmount,
+  }) async {
+    final normalizedCode = code.trim().toUpperCase();
+    if (normalizedCode.isEmpty) {
+      throw StateError('Vui lòng nhập mã khuyến mãi.');
+    }
+
+    final snapshot = await _firestore
+        .collection('voucher_templates')
+        .where('code', isEqualTo: normalizedCode)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      throw StateError('Mã khuyến mãi không tồn tại.');
+    }
+
+    final document = snapshot.docs.first;
+    final voucher = Voucher.fromDocument(document, isPersonal: false);
+    if (!voucher.isActive) {
+      throw StateError('Mã khuyến mãi đang tạm dừng.');
+    }
+    if (voucher.expiresAt != null &&
+        !voucher.expiresAt!.isAfter(DateTime.now())) {
+      throw StateError('Mã khuyến mãi đã hết hạn.');
+    }
+    if (voucher.remainingUses == 0) {
+      throw StateError('Mã khuyến mãi đã hết lượt sử dụng.');
+    }
+    if (orderAmount < voucher.minOrderAmount) {
+      throw StateError(
+        'Đơn hàng chưa đạt giá trị tối thiểu của mã khuyến mãi.',
+      );
+    }
+
+    final redemption = await document.reference
+        .collection('redemptions')
+        .doc(userId)
+        .get();
+    if (redemption.exists) {
+      throw StateError('Bạn đã sử dụng mã khuyến mãi này trước đó.');
+    }
+    return voucher;
   }
 
   Future<void> awardLoyaltyVoucherIfEligible(String userId) async {

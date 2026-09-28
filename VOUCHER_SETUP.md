@@ -3,11 +3,13 @@
 ## Chức năng
 
 - Mỗi 10 lịch hẹn được admin đánh dấu `completed`, khách hàng nhận một voucher giảm 25%.
-- Màn `Thông báo & ưu đãi` hiển thị tiến độ tích điểm và danh sách voucher.
-- Màn xác nhận đặt lịch cho phép chọn voucher đủ điều kiện trước khi chọn thanh toán sau hoặc VNPAY.
+- Màn `Thông báo & ưu đãi` hiển thị thông báo mã khuyến mãi, tiến độ tích điểm và danh sách voucher tích lũy cá nhân.
+- Màn xác nhận đặt lịch cho phép nhập mã khuyến mãi hoặc chọn voucher tích lũy trước khi chọn thanh toán sau hoặc VNPAY.
 - Admin có thể tạo, sửa, tạm dừng và xóa voucher dùng chung, bao gồm mức giảm và giá trị đơn tối thiểu.
 - Voucher dùng chung có giới hạn tổng số khách; mỗi tài khoản chỉ được dùng một lần.
-- Khi admin tạo voucher, hệ thống gửi một thông báo chung. Voucher chỉ bị trừ lượt khi khách thực sự dùng trong lúc đặt lịch.
+- Khi admin tạo voucher, hệ thống chỉ gửi thông báo chung kèm chi tiết mã; voucher không tự được cấp vào tài khoản người dùng.
+- Voucher do admin tạo phải được khách nhập mã thủ công. Danh sách chọn voucher chỉ hiển thị voucher tích lũy cá nhân.
+- Voucher chỉ bị trừ lượt khi khách thực sự dùng trong lúc đặt lịch.
 
 ## Dữ liệu Firestore
 
