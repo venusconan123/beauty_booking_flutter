@@ -6,6 +6,7 @@ import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import 'admin_chat_screen.dart';
 import 'admin_booking_screen.dart';
 import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
@@ -20,6 +21,7 @@ import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
 import 'salon_map_screen.dart';
 import 'notification_screen.dart';
+import 'support_chat_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -112,6 +114,18 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openSupportChat(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const SupportChatScreen()),
+    );
+  }
+
+  void _openAdminChatScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminChatScreen()),
+    );
+  }
+
   void _openNotifications(BuildContext context) {
     Navigator.of(
       context,
@@ -193,6 +207,8 @@ class HomeScreen extends StatelessWidget {
               _openAdminVoucherScreen(context);
             } else if (value == 'loyalty') {
               _openAdminLoyaltySettingsScreen(context);
+            } else if (value == 'chats') {
+              _openAdminChatScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -262,6 +278,16 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             PopupMenuItem(
+              value: 'chats',
+              child: ListTile(
+                leading: Icon(Icons.forum_outlined, color: _gold),
+                title: Text(
+                  'Quản lý tin nhắn',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
               value: 'reports',
               child: ListTile(
                 leading: Icon(Icons.flag_outlined, color: _gold),
@@ -295,6 +321,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _cream,
+      floatingActionButton: _buildChatButton(context),
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildTopArea(context)),
@@ -305,6 +332,35 @@ class HomeScreen extends StatelessWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 36)),
         ],
       ),
+    );
+  }
+
+  Widget _buildChatButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final isAdmin = snapshot.data?.exists ?? false;
+        return FloatingActionButton.extended(
+          heroTag: 'support_chat',
+          backgroundColor: _gold,
+          foregroundColor: _ink,
+          onPressed: () => isAdmin
+              ? _openAdminChatScreen(context)
+              : _openSupportChat(context),
+          icon: Icon(
+            isAdmin ? Icons.support_agent_rounded : Icons.chat_bubble_rounded,
+          ),
+          label: Text(
+            isAdmin ? 'Tin nhắn khách hàng' : 'Chat với admin',
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        );
+      },
     );
   }
 
@@ -347,9 +403,6 @@ class HomeScreen extends StatelessWidget {
               ),
               if (wide) ...[
                 _navText('Trang chủ', selected: true),
-                _navText('Dịch vụ'),
-                _navText('Kiểu tóc'),
-                _navText('Salon'),
                 const SizedBox(width: 18),
               ],
               _buildAdminButton(context),
