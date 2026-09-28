@@ -40,10 +40,13 @@ class Voucher {
     final data = document.data() ?? <String, dynamic>{};
     final storedCode = data['code']?.toString() ?? '';
     final source = data['source']?.toString() ?? (isPersonal ? 'loyalty' : 'admin');
-    final rewardType = data['rewardType']?.toString() ??
-        (source == 'loyalty_order' || storedCode.toUpperCase().startsWith('DON')
-            ? 'minimum_order'
-            : 'visit_count');
+    final storedRewardType = data['rewardType']?.toString() ?? '';
+    final isOrderReward = storedRewardType == 'minimum_order' ||
+        document.id.startsWith('loyalty_order_') ||
+        source == 'loyalty_order' ||
+        storedCode.toUpperCase().startsWith('DON') ||
+        storedCode.toUpperCase() == 'CHITIEU';
+    final rewardType = isOrderReward ? 'minimum_order' : 'visit_count';
     return Voucher(
       id: document.id,
       code: rewardType == 'minimum_order' ? 'CHITIEU' : storedCode,

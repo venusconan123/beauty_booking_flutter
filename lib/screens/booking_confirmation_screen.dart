@@ -112,102 +112,148 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
 
   Future<void> _chooseVoucher() async {
     final temporarySelection = List<Voucher>.from(_selectedLoyaltyVouchers);
+    final visitVouchers = _availableLoyaltyVouchers
+        .where((voucher) => voucher.rewardType == 'visit_count')
+        .toList();
+    final orderVouchers = _availableLoyaltyVouchers
+        .where((voucher) => voucher.rewardType == 'minimum_order')
+        .toList();
     final selected = await showModalBottomSheet<List<Voucher>>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        builder: (context, setSheetState) {
+          Widget buildVoucherGroup({
+            required String title,
+            required String description,
+            required String rewardType,
+            required List<Voucher> vouchers,
+          }) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Chọn voucher tích lũy',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Có thể chọn chung 1 voucher theo số lần và 1 voucher theo giá trị đơn.',
-                ),
-                const SizedBox(height: 12),
-                if (_availableLoyaltyVouchers.isEmpty)
+                const SizedBox(height: 2),
+                Text(description),
+                const SizedBox(height: 9),
+                if (vouchers.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 28),
-                    child: Center(
-                      child: Text(
-                        'Bạn chưa có voucher tích lũy phù hợp với đơn này.',
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Chưa có voucher thuộc nhóm này.'),
+                  )
+                else
+                  ...vouchers.map((voucher) {
+                    final isSelected = temporarySelection.any(
+                      (item) => item.id == voucher.id,
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: Color(0x33F6C768)),
+                        ),
+                        secondary: const CircleAvatar(
+                          child: Icon(Icons.confirmation_number_rounded),
+                        ),
+                        title: Text(
+                          '${voucher.code} · Giảm ${voucher.discountPercent}%',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Text(voucher.title),
+                        onChanged: (_) {
+                          setSheetState(() {
+                            if (isSelected) {
+                              temporarySelection.removeWhere(
+                                (item) => item.id == voucher.id,
+                              );
+                            } else {
+                              temporarySelection.removeWhere(
+                                (item) => item.rewardType == rewardType,
+                              );
+                              temporarySelection.add(voucher);
+                            }
+                          });
+                        },
+                      ),
+                    );
+                  }),
+              ],
+            );
+          }
+
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(sheetContext).height * 0.82,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Chọn tối đa 2 voucher',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: _availableLoyaltyVouchers.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final voucher = _availableLoyaltyVouchers[index];
-                        final isSelected = temporarySelection.any(
-                          (item) => item.id == voucher.id,
-                        );
-                        final typeLabel = voucher.rewardType == 'minimum_order'
-                            ? 'Theo giá trị đơn'
-                            : 'Theo số lần dịch vụ';
-                        return CheckboxListTile(
-                          value: isSelected,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0x33F6C768)),
-                          ),
-                          secondary: const CircleAvatar(
-                            child: Icon(Icons.confirmation_number_rounded),
-                          ),
-                          title: Text(
-                            '${voucher.code} · Giảm ${voucher.discountPercent}%',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          subtitle: Text('$typeLabel\n${voucher.title}'),
-                          isThreeLine: true,
-                          onChanged: (_) {
-                            setSheetState(() {
-                              if (isSelected) {
-                                temporarySelection.removeWhere(
-                                  (item) => item.id == voucher.id,
-                                );
-                              } else {
-                                temporarySelection.removeWhere(
-                                  (item) =>
-                                      item.rewardType == voucher.rewardType,
-                                );
-                                temporarySelection.add(voucher);
-                              }
-                            });
-                          },
-                        );
-                      },
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Mỗi nhóm chọn 1 voucher. Hai voucher sẽ được cộng mức giảm trong cùng lịch hẹn.',
                     ),
-                  ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(
-                      sheetContext,
-                      List<Voucher>.from(temporarySelection),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            buildVoucherGroup(
+                              title: 'Theo số lần hoàn thành dịch vụ',
+                              description:
+                                  'Chọn 1 mã TRI_AN từ số lần đã tích lũy.',
+                              rewardType: 'visit_count',
+                              vouchers: visitVouchers,
+                            ),
+                            const Divider(height: 28),
+                            buildVoucherGroup(
+                              title: 'Theo giá trị đơn hàng',
+                              description:
+                                  'Chọn voucher CHITIEU đã nhận từ đơn đủ điều kiện.',
+                              rewardType: 'minimum_order',
+                              vouchers: orderVouchers,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      temporarySelection.isEmpty
-                          ? 'Không dùng voucher tích lũy'
-                          : 'Áp dụng ${temporarySelection.length} voucher',
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(
+                          sheetContext,
+                          List<Voucher>.from(temporarySelection),
+                        ),
+                        child: Text(
+                          temporarySelection.isEmpty
+                              ? 'Không dùng voucher tích lũy'
+                              : 'Áp dụng ${temporarySelection.length}/2 voucher',
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
     if (!mounted) return;
