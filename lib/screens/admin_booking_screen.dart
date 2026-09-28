@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
@@ -27,6 +28,21 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   late String _selectedSalonId;
   _BookingFilter _selectedFilter = _BookingFilter.active;
   Timer? _relativeTimeTicker;
+
+  Future<void> _callCustomer(String phone) async {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (normalizedPhone.isEmpty) return;
+
+    final opened = await launchUrl(
+      Uri(scheme: 'tel', path: normalizedPhone),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Số điện thoại khách hàng: $phone')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -812,6 +828,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final barberName = data['barberName'] as String? ?? 'Chưa có thợ';
     final userName = data['userName'] as String? ?? '';
     final userEmail = data['userEmail'] as String? ?? '';
+    final userPhone = data['userPhone'] as String? ?? '';
     final totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
     final totalDuration = (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
     final appointmentAt = (data['appointmentAt'] as Timestamp?)?.toDate();
@@ -972,6 +989,24 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                           value: userName.isEmpty
                               ? userEmail
                               : '$userName ($userEmail)',
+                        ),
+                        const SizedBox(height: 10),
+                        _buildInfoRow(
+                          icon: Icons.phone_in_talk_outlined,
+                          label: 'Số điện thoại',
+                          value: userPhone.isEmpty
+                              ? 'Chưa cập nhật'
+                              : userPhone,
+                          trailing: userPhone.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Gọi khách hàng',
+                                  onPressed: () => _callCustomer(userPhone),
+                                  icon: const Icon(
+                                    Icons.call_rounded,
+                                    color: _gold,
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 10),
                         _buildInfoRow(
@@ -1172,6 +1207,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     required IconData icon,
     required String label,
     required String value,
+    Widget? trailing,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1192,6 +1228,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
             ),
           ),
         ),
+        if (trailing != null) trailing,
       ],
     );
   }

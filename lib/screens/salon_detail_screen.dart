@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/barber.dart';
 import '../models/hair_service.dart';
@@ -33,6 +34,17 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final PageController _pageController = PageController();
   final BarberService _barberService = BarberService();
+
+  Future<void> _callHotline() async {
+    final phone = widget.salon.hotline.replaceAll(RegExp(r'[^0-9+]'), '');
+    final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hotline: ${widget.salon.hotline}')),
+      );
+    }
+  }
+
   int _selectedSection = 0;
 
   @override
@@ -434,6 +446,28 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           Icons.schedule_rounded,
           'Mở cửa: ${widget.salon.openingTime} – ${widget.salon.closingTime}',
           color: const Color(0xFF5DDB91),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.phone_in_talk_rounded, color: _gold, size: 21),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Hotline: ${widget.salon.hotline}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _callHotline,
+              icon: const Icon(Icons.call_rounded, size: 18),
+              label: const Text('Gọi ngay'),
+              style: TextButton.styleFrom(foregroundColor: _gold),
+            ),
+          ],
         ),
         const SizedBox(height: 18),
         Container(
@@ -1096,4 +1130,3 @@ class _FacilityRow extends StatelessWidget {
     );
   }
 }
-

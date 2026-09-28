@@ -194,6 +194,7 @@ class BookingBranchSelectionScreen extends StatelessWidget {
                             Icons.schedule_rounded,
                             '${salon.openingTime}–${salon.closingTime}',
                           ),
+                          _meta(Icons.phone_in_talk_rounded, salon.hotline),
                         ],
                       ),
                       const SizedBox(height: 7),

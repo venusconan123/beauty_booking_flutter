@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -40,12 +41,14 @@ class BookingConfirmationScreen extends StatefulWidget {
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   bool _isSaving = false;
   bool _isLoadingVouchers = true;
+  bool _isLoadingPhone = true;
   bool _isApplyingPromotionCode = false;
   List<Voucher> _availableLoyaltyVouchers = const [];
   final List<Voucher> _selectedLoyaltyVouchers = [];
   Voucher? _selectedPromotionVoucher;
   final TextEditingController _promotionCodeController =
       TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   final BookingService _bookingService = BookingService();
 
@@ -53,12 +56,48 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   void initState() {
     super.initState();
     _loadVouchers();
+    _loadPhone();
   }
 
   @override
   void dispose() {
     _promotionCodeController.dispose();
+    _phoneController.dispose();
     super.dispose();
+  }
+
+  String _normalizePhone(String value) {
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  bool _isValidPhone(String value) {
+    return RegExp(r'^0[0-9]{9}$').hasMatch(_normalizePhone(value));
+  }
+
+  Future<void> _loadPhone() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingPhone = false);
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final phone = snapshot.data()?['phone']?.toString() ?? '';
+      if (mounted) {
+        setState(() {
+          if (_phoneController.text.trim().isEmpty) {
+            _phoneController.text = phone;
+          }
+          _isLoadingPhone = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingPhone = false);
+    }
   }
 
   int get _totalPrice {
@@ -370,15 +409,36 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       return;
     }
 
+    final phone = _normalizePhone(_phoneController.text);
+    if (!_isValidPhone(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vui lòng nhập số điện thoại gồm 10 số và bắt đầu bằng 0.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
 
     try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': user.displayName ?? '',
+        'email': user.email ?? '',
+        'phone': phone,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       final DateTime appointmentDateTime = _createAppointmentDateTime();
 
       final String bookingId = await _bookingService.createBooking(
         user: user,
+        userPhone: phone,
         salon: widget.salon,
         selectedServices: widget.selectedServices,
         selectedHairstyle: widget.selectedHairstyle,
@@ -627,6 +687,53 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     icon: Icons.schedule,
                     title: 'Giờ hẹn',
                     value: widget.selectedTime,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.phone_in_talk_outlined),
+                      SizedBox(width: 10),
+                      Text(
+                        'Số điện thoại liên hệ',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    enabled: !_isSaving && !_isLoadingPhone,
+                    maxLength: 15,
+                    decoration: InputDecoration(
+                      hintText: _isLoadingPhone
+                          ? 'Đang tải số điện thoại...'
+                          : 'Ví dụ: 0905123456',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: const OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Admin chỉ sử dụng số này để xác nhận hoặc liên hệ về lịch hẹn.',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
