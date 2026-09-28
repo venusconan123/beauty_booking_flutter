@@ -86,6 +86,33 @@ service cloud.firestore {
       allow create, update, delete: if admin();
     }
 
+    match /support_chats/{userId} {
+      allow read: if signedIn() &&
+          (request.auth.uid == userId || admin());
+      allow create: if signedIn() &&
+          request.resource.data.userId == userId &&
+          (request.auth.uid == userId || admin());
+      allow update: if signedIn() &&
+          resource.data.userId == userId &&
+          request.resource.data.userId == userId &&
+          (request.auth.uid == userId || admin());
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn() &&
+            (request.auth.uid == userId || admin());
+        allow create: if signedIn() &&
+            request.resource.data.senderId == request.auth.uid &&
+            request.resource.data.content is string &&
+            request.resource.data.content.size() > 0 &&
+            request.resource.data.content.size() <= 2000 &&
+            ((request.auth.uid == userId &&
+              request.resource.data.senderRole == 'user') ||
+             (admin() && request.resource.data.senderRole == 'admin'));
+        allow update, delete: if false;
+      }
+    }
+
     match /voucher_templates/{voucherId} {
       allow read: if signedIn();
       allow create, delete: if admin();
