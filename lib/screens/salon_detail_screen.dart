@@ -692,57 +692,63 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           context: context,
           backgroundColor: _panel,
           showDragHandle: true,
-          builder: (context) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Chọn lịch muốn đánh giá',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
+          isScrollControlled: true,
+          builder: (context) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.72,
+            minChildSize: 0.42,
+            maxChildSize: 0.9,
+            builder: (context, scrollController) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Chọn lịch muốn đánh giá',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 420),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: bookings.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final booking = bookings[index].data();
-                        final reviewed = reviewSnapshots[index].exists;
-                        return ListTile(
-                          tileColor: _field,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          leading: Icon(
-                            reviewed
-                                ? Icons.rate_review_rounded
-                                : Icons.star_outline_rounded,
-                            color: _gold,
-                          ),
-                          title: Text(
-                            booking['barberName']?.toString() ?? 'Thợ phục vụ',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          subtitle: Text(
-                            '${_formatBookingDate(booking)} • '
-                            '${reviewed ? 'Đã đánh giá' : 'Chưa đánh giá'}',
-                            style: const TextStyle(color: _muted),
-                          ),
-                          onTap: () => Navigator.pop(context, index),
-                        );
-                      },
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: bookings.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final booking = bookings[index].data();
+                          final reviewed = reviewSnapshots[index].exists;
+                          return ListTile(
+                            tileColor: _field,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            leading: Icon(
+                              reviewed
+                                  ? Icons.rate_review_rounded
+                                  : Icons.star_outline_rounded,
+                              color: _gold,
+                            ),
+                            title: Text(
+                              booking['barberName']?.toString() ??
+                                  'Thợ phục vụ',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              '${_formatBookingDate(booking)} • '
+                              '${reviewed ? 'Đã đánh giá' : 'Chưa đánh giá'}',
+                              style: const TextStyle(color: _muted),
+                            ),
+                            onTap: () => Navigator.pop(context, index),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
