@@ -296,6 +296,21 @@ class QuickBookingBranchScreen extends StatelessWidget {
                         salon.address,
                         style: const TextStyle(color: _muted, height: 1.35),
                       ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.phone_in_talk_rounded,
+                            color: _gold,
+                            size: 17,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Hotline: ${salon.hotline}',
+                            style: const TextStyle(color: _muted),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

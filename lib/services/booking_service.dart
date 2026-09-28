@@ -29,6 +29,7 @@ class BookingService {
 
   Future<String> createBooking({
     required User user,
+    required String userPhone,
     required Salon salon,
     required List<HairService> selectedServices,
     required Hairstyle? selectedHairstyle,
@@ -41,6 +42,11 @@ class BookingService {
   }) async {
     if (paymentChoice != 'pay_now' && paymentChoice != 'pay_later') {
       throw ArgumentError.value(paymentChoice, 'paymentChoice');
+    }
+
+    final normalizedPhone = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!RegExp(r'^0[0-9]{9}$').hasMatch(normalizedPhone)) {
+      throw ArgumentError.value(userPhone, 'userPhone');
     }
 
     final int originalPrice = selectedServices.fold(0, (total, service) {
@@ -259,9 +265,11 @@ class BookingService {
         'userId': user.uid,
         'userEmail': user.email,
         'userName': user.displayName ?? '',
+        'userPhone': normalizedPhone,
         'salonId': salon.id,
         'salonName': salon.name,
         'salonAddress': salon.address,
+        'salonHotline': salon.hotline,
         'barberId': assignedBarber.id,
         'barberName': assignedBarber.name,
         'useAnyBarber': useAnyBarber,

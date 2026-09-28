@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -33,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -56,7 +59,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
             password: _passwordController.text,
           );
 
-      await credential.user?.updateDisplayName(_nameController.text.trim());
+      final user = credential.user;
+      final name = _nameController.text.trim();
+      final email = _emailController.text.trim();
+      final phone = _normalizePhone(_phoneController.text);
+
+      await user?.updateDisplayName(name);
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': name,
+          'email': email,
+          'phone': phone,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!mounted) {
         return;
@@ -148,6 +165,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     }
+  }
+
+  String _normalizePhone(String value) {
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String? _validatePhone(String? value) {
+    final phone = _normalizePhone(value ?? '');
+    if (phone.isEmpty) return 'Vui lòng nhập số điện thoại.';
+    if (!RegExp(r'^0[0-9]{9}$').hasMatch(phone)) {
+      return 'Số điện thoại phải gồm 10 số và bắt đầu bằng 0.';
+    }
+    return null;
   }
 
   InputDecoration _fieldDecoration({
@@ -383,6 +413,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           }
                                           return null;
                                         },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _phoneController,
+                                        keyboardType: TextInputType.phone,
+                                        textInputAction: TextInputAction.next,
+                                        autofillHints: const [
+                                          AutofillHints.telephoneNumber,
+                                        ],
+                                        cursorColor: _gold,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                        decoration: _fieldDecoration(
+                                          label: 'Số điện thoại',
+                                          hint: 'Ví dụ: 0905123456',
+                                          icon: Icons.phone_outlined,
+                                        ),
+                                        validator: _validatePhone,
                                       ),
                                       const SizedBox(height: 16),
                                       TextFormField(

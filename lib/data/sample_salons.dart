@@ -76,6 +76,7 @@ const List<Salon> sampleSalons = [
     longitude: 108.210489,
     distance: 2.0,
     rating: 4.8,
+    hotline: '0905 345 001',
     services: commonServices,
   ),
   Salon(
@@ -86,6 +87,7 @@ const List<Salon> sampleSalons = [
     longitude: 108.216245,
     distance: 4.8,
     rating: 4.7,
+    hotline: '0905 130 002',
     services: commonServices,
   ),
   Salon(
@@ -98,6 +100,7 @@ const List<Salon> sampleSalons = [
     longitude: 108.235000,
     distance: 3.5,
     rating: 4.6,
+    hotline: '0905 120 003',
     services: commonServices,
   ),
 ];

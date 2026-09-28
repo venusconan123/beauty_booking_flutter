@@ -11,6 +11,7 @@ class Salon {
   final List<HairService> services;
   final String openingTime;
   final String closingTime;
+  final String hotline;
 
   const Salon({
     required this.id,
@@ -21,6 +22,7 @@ class Salon {
     required this.distance,
     required this.rating,
     required this.services,
+    required this.hotline,
     this.openingTime = '07:00',
     this.closingTime = '22:00',
   });
