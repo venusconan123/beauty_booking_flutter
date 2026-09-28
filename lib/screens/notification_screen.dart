@@ -202,84 +202,46 @@ class NotificationScreen extends StatelessWidget {
           .collection('vouchers')
           .snapshots(),
       builder: (context, personalSnapshot) {
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('voucher_templates')
-              .snapshots(),
-          builder: (context, templateSnapshot) {
-            if (personalSnapshot.connectionState == ConnectionState.waiting ||
-                templateSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: _gold),
-              );
-            }
-            final vouchers = <Voucher>[
-              ...?personalSnapshot.data?.docs.map(
-                (doc) => Voucher.fromDocument(doc, isPersonal: true),
+        if (personalSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _gold));
+        }
+        final vouchers = <Voucher>[
+          ...?personalSnapshot.data?.docs.map(
+            (doc) => Voucher.fromDocument(doc, isPersonal: true),
+          ),
+        ]..sort((a, b) => b.discountPercent.compareTo(a.discountPercent));
+        if (vouchers.isEmpty) {
+          return Column(
+            children: [
+              _loyaltyProgress(userId),
+              Expanded(
+                child: _empty(
+                  Icons.confirmation_number_outlined,
+                  'Chưa có voucher tích lũy',
+                  'Hoàn thành 10 lần sử dụng dịch vụ để nhận voucher giảm 25%.',
+                ),
               ),
-              ...?templateSnapshot.data?.docs.map(
-                (doc) => Voucher.fromDocument(doc, isPersonal: false),
-              ),
-            ]..sort(
-                (a, b) => b.discountPercent.compareTo(a.discountPercent),
-              );
-            if (vouchers.isEmpty) {
-              return Column(
-                children: [
-                  _loyaltyProgress(userId),
-                  Expanded(
-                    child: _empty(
-                      Icons.confirmation_number_outlined,
-                      'Chưa có voucher',
-                      'Hoàn thành 10 lần sử dụng dịch vụ để nhận voucher giảm 25%.',
-                    ),
-                  ),
-                ],
-              );
-            }
-            return _centeredList(
-              vouchers.length,
-              (context, index) {
-                final voucher = vouchers[index];
-                if (voucher.isPersonal) return _voucherCard(voucher);
-                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('voucher_templates')
-                      .doc(voucher.id)
-                      .collection('redemptions')
-                      .doc(userId)
-                      .snapshots(),
-                  builder: (context, redemptionSnapshot) => _voucherCard(
-                    voucher,
-                    usedByCurrentUser:
-                        redemptionSnapshot.data?.exists ?? false,
-                  ),
-                );
-              },
-              header: _loyaltyProgress(userId),
-            );
-          },
+            ],
+          );
+        }
+        return _centeredList(
+          vouchers.length,
+          (context, index) => _voucherCard(vouchers[index]),
+          header: _loyaltyProgress(userId),
         );
       },
     );
   }
 
-  Widget _voucherCard(
-    Voucher voucher, {
-    bool usedByCurrentUser = false,
-  }) {
+  Widget _voucherCard(Voucher voucher) {
     final expired = voucher.expiresAt != null &&
         !voucher.expiresAt!.isAfter(DateTime.now());
-    final outOfStock = voucher.remainingUses == 0;
-    final alreadyUsed = voucher.isUsed || usedByCurrentUser;
-    final unavailable =
-        alreadyUsed || !voucher.isActive || expired || outOfStock;
+    final alreadyUsed = voucher.isUsed;
+    final unavailable = alreadyUsed || !voucher.isActive || expired;
     final status = alreadyUsed
         ? 'Đã dùng'
         : expired
         ? 'Hết hạn'
-        : outOfStock
-        ? 'Hết lượt'
         : voucher.isActive
         ? 'Có thể dùng'
         : 'Tạm dừng';
@@ -322,18 +284,6 @@ class NotificationScreen extends StatelessWidget {
                   : 'Đơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
               style: const TextStyle(color: _muted),
             ),
-            if (voucher.remainingUses != null) ...[
-              const SizedBox(height: 5),
-              Text(
-                'Còn ${voucher.remainingUses}/${voucher.usageLimit} lượt · Mỗi khách dùng 1 lần',
-                style: TextStyle(
-                  color: outOfStock
-                      ? const Color(0xFFFF7777)
-                      : const Color(0xFF59D38C),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
           ],
         ),
       ),

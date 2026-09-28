@@ -209,8 +209,8 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                             'type': 'voucher_available',
                             'title': 'Voucher mới: $title',
                             'message': minimum == 0
-                                ? 'Mã $code giảm $percent%, chỉ dành cho $usageLimit khách hàng đầu tiên.'
-                                : 'Mã $code giảm $percent% cho đơn từ ${_formatPrice(minimum)}, chỉ dành cho $usageLimit khách hàng đầu tiên.',
+                                ? 'Mã $code giảm $percent%, chỉ dành cho $usageLimit khách hàng đầu tiên. Nhập mã khi xác nhận đặt lịch để sử dụng.'
+                                : 'Mã $code giảm $percent% cho đơn từ ${_formatPrice(minimum)}, chỉ dành cho $usageLimit khách hàng đầu tiên. Nhập mã khi xác nhận đặt lịch để sử dụng.',
                             'audience': 'all',
                             'voucherId': createdVoucher.id,
                             'voucherCode': code,
