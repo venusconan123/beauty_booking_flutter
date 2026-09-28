@@ -13,6 +13,7 @@ import 'admin_hairstyle_screen.dart';
 import 'admin_loyalty_settings_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_report_screen.dart';
+import 'admin_salon_contact_screen.dart';
 import 'admin_voucher_screen.dart';
 import 'booking_branch_selection_screen.dart';
 import 'booking_history_screen.dart';
@@ -126,6 +127,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminSalonContactScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AdminSalonContactScreen(),
+      ),
+    );
+  }
+
   void _openNotifications(BuildContext context) {
     Navigator.of(
       context,
@@ -209,6 +218,8 @@ class HomeScreen extends StatelessWidget {
               _openAdminLoyaltySettingsScreen(context);
             } else if (value == 'chats') {
               _openAdminChatScreen(context);
+            } else if (value == 'contacts') {
+              _openAdminSalonContactScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -240,6 +251,16 @@ class HomeScreen extends StatelessWidget {
                 leading: Icon(Icons.photo_library_outlined, color: _gold),
                 title: Text(
                   'Quản lý mẫu tóc',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'contacts',
+              child: ListTile(
+                leading: Icon(Icons.phone_in_talk_outlined, color: _gold),
+                title: Text(
+                  'Quản lý hotline',
                   style: TextStyle(color: Colors.white),
                 ),
               ),

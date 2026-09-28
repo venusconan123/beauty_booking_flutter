@@ -26,4 +26,20 @@ class Salon {
     this.openingTime = '07:00',
     this.closingTime = '22:00',
   });
+
+  Salon copyWith({String? hotline}) {
+    return Salon(
+      id: id,
+      name: name,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+      distance: distance,
+      rating: rating,
+      services: services,
+      hotline: hotline ?? this.hotline,
+      openingTime: openingTime,
+      closingTime: closingTime,
+    );
+  }
 }

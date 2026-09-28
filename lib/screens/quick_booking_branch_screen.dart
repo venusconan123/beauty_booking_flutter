@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
+import '../services/salon_contact_service.dart';
 import 'barber_selection_screen.dart';
 
 class QuickBookingBranchScreen extends StatelessWidget {
@@ -25,7 +26,12 @@ class QuickBookingBranchScreen extends StatelessWidget {
 
   String _formatPrice(int price) => '${price ~/ 1000}.000đ';
 
-  void _selectSalon(BuildContext context, Salon salon) {
+  Future<void> _selectSalon(BuildContext context, Salon salon) async {
+    final hotline = await SalonContactService().getHotline(salon);
+    if (!context.mounted) {
+      return;
+    }
+    final effectiveSalon = salon.copyWith(hotline: hotline);
     final HairService serviceAtSalon = salon.services.firstWhere(
       (service) => service.id == selectedService.id,
       orElse: () => selectedService,
@@ -34,7 +40,7 @@ class QuickBookingBranchScreen extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => BarberSelectionScreen(
-          salon: salon,
+          salon: effectiveSalon,
           selectedServices: <HairService>[serviceAtSalon],
           selectedHairstyle: selectedHairstyle,
         ),
@@ -305,9 +311,13 @@ class QuickBookingBranchScreen extends StatelessWidget {
                             size: 17,
                           ),
                           const SizedBox(width: 5),
-                          Text(
-                            'Hotline: ${salon.hotline}',
-                            style: const TextStyle(color: _muted),
+                          StreamBuilder<String>(
+                            stream: SalonContactService().watchHotline(salon),
+                            initialData: salon.hotline,
+                            builder: (_, snapshot) => Text(
+                              'Hotline: ${snapshot.data ?? salon.hotline}',
+                              style: const TextStyle(color: _muted),
+                            ),
                           ),
                         ],
                       ),

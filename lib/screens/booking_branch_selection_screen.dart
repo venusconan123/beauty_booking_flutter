@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/salon.dart';
+import '../services/salon_contact_service.dart';
 import 'salon_detail_screen.dart';
 
 class BookingBranchSelectionScreen extends StatelessWidget {
@@ -16,10 +17,16 @@ class BookingBranchSelectionScreen extends StatelessWidget {
   static const _gold = Color(0xFFF0C36A);
   static const _muted = Color(0xFFB8C0CC);
 
-  void _selectSalon(BuildContext context, Salon salon) {
+  Future<void> _selectSalon(BuildContext context, Salon salon) async {
+    final hotline = await SalonContactService().getHotline(salon);
+    if (!context.mounted) {
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SalonDetailScreen(salon: salon),
+        builder: (_) => SalonDetailScreen(
+          salon: salon.copyWith(hotline: hotline),
+        ),
       ),
     );
   }
@@ -194,7 +201,14 @@ class BookingBranchSelectionScreen extends StatelessWidget {
                             Icons.schedule_rounded,
                             '${salon.openingTime}–${salon.closingTime}',
                           ),
-                          _meta(Icons.phone_in_talk_rounded, salon.hotline),
+                          StreamBuilder<String>(
+                            stream: SalonContactService().watchHotline(salon),
+                            initialData: salon.hotline,
+                            builder: (_, snapshot) => _meta(
+                              Icons.phone_in_talk_rounded,
+                              snapshot.data ?? salon.hotline,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 7),

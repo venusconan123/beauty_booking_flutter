@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
 import '../services/barber_service.dart';
+import '../services/salon_contact_service.dart';
 import 'service_selection_screen.dart';
 
 class SalonDetailScreen extends StatefulWidget {
@@ -34,13 +37,29 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final PageController _pageController = PageController();
   final BarberService _barberService = BarberService();
+  final SalonContactService _contactService = SalonContactService();
+  StreamSubscription<String>? _hotlineSubscription;
+  late String _hotline;
+
+  @override
+  void initState() {
+    super.initState();
+    _hotline = widget.salon.hotline;
+    _hotlineSubscription = _contactService
+        .watchHotline(widget.salon)
+        .listen((value) {
+          if (mounted && value != _hotline) {
+            setState(() => _hotline = value);
+          }
+        }, onError: (_) {});
+  }
 
   Future<void> _callHotline() async {
-    final phone = widget.salon.hotline.replaceAll(RegExp(r'[^0-9+]'), '');
+    final phone = _hotline.replaceAll(RegExp(r'[^0-9+]'), '');
     final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hotline: ${widget.salon.hotline}')),
+        SnackBar(content: Text('Hotline: $_hotline')),
       );
     }
   }
@@ -49,6 +68,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   @override
   void dispose() {
+    _hotlineSubscription?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -56,7 +76,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   void _bookNow() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ServiceSelectionScreen(salon: widget.salon),
+        builder: (_) => ServiceSelectionScreen(
+          salon: widget.salon.copyWith(hotline: _hotline),
+        ),
       ),
     );
   }
@@ -454,7 +476,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Hotline: ${widget.salon.hotline}',
+                'Hotline: $_hotline',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -587,6 +609,332 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     return Icons.content_cut_rounded;
   }
 
+  String _formatBookingDate(Map<String, dynamic> booking) {
+    final timestamp = booking['appointmentAt'] as Timestamp?;
+    if (timestamp == null) {
+      return 'Lịch đã hoàn thành';
+    }
+    final date = timestamp.toDate();
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute - $day/$month/${date.year}';
+  }
+
+  Future<void> _startReview({Barber? barber}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn cần đăng nhập để đánh giá.')),
+      );
+      return;
+    }
+
+    try {
+      final bookingSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+      final bookings = bookingSnapshot.docs.where((document) {
+        final data = document.data();
+        return data['status'] == 'completed' &&
+            data['salonId'] == widget.salon.id &&
+            (barber == null || data['barberId'] == barber.id);
+      }).toList();
+      bookings.sort((first, second) {
+        final firstTime =
+            (first.data()['appointmentAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                0;
+        final secondTime =
+            (second.data()['appointmentAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                0;
+        return secondTime.compareTo(firstTime);
+      });
+
+      if (!mounted) {
+        return;
+      }
+      if (bookings.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              barber == null
+                  ? 'Bạn cần hoàn thành một lịch tại chi nhánh này trước khi đánh giá.'
+                  : 'Bạn chưa có lịch đã hoàn thành với thợ ${barber.name}.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final reviewSnapshots = await Future.wait(
+        bookings.map(
+          (booking) => FirebaseFirestore.instance
+              .collection('reviews')
+              .doc(booking.id)
+              .get(),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+
+      int selectedIndex = reviewSnapshots.indexWhere(
+        (review) => !review.exists,
+      );
+      if (selectedIndex < 0) {
+        selectedIndex = 0;
+      }
+      if (bookings.length > 1) {
+        final chosen = await showModalBottomSheet<int>(
+          context: context,
+          backgroundColor: _panel,
+          showDragHandle: true,
+          builder: (context) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Chọn lịch muốn đánh giá',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 420),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: bookings.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final booking = bookings[index].data();
+                        final reviewed = reviewSnapshots[index].exists;
+                        return ListTile(
+                          tileColor: _field,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          leading: Icon(
+                            reviewed
+                                ? Icons.rate_review_rounded
+                                : Icons.star_outline_rounded,
+                            color: _gold,
+                          ),
+                          title: Text(
+                            booking['barberName']?.toString() ?? 'Thợ phục vụ',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          subtitle: Text(
+                            '${_formatBookingDate(booking)} • '
+                            '${reviewed ? 'Đã đánh giá' : 'Chưa đánh giá'}',
+                            style: const TextStyle(color: _muted),
+                          ),
+                          onTap: () => Navigator.pop(context, index),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        if (chosen == null) {
+          return;
+        }
+        selectedIndex = chosen;
+      }
+
+      await _showReviewDialog(
+        bookingId: bookings[selectedIndex].id,
+        booking: bookings[selectedIndex].data(),
+        existingReview: reviewSnapshots[selectedIndex].data(),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tải lịch để đánh giá: ${error.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showReviewDialog({
+    required String bookingId,
+    required Map<String, dynamic> booking,
+    Map<String, dynamic>? existingReview,
+  }) async {
+    int barberRating = (existingReview?['barberRating'] as num?)?.toInt() ?? 5;
+    int salonRating = (existingReview?['salonRating'] as num?)?.toInt() ?? 5;
+    final commentController = TextEditingController(
+      text: existingReview?['comment']?.toString() ?? '',
+    );
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _panel,
+          title: Text(
+            existingReview == null ? 'Đánh giá trải nghiệm' : 'Sửa đánh giá',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 430,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Thợ ${booking['barberName'] ?? 'phục vụ'}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  _starSelector(
+                    value: barberRating,
+                    onChanged: (value) {
+                      setDialogState(() => barberRating = value);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    booking['salonName']?.toString() ?? widget.salon.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  _starSelector(
+                    value: salonRating,
+                    onChanged: (value) {
+                      setDialogState(() => salonRating = value);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Chia sẻ cảm nhận của bạn',
+                      labelStyle: const TextStyle(color: _muted),
+                      filled: true,
+                      fillColor: _field,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Để sau', style: TextStyle(color: _muted)),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _ink,
+              ),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('Gửi đánh giá'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (shouldSave != true) {
+      commentController.dispose();
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      commentController.dispose();
+      return;
+    }
+    try {
+      await FirebaseFirestore.instance.collection('reviews').doc(bookingId).set(
+        {
+          'bookingId': bookingId,
+          'userId': user.uid,
+          'salonId': booking['salonId']?.toString() ?? widget.salon.id,
+          'salonName': booking['salonName']?.toString() ?? widget.salon.name,
+          'barberId': booking['barberId']?.toString() ?? '',
+          'barberName': booking['barberName']?.toString() ?? '',
+          'salonRating': salonRating,
+          'barberRating': barberRating,
+          'comment': commentController.text.trim(),
+          if (existingReview == null) 'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cảm ơn bạn đã gửi đánh giá!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể lưu đánh giá: ${error.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      commentController.dispose();
+    }
+  }
+
+  Widget _starSelector({
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Wrap(
+      children: List.generate(5, (index) {
+        final rating = index + 1;
+        return IconButton(
+          tooltip: '$rating sao',
+          onPressed: () => onChanged(rating),
+          icon: Icon(
+            rating <= value ? Icons.star_rounded : Icons.star_border_rounded,
+            color: _gold,
+          ),
+        );
+      }),
+    );
+  }
+
   Widget _employeesPage() {
     return StreamBuilder<List<Barber>>(
       stream: _barberService.watchBySalon(widget.salon.id),
@@ -690,13 +1038,28 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: () => _showEmployeeProfile(barber),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _gold,
-                    side: const BorderSide(color: _gold),
-                  ),
-                  child: const Text('Xem thông tin'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => _showEmployeeProfile(barber),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _gold,
+                        side: const BorderSide(color: _gold),
+                      ),
+                      child: const Text('Xem thông tin'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => _startReview(barber: barber),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _gold,
+                        foregroundColor: _ink,
+                      ),
+                      icon: const Icon(Icons.star_rounded, size: 18),
+                      label: const Text('Đánh giá'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -796,6 +1159,23 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
           children: [
             _reviewSummary(reviews),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: () => _startReview(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _ink,
+                ),
+                icon: const Icon(Icons.rate_review_rounded),
+                label: const Text(
+                  'Viết đánh giá cho chi nhánh',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             if (reviews.isEmpty)
               _emptyReviews()
