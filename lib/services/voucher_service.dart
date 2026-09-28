@@ -17,14 +17,29 @@ class VoucherService {
       _firestore.collection('voucher_templates').get(),
     ]);
 
-    final vouchers = <Voucher>[
+    final personalVouchers = <Voucher>[
       ...results[0].docs.map(
         (document) => Voucher.fromDocument(document, isPersonal: true),
       ),
-      ...results[1].docs.map(
-        (document) => Voucher.fromDocument(document, isPersonal: false),
-      ),
     ];
+    final templateDocuments = results[1].docs;
+    final redemptionSnapshots = await Future.wait(
+      templateDocuments.map(
+        (document) => document.reference
+            .collection('redemptions')
+            .doc(userId)
+            .get(),
+      ),
+    );
+    final sharedVouchers = <Voucher>[];
+    for (var index = 0; index < templateDocuments.length; index++) {
+      if (!redemptionSnapshots[index].exists) {
+        sharedVouchers.add(
+          Voucher.fromDocument(templateDocuments[index], isPersonal: false),
+        );
+      }
+    }
+    final vouchers = <Voucher>[...personalVouchers, ...sharedVouchers];
 
     vouchers.sort((first, second) {
       final discountCompare = second.discountPercent.compareTo(

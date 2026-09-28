@@ -86,6 +86,14 @@ class BookingService {
               .collection('vouchers')
               .doc(selectedVoucher.id)
         : _firestore.collection('voucher_templates').doc(selectedVoucher.id);
+    final DocumentReference<Map<String, dynamic>>? redemptionReference =
+        selectedVoucher != null && !selectedVoucher.isPersonal
+        ? _firestore
+              .collection('voucher_templates')
+              .doc(selectedVoucher.id)
+              .collection('redemptions')
+              .doc(user.uid)
+        : null;
 
     final Map<String, List<DocumentReference<Map<String, dynamic>>>>
     slotReferencesByBarber = {};
@@ -107,6 +115,7 @@ class BookingService {
     ) async {
       int discountAmount = 0;
       int totalPrice = originalPrice;
+      int voucherUsedCount = 0;
       Map<String, dynamic>? appliedVoucher;
 
       if (voucherReference != null && selectedVoucher != null) {
@@ -117,15 +126,30 @@ class BookingService {
         final voucherData = voucherSnapshot.data()!;
         final isActive = voucherData['isActive'] as bool? ?? false;
         final isUsed = voucherData['isUsed'] as bool? ?? false;
+        voucherUsedCount =
+            (voucherData['usedCount'] as num?)?.toInt() ?? 0;
+        final usageLimit =
+            (voucherData['usageLimit'] as num?)?.toInt() ?? 1;
         final discountPercent =
             (voucherData['discountPercent'] as num?)?.toInt() ?? 0;
         final minOrderAmount =
             (voucherData['minOrderAmount'] as num?)?.toInt() ?? 0;
         final expiresAt = (voucherData['expiresAt'] as Timestamp?)?.toDate();
         final isExpired = expiresAt != null && !expiresAt.isAfter(DateTime.now());
+        if (redemptionReference != null) {
+          final redemptionSnapshot = await transaction.get(
+            redemptionReference,
+          );
+          if (redemptionSnapshot.exists) {
+            throw StateError('Bạn đã sử dụng voucher này trước đó.');
+          }
+        }
 
         if (!isActive ||
             (selectedVoucher.isPersonal && isUsed) ||
+            (!selectedVoucher.isPersonal &&
+                usageLimit > 0 &&
+                voucherUsedCount >= usageLimit) ||
             discountPercent <= 0 ||
             discountPercent > 100 ||
             originalPrice < minOrderAmount ||
@@ -141,6 +165,7 @@ class BookingService {
           'title': voucherData['title']?.toString() ?? 'Voucher ưu đãi',
           'discountPercent': discountPercent,
           'minOrderAmount': minOrderAmount,
+          'usageLimit': usageLimit,
           'source': voucherData['source']?.toString() ?? 'admin',
           'isPersonal': selectedVoucher.isPersonal,
         };
@@ -250,6 +275,17 @@ class BookingService {
           'usedBookingId': bookingReference.id,
           'usedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else if (voucherReference != null && redemptionReference != null) {
+        transaction.update(voucherReference, {
+          'usedCount': voucherUsedCount + 1,
+          'lastBookingId': bookingReference.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        transaction.set(redemptionReference, {
+          'userId': user.uid,
+          'bookingId': bookingReference.id,
+          'usedAt': FieldValue.serverTimestamp(),
         });
       }
 

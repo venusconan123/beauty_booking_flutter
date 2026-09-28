@@ -7,6 +7,8 @@ class Voucher {
   final String description;
   final int discountPercent;
   final int minOrderAmount;
+  final int usageLimit;
+  final int usedCount;
   final bool isActive;
   final bool isUsed;
   final bool isPersonal;
@@ -20,6 +22,8 @@ class Voucher {
     required this.description,
     required this.discountPercent,
     required this.minOrderAmount,
+    required this.usageLimit,
+    required this.usedCount,
     required this.isActive,
     required this.isUsed,
     required this.isPersonal,
@@ -39,6 +43,9 @@ class Voucher {
       description: data['description']?.toString() ?? '',
       discountPercent: (data['discountPercent'] as num?)?.toInt() ?? 0,
       minOrderAmount: (data['minOrderAmount'] as num?)?.toInt() ?? 0,
+      usageLimit:
+          (data['usageLimit'] as num?)?.toInt() ?? (isPersonal ? 0 : 1),
+      usedCount: (data['usedCount'] as num?)?.toInt() ?? 0,
       isActive: data['isActive'] as bool? ?? false,
       isUsed: data['isUsed'] as bool? ?? false,
       isPersonal: isPersonal,
@@ -49,12 +56,22 @@ class Voucher {
 
   bool canApply(int orderAmount) {
     final now = DateTime.now();
+    final hasRemainingUses = isPersonal ||
+        usageLimit <= 0 ||
+        usedCount < usageLimit;
     return isActive &&
         !isUsed &&
+        hasRemainingUses &&
         discountPercent > 0 &&
         discountPercent <= 100 &&
         orderAmount >= minOrderAmount &&
         (expiresAt == null || expiresAt!.isAfter(now));
+  }
+
+  int? get remainingUses {
+    if (isPersonal || usageLimit <= 0) return null;
+    final remaining = usageLimit - usedCount;
+    return remaining < 0 ? 0 : remaining;
   }
 
   int discountFor(int orderAmount) {

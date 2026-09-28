@@ -39,6 +39,7 @@ class NotificationScreen extends StatelessWidget {
   (IconData, Color) _appearance(String type) => switch (type) {
     'promotion' => (Icons.local_offer_rounded, const Color(0xFFFFB648)),
     'voucher_received' => (Icons.confirmation_number_rounded, _gold),
+    'voucher_available' => (Icons.redeem_rounded, _gold),
     'booking_confirmed' => (
       Icons.event_available_rounded,
       const Color(0xFF59D38C),
@@ -240,60 +241,18 @@ class NotificationScreen extends StatelessWidget {
               vouchers.length,
               (context, index) {
                 final voucher = vouchers[index];
-                final expired = voucher.expiresAt != null &&
-                    !voucher.expiresAt!.isAfter(DateTime.now());
-                final unavailable =
-                    voucher.isUsed || !voucher.isActive || expired;
-                final status = voucher.isUsed
-                    ? 'Đã dùng'
-                    : expired
-                    ? 'Hết hạn'
-                    : voucher.isActive
-                    ? 'Có thể dùng'
-                    : 'Tạm dừng';
-                return Opacity(
-                  opacity: unavailable ? .55 : 1,
-                  child: _card(
-                    borderColor: unavailable ? _muted : _gold,
-                    icon: Icons.confirmation_number_rounded,
-                    iconColor: unavailable ? _muted : _gold,
-                    trailing: Text(
-                      status,
-                      style: TextStyle(
-                        color: unavailable
-                            ? _muted
-                            : const Color(0xFF59D38C),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          voucher.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          'Mã ${voucher.code} · Giảm ${voucher.discountPercent}%',
-                          style: const TextStyle(
-                            color: _gold,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          voucher.minOrderAmount == 0
-                              ? 'Áp dụng cho mọi đơn hàng'
-                              : 'Đơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
-                          style: const TextStyle(color: _muted),
-                        ),
-                      ],
-                    ),
+                if (voucher.isPersonal) return _voucherCard(voucher);
+                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('voucher_templates')
+                      .doc(voucher.id)
+                      .collection('redemptions')
+                      .doc(userId)
+                      .snapshots(),
+                  builder: (context, redemptionSnapshot) => _voucherCard(
+                    voucher,
+                    usedByCurrentUser:
+                        redemptionSnapshot.data?.exists ?? false,
                   ),
                 );
               },
@@ -302,6 +261,82 @@ class NotificationScreen extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _voucherCard(
+    Voucher voucher, {
+    bool usedByCurrentUser = false,
+  }) {
+    final expired = voucher.expiresAt != null &&
+        !voucher.expiresAt!.isAfter(DateTime.now());
+    final outOfStock = voucher.remainingUses == 0;
+    final alreadyUsed = voucher.isUsed || usedByCurrentUser;
+    final unavailable =
+        alreadyUsed || !voucher.isActive || expired || outOfStock;
+    final status = alreadyUsed
+        ? 'Đã dùng'
+        : expired
+        ? 'Hết hạn'
+        : outOfStock
+        ? 'Hết lượt'
+        : voucher.isActive
+        ? 'Có thể dùng'
+        : 'Tạm dừng';
+    return Opacity(
+      opacity: unavailable ? .55 : 1,
+      child: _card(
+        borderColor: unavailable ? _muted : _gold,
+        icon: Icons.confirmation_number_rounded,
+        iconColor: unavailable ? _muted : _gold,
+        trailing: Text(
+          status,
+          style: TextStyle(
+            color: unavailable ? _muted : const Color(0xFF59D38C),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              voucher.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Mã ${voucher.code} · Giảm ${voucher.discountPercent}%',
+              style: const TextStyle(
+                color: _gold,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              voucher.minOrderAmount == 0
+                  ? 'Áp dụng cho mọi đơn hàng'
+                  : 'Đơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
+              style: const TextStyle(color: _muted),
+            ),
+            if (voucher.remainingUses != null) ...[
+              const SizedBox(height: 5),
+              Text(
+                'Còn ${voucher.remainingUses}/${voucher.usageLimit} lượt · Mỗi khách dùng 1 lần',
+                style: TextStyle(
+                  color: outOfStock
+                      ? const Color(0xFFFF7777)
+                      : const Color(0xFF59D38C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
