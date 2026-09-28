@@ -44,6 +44,10 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
     final minimumController = TextEditingController(
       text: data['minOrderAmount']?.toString() ?? '0',
     );
+    final usedCount = (data['usedCount'] as num?)?.toInt() ?? 0;
+    final usageLimitController = TextEditingController(
+      text: data['usageLimit']?.toString() ?? '1',
+    );
     bool isActive = data['isActive'] as bool? ?? true;
     bool saving = false;
 
@@ -98,6 +102,23 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  _input(
+                    usageLimitController,
+                    'Tổng số khách được sử dụng',
+                    Icons.people_alt_outlined,
+                    number: true,
+                  ),
+                  if (document != null) ...[
+                    const SizedBox(height: 7),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Đã có $usedCount khách sử dụng voucher này.',
+                        style: const TextStyle(color: _muted),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -137,17 +158,23 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                       final title = titleController.text.trim();
                       final percent = int.tryParse(percentController.text);
                       final minimum = int.tryParse(minimumController.text);
+                      final usageLimit = int.tryParse(
+                        usageLimitController.text,
+                      );
                       if (code.isEmpty ||
                           title.isEmpty ||
                           percent == null ||
                           percent < 1 ||
                           percent > 100 ||
                           minimum == null ||
-                          minimum < 0) {
+                          minimum < 0 ||
+                          usageLimit == null ||
+                          usageLimit < 1 ||
+                          usageLimit < usedCount) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Kiểm tra mã, tên, mức giảm 1–100% và giá tối thiểu.',
+                              'Kiểm tra mã, tên, mức giảm 1–100%, giá tối thiểu và số lượng voucher.',
                             ),
                           ),
                         );
@@ -160,6 +187,8 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                         'description': descriptionController.text.trim(),
                         'discountPercent': percent,
                         'minOrderAmount': minimum,
+                        'usageLimit': usageLimit,
+                        'usedCount': usedCount,
                         'isActive': isActive,
                         'source': 'admin',
                         'updatedAt': FieldValue.serverTimestamp(),
@@ -167,9 +196,27 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                       try {
                         if (document == null) {
                           values['createdAt'] = FieldValue.serverTimestamp();
-                          await FirebaseFirestore.instance
+                          final firestore = FirebaseFirestore.instance;
+                          final createdVoucher = firestore
                               .collection('voucher_templates')
-                              .add(values);
+                              .doc();
+                          final announcement = firestore
+                              .collection('announcements')
+                              .doc();
+                          final batch = firestore.batch();
+                          batch.set(createdVoucher, values);
+                          batch.set(announcement, {
+                            'type': 'voucher_available',
+                            'title': 'Voucher mới: $title',
+                            'message': minimum == 0
+                                ? 'Mã $code giảm $percent%, chỉ dành cho $usageLimit khách hàng đầu tiên.'
+                                : 'Mã $code giảm $percent% cho đơn từ ${_formatPrice(minimum)}, chỉ dành cho $usageLimit khách hàng đầu tiên.',
+                            'audience': 'all',
+                            'voucherId': createdVoucher.id,
+                            'voucherCode': code,
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+                          await batch.commit();
                         } else {
                           await document.reference.update(values);
                         }
@@ -209,6 +256,7 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
     descriptionController.dispose();
     percentController.dispose();
     minimumController.dispose();
+    usageLimitController.dispose();
   }
 
   Widget _input(
@@ -319,13 +367,22 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                       (data['discountPercent'] as num?)?.toInt() ?? 0;
                   final minimum =
                       (data['minOrderAmount'] as num?)?.toInt() ?? 0;
+                  final usageLimit =
+                      (data['usageLimit'] as num?)?.toInt() ?? 1;
+                  final usedCount =
+                      (data['usedCount'] as num?)?.toInt() ?? 0;
+                  final remaining = (usageLimit - usedCount).clamp(
+                    0,
+                    usageLimit,
+                  );
+                  final hasStock = usedCount < usageLimit;
                   return Container(
                     padding: const EdgeInsets.all(17),
                     decoration: BoxDecoration(
                       color: _surface,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: active
+                        color: active && hasStock
                             ? const Color(0x66F6C768)
                             : const Color(0x336C7480),
                       ),
@@ -361,6 +418,16 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen> {
                                     ? 'Không yêu cầu giá trị tối thiểu'
                                     : 'Đơn từ ${_formatPrice(minimum)}',
                                 style: const TextStyle(color: _muted),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                'Đã dùng $usedCount/$usageLimit · Còn $remaining lượt',
+                                style: TextStyle(
+                                  color: hasStock
+                                      ? const Color(0xFF59D38C)
+                                      : const Color(0xFFFF7777),
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ],
                           ),

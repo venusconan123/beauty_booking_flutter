@@ -6,14 +6,17 @@
 - Màn `Thông báo & ưu đãi` hiển thị tiến độ tích điểm và danh sách voucher.
 - Màn xác nhận đặt lịch cho phép chọn voucher đủ điều kiện trước khi chọn thanh toán sau hoặc VNPAY.
 - Admin có thể tạo, sửa, tạm dừng và xóa voucher dùng chung, bao gồm mức giảm và giá trị đơn tối thiểu.
+- Voucher dùng chung có giới hạn tổng số khách; mỗi tài khoản chỉ được dùng một lần.
+- Khi admin tạo voucher, hệ thống gửi một thông báo chung. Voucher chỉ bị trừ lượt khi khách thực sự dùng trong lúc đặt lịch.
 
 ## Dữ liệu Firestore
 
 - `voucher_templates/{voucherId}`: voucher dùng chung do admin quản lý.
+- `voucher_templates/{voucherId}/redemptions/{userId}`: ghi nhận khách đã dùng voucher để ngăn dùng lặp.
 - `users/{userId}/vouchers/{voucherId}`: voucher cá nhân từ chương trình tích điểm.
 - Booking lưu thêm `originalPrice`, `discountAmount`, `totalPrice` và `voucher`.
 
-Voucher cá nhân được đánh dấu đã dùng trong cùng transaction tạo booking để tránh dùng lặp. `totalPrice` sau giảm cũng là số tiền Cloudflare Worker gửi sang VNPAY.
+Voucher cá nhân được đánh dấu đã dùng trong cùng transaction tạo booking. Với voucher dùng chung, transaction đồng thời kiểm tra tồn lượt, tăng `usedCount` và tạo redemption theo người dùng, nên nhiều khách đặt cùng lúc cũng không thể vượt `usageLimit`. `totalPrice` sau giảm cũng là số tiền Cloudflare Worker gửi sang VNPAY.
 
 ## Cập nhật sau khi merge
 

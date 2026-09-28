@@ -122,6 +122,17 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final voucher = _availableVouchers[index];
+                      final details = <String>[voucher.title];
+                      if (voucher.minOrderAmount > 0) {
+                        details.add(
+                          'Đơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
+                        );
+                      }
+                      if (voucher.remainingUses != null) {
+                        details.add(
+                          'Còn ${voucher.remainingUses} lượt · Mỗi khách dùng 1 lần',
+                        );
+                      }
                       return ListTile(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -134,12 +145,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                           '${voucher.code} · Giảm ${voucher.discountPercent}%',
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        subtitle: Text(
-                          voucher.minOrderAmount == 0
-                              ? voucher.title
-                              : '${voucher.title}\nĐơn tối thiểu ${_formatPrice(voucher.minOrderAmount)}',
-                        ),
-                        isThreeLine: voucher.minOrderAmount > 0,
+                        subtitle: Text(details.join('\n')),
+                        isThreeLine: details.length > 1,
                         onTap: () => Navigator.pop(sheetContext, voucher),
                       );
                     },
@@ -281,6 +288,14 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.message), backgroundColor: Colors.orange),
+      );
+    } on StateError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: Colors.orange,
+        ),
       );
     } on FirebaseException catch (error) {
       if (!mounted) {
