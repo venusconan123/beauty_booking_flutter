@@ -21,9 +21,10 @@ class _AdminLoyaltySettingsScreenState
   final _formKey = GlobalKey<FormState>();
   final _requiredVisitsController = TextEditingController(text: '10');
   final _minimumOrderController = TextEditingController(text: '500000');
-  final _discountController = TextEditingController(text: '25');
-  LoyaltyRewardType _rewardType = LoyaltyRewardType.visitCount;
-  bool _isEnabled = true;
+  final _visitDiscountController = TextEditingController(text: '25');
+  final _orderDiscountController = TextEditingController(text: '10');
+  bool _visitRewardEnabled = true;
+  bool _orderRewardEnabled = false;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -37,7 +38,8 @@ class _AdminLoyaltySettingsScreenState
   void dispose() {
     _requiredVisitsController.dispose();
     _minimumOrderController.dispose();
-    _discountController.dispose();
+    _visitDiscountController.dispose();
+    _orderDiscountController.dispose();
     super.dispose();
   }
 
@@ -50,17 +52,20 @@ class _AdminLoyaltySettingsScreenState
       final settings = LoyaltySettings.fromMap(snapshot.data());
       if (!mounted) return;
       setState(() {
-        _isEnabled = settings.isEnabled;
-        _rewardType = settings.rewardType;
+        _visitRewardEnabled = settings.visitRewardEnabled;
+        _orderRewardEnabled = settings.orderRewardEnabled;
         _requiredVisitsController.text = settings.requiredVisits.toString();
         _minimumOrderController.text = settings.minimumOrderAmount.toString();
-        _discountController.text = settings.discountPercent.toString();
+        _visitDiscountController.text = settings.visitDiscountPercent
+            .toString();
+        _orderDiscountController.text = settings.orderDiscountPercent
+            .toString();
         _isLoading = false;
       });
     } on FirebaseException catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showMessage(error.message ?? 'Không thể tải cấu hình tích lũy.', true);
+      _showMessage(_firebaseErrorMessage(error), true);
     }
   }
 
@@ -72,21 +77,23 @@ class _AdminLoyaltySettingsScreenState
           .collection('app_settings')
           .doc('loyalty')
           .set({
-            'isEnabled': _isEnabled,
-            'rewardType': switch (_rewardType) {
-              LoyaltyRewardType.visitCount => 'visit_count',
-              LoyaltyRewardType.minimumOrder => 'minimum_order',
-            },
+            'visitRewardEnabled': _visitRewardEnabled,
             'requiredVisits': int.parse(_requiredVisitsController.text),
+            'visitDiscountPercent': int.parse(
+              _visitDiscountController.text,
+            ),
+            'orderRewardEnabled': _orderRewardEnabled,
             'minimumOrderAmount': int.parse(_minimumOrderController.text),
-            'discountPercent': int.parse(_discountController.text),
+            'orderDiscountPercent': int.parse(
+              _orderDiscountController.text,
+            ),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
       if (!mounted) return;
       _showMessage('Đã lưu chính sách tích lũy.', false);
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      _showMessage(error.message ?? 'Không thể lưu cấu hình tích lũy.', true);
+      _showMessage(_firebaseErrorMessage(error), true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -99,6 +106,13 @@ class _AdminLoyaltySettingsScreenState
         backgroundColor: isError ? Colors.red : const Color(0xFF2E7D32),
       ),
     );
+  }
+
+  String _firebaseErrorMessage(FirebaseException error) {
+    if (error.code == 'permission-denied') {
+      return 'Không đủ quyền lưu cấu hình. Hãy deploy Firestore Rules mới và kiểm tra tài khoản admin.';
+    }
+    return error.message ?? 'Không thể lưu cấu hình tích lũy.';
   }
 
   String _formatPrice(int price) {
@@ -146,9 +160,9 @@ class _AdminLoyaltySettingsScreenState
                       children: [
                         _headerCard(),
                         const SizedBox(height: 16),
-                        _settingsCard(),
+                        _visitSettingsCard(),
                         const SizedBox(height: 16),
-                        _previewCard(),
+                        _orderSettingsCard(),
                         const SizedBox(height: 20),
                         SizedBox(
                           height: 52,
@@ -212,128 +226,148 @@ class _AdminLoyaltySettingsScreenState
           ),
           const SizedBox(height: 10),
           const Text(
-            'Cấu hình này áp dụng khi admin đánh dấu một lịch hẹn là đã hoàn thành. Voucher đã cấp trước đó không bị thay đổi.',
+            'Hai chính sách hoạt động độc lập khi admin đánh dấu lịch hẹn đã hoàn thành. Nếu khách đồng thời đạt cả hai điều kiện, khách sẽ nhận hai voucher riêng.',
             style: TextStyle(color: _muted, height: 1.45),
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            activeThumbColor: _gold,
-            title: const Text(
-              'Bật chương trình tích lũy',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-            subtitle: const Text(
-              'Tắt để tạm ngừng cấp voucher mới.',
-              style: TextStyle(color: _muted),
-            ),
-            value: _isEnabled,
-            onChanged: (value) => setState(() => _isEnabled = value),
           ),
         ],
       ),
     );
   }
 
-  Widget _settingsCard() {
+  Widget _visitSettingsCard() {
+    final visits = int.tryParse(_requiredVisitsController.text) ?? 10;
+    final discount = int.tryParse(_visitDiscountController.text) ?? 25;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _decoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Điều kiện nhận voucher',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<LoyaltyRewardType>(
-            initialValue: _rewardType,
-            dropdownColor: const Color(0xFF172230),
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDecoration(
-              'Cách tích lũy',
-              Icons.tune_rounded,
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: LoyaltyRewardType.visitCount,
-                child: Text('Theo số lần hoàn thành dịch vụ'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            activeThumbColor: _gold,
+            secondary: const Icon(Icons.repeat_rounded, color: _gold),
+            title: const Text(
+              'Theo số lần hoàn thành dịch vụ',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
               ),
-              DropdownMenuItem(
-                value: LoyaltyRewardType.minimumOrder,
-                child: Text('Theo giá trị của từng đơn hàng'),
-              ),
-            ],
-            onChanged: (value) {
-              if (value != null) setState(() => _rewardType = value);
-            },
-          ),
-          const SizedBox(height: 14),
-          if (_rewardType == LoyaltyRewardType.visitCount)
-            _numberField(
-              controller: _requiredVisitsController,
-              label: 'Số lần sử dụng dịch vụ',
-              icon: Icons.repeat_rounded,
-              minimum: 1,
-            )
-          else
-            _numberField(
-              controller: _minimumOrderController,
-              label: 'Giá trị đơn tối thiểu (VND)',
-              icon: Icons.payments_outlined,
-              minimum: 1,
             ),
+            subtitle: const Text(
+              'Cấp voucher sau mỗi số lần dịch vụ đã đặt.',
+              style: TextStyle(color: _muted),
+            ),
+            value: _visitRewardEnabled,
+            onChanged: (value) => setState(() => _visitRewardEnabled = value),
+          ),
           const SizedBox(height: 14),
           _numberField(
-            controller: _discountController,
-            label: 'Phần trăm giảm của voucher',
+            controller: _requiredVisitsController,
+            label: 'Số lần hoàn thành dịch vụ',
+            icon: Icons.event_repeat_rounded,
+            minimum: 1,
+          ),
+          const SizedBox(height: 14),
+          _numberField(
+            controller: _visitDiscountController,
+            label: 'Phần trăm giảm theo số lần',
             icon: Icons.percent_rounded,
             minimum: 1,
             maximum: 100,
             suffix: '%',
+          ),
+          const SizedBox(height: 14),
+          _policyPreview(
+            enabled: _visitRewardEnabled,
+            message:
+                'Sau mỗi $visits lần hoàn thành, khách nhận voucher giảm $discount%.',
           ),
         ],
       ),
     );
   }
 
-  Widget _previewCard() {
-    final visits = int.tryParse(_requiredVisitsController.text) ?? 10;
+  Widget _orderSettingsCard() {
     final minimum = int.tryParse(_minimumOrderController.text) ?? 500000;
-    final discount = int.tryParse(_discountController.text) ?? 25;
-    final condition = _rewardType == LoyaltyRewardType.visitCount
-        ? 'Sau mỗi $visits lần hoàn thành dịch vụ'
-        : 'Mỗi đơn hoàn thành từ ${_formatPrice(minimum)}';
+    final discount = int.tryParse(_orderDiscountController.text) ?? 10;
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _decoration(borderColor: const Color(0x8859D38C)),
-      child: Row(
+      padding: const EdgeInsets.all(20),
+      decoration: _decoration(),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.visibility_outlined, color: Color(0xFF59D38C)),
-          const SizedBox(width: 12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            activeThumbColor: _gold,
+            secondary: const Icon(Icons.payments_outlined, color: _gold),
+            title: const Text(
+              'Theo giá trị đơn hàng',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            subtitle: const Text(
+              'Cấp voucher cho từng đơn đạt giá trị tối thiểu.',
+              style: TextStyle(color: _muted),
+            ),
+            value: _orderRewardEnabled,
+            onChanged: (value) => setState(() => _orderRewardEnabled = value),
+          ),
+          const SizedBox(height: 14),
+          _numberField(
+            controller: _minimumOrderController,
+            label: 'Giá trị đơn tối thiểu (VND)',
+            icon: Icons.price_check_rounded,
+            minimum: 1,
+          ),
+          const SizedBox(height: 14),
+          _numberField(
+            controller: _orderDiscountController,
+            label: 'Phần trăm giảm theo giá trị đơn',
+            icon: Icons.percent_rounded,
+            minimum: 1,
+            maximum: 100,
+            suffix: '%',
+          ),
+          const SizedBox(height: 14),
+          _policyPreview(
+            enabled: _orderRewardEnabled,
+            message:
+                'Đơn từ ${_formatPrice(minimum)} nhận voucher giảm $discount%.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _policyPreview({required bool enabled, required String message}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0x331A2B25),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: enabled
+              ? const Color(0x8859D38C)
+              : const Color(0x446C7480),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            enabled ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
+            color: enabled ? const Color(0xFF59D38C) : _muted,
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Xem trước chính sách',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '$condition, khách hàng nhận một voucher giảm $discount% cho lần đặt lịch tiếp theo.',
-                  style: const TextStyle(color: _muted, height: 1.45),
-                ),
-              ],
+            child: Text(
+              enabled ? message : 'Chính sách này đang tắt.',
+              style: const TextStyle(color: _muted, height: 1.4),
             ),
           ),
         ],

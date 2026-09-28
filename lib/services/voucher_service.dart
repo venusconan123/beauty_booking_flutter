@@ -94,7 +94,7 @@ class VoucherService {
     if (userId.isEmpty || bookingId.isEmpty) return;
 
     final settings = await getLoyaltySettings();
-    if (!settings.isEnabled) return;
+    if (!settings.visitRewardEnabled && !settings.orderRewardEnabled) return;
 
     final bookingSnapshot = await _firestore
         .collection('bookings')
@@ -107,27 +107,32 @@ class VoucherService {
       return;
     }
 
-    late final String voucherId;
-    late final String code;
-    late final String title;
-    late final String description;
-    int? qualifyingCount;
-
-    if (settings.rewardType == LoyaltyRewardType.minimumOrder) {
+    if (settings.orderRewardEnabled) {
       final totalPrice =
           (bookingData['totalPrice'] as num?)?.toInt() ??
           (bookingData['price'] as num?)?.toInt() ??
           0;
-      if (totalPrice < settings.minimumOrderAmount) return;
-      final shortBookingId = bookingId.length > 6
-          ? bookingId.substring(0, 6).toUpperCase()
-          : bookingId.toUpperCase();
-      voucherId = 'loyalty_order_$bookingId';
-      code = 'DON$shortBookingId';
-      title = 'Ưu đãi cho đơn hàng đủ điều kiện';
-      description =
-          'Giảm ${settings.discountPercent}% cho lần đặt lịch tiếp theo.';
-    } else {
+      if (totalPrice >= settings.minimumOrderAmount) {
+        final shortBookingId = bookingId.length > 6
+            ? bookingId.substring(0, 6).toUpperCase()
+            : bookingId.toUpperCase();
+        await _awardVoucher(
+          userId: userId,
+          bookingId: bookingId,
+          voucherId: 'loyalty_order_$bookingId',
+          code: 'DON$shortBookingId',
+          title: 'Ưu đãi cho đơn hàng đủ điều kiện',
+          description:
+              'Giảm ${settings.orderDiscountPercent}% cho lần đặt lịch tiếp theo.',
+          discountPercent: settings.orderDiscountPercent,
+          rewardType: 'minimum_order',
+          notificationMessage:
+              'Đơn hàng của bạn đã đạt ${settings.minimumOrderAmount}đ. Voucher đã sẵn sàng cho lần đặt lịch tiếp theo.',
+        );
+      }
+    }
+
+    if (settings.visitRewardEnabled) {
       final bookings = await _firestore
           .collection('bookings')
           .where('userId', isEqualTo: userId)
@@ -135,18 +140,40 @@ class VoucherService {
       final completedCount = bookings.docs.where((document) {
         return document.data()['status'] == 'completed';
       }).length;
-      if (completedCount < settings.requiredVisits) return;
-
-      final milestone = completedCount ~/ settings.requiredVisits;
-      qualifyingCount = milestone * settings.requiredVisits;
-      voucherId =
-          'loyalty_visit_${settings.requiredVisits}_$milestone';
-      code = 'TRI_AN${qualifyingCount}LAN';
-      title = 'Tri ân $qualifyingCount lần sử dụng dịch vụ';
-      description =
-          'Giảm ${settings.discountPercent}% cho lần đặt lịch tiếp theo.';
+      if (completedCount >= settings.requiredVisits) {
+        final milestone = completedCount ~/ settings.requiredVisits;
+        final qualifyingCount = milestone * settings.requiredVisits;
+        await _awardVoucher(
+          userId: userId,
+          bookingId: bookingId,
+          voucherId:
+              'loyalty_visit_${settings.requiredVisits}_$milestone',
+          code: 'TRI_AN${qualifyingCount}LAN',
+          title: 'Tri ân $qualifyingCount lần sử dụng dịch vụ',
+          description:
+              'Giảm ${settings.visitDiscountPercent}% cho lần đặt lịch tiếp theo.',
+          discountPercent: settings.visitDiscountPercent,
+          rewardType: 'visit_count',
+          milestone: qualifyingCount,
+          notificationMessage:
+              'Cảm ơn bạn đã sử dụng dịch vụ $qualifyingCount lần. Voucher đã sẵn sàng cho lần đặt lịch tiếp theo.',
+        );
+      }
     }
+  }
 
+  Future<void> _awardVoucher({
+    required String userId,
+    required String bookingId,
+    required String voucherId,
+    required String code,
+    required String title,
+    required String description,
+    required int discountPercent,
+    required String rewardType,
+    required String notificationMessage,
+    int? milestone,
+  }) async {
     final voucherReference = _firestore
         .collection('users')
         .doc(userId)
@@ -166,24 +193,21 @@ class VoucherService {
         'code': code,
         'title': title,
         'description': description,
-        'discountPercent': settings.discountPercent,
+        'discountPercent': discountPercent,
         'minOrderAmount': 0,
         'isActive': true,
         'isUsed': false,
         'source': 'loyalty',
-        if (qualifyingCount != null) 'milestone': qualifyingCount,
-        'rewardType': settings.rewardTypeValue,
+        if (milestone != null) 'milestone': milestone,
+        'rewardType': rewardType,
         'sourceBookingId': bookingId,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
       transaction.set(notificationReference, {
         'type': 'voucher_received',
-        'title':
-            'Bạn vừa nhận voucher giảm ${settings.discountPercent}%',
-        'message': settings.rewardType == LoyaltyRewardType.minimumOrder
-            ? 'Đơn hàng của bạn đã đạt mức ưu đãi. Voucher đã sẵn sàng cho lần đặt lịch tiếp theo.'
-            : 'Cảm ơn bạn đã sử dụng dịch vụ $qualifyingCount lần. Voucher đã sẵn sàng cho lần đặt lịch tiếp theo.',
+        'title': 'Bạn vừa nhận voucher giảm $discountPercent%',
+        'message': notificationMessage,
         'voucherId': voucherId,
         'createdAt': FieldValue.serverTimestamp(),
       });

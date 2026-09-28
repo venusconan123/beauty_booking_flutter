@@ -322,17 +322,20 @@ class NotificationScreen extends StatelessWidget {
         final settings = LoyaltySettings.fromMap(
           settingsSnapshot.data?.data(),
         );
-        if (!settings.isEnabled) {
+        if (!settings.visitRewardEnabled && !settings.orderRewardEnabled) {
           return _loyaltyCard(
-            message: 'Chương trình tích lũy hiện đang tạm dừng.',
+            title: 'Chương trình tích lũy',
+            message: 'Các chính sách tích lũy hiện đang tạm dừng.',
           );
         }
-        if (settings.rewardType == LoyaltyRewardType.minimumOrder) {
-          return _loyaltyCard(
-            message:
-                'Hoàn thành đơn từ ${_formatPrice(settings.minimumOrderAmount)} để nhận voucher giảm ${settings.discountPercent}% cho lần sau.',
-          );
-        }
+        final orderCard = _loyaltyCard(
+          title: 'Ưu đãi theo giá trị đơn',
+          icon: Icons.payments_outlined,
+          message:
+              'Đơn hoàn thành từ ${_formatPrice(settings.minimumOrderAmount)} nhận voucher giảm ${settings.orderDiscountPercent}% cho lần sau.',
+        );
+        if (!settings.visitRewardEnabled) return orderCard;
+
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
               .collection('bookings')
@@ -343,17 +346,21 @@ class NotificationScreen extends StatelessWidget {
                   return document.data()['status'] == 'completed';
                 }).length ??
                 0;
-            final target = settings.requiredVisits < 1
-                ? 1
-                : settings.requiredVisits;
+            final target = settings.requiredVisits;
             final progress = completed % target;
             final remaining = progress == 0 && completed > 0
                 ? target
                 : target - progress;
-            return _loyaltyCard(
+            final visitCard = _loyaltyCard(
+              title: 'Tích lũy theo số lần',
               progress: progress / target,
               message:
-                  '$progress/$target lượt · Còn $remaining lượt để nhận voucher giảm ${settings.discountPercent}%',
+                  '$progress/$target lượt · Còn $remaining lượt để nhận voucher giảm ${settings.visitDiscountPercent}%',
+            );
+            if (!settings.orderRewardEnabled) return visitCard;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [visitCard, orderCard],
             );
           },
         );
@@ -361,7 +368,12 @@ class NotificationScreen extends StatelessWidget {
     );
   }
 
-  Widget _loyaltyCard({required String message, double? progress}) {
+  Widget _loyaltyCard({
+    required String title,
+    required String message,
+    IconData icon = Icons.workspace_premium_rounded,
+    double? progress,
+  }) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       padding: const EdgeInsets.all(17),
@@ -373,13 +385,13 @@ class NotificationScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.workspace_premium_rounded, color: _gold),
-              SizedBox(width: 9),
+              Icon(icon, color: _gold),
+              const SizedBox(width: 9),
               Text(
-                'Tích điểm thành viên',
-                style: TextStyle(
+                title,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
