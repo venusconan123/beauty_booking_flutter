@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../models/loyalty_settings.dart';
 import '../models/voucher.dart';
 
 class NotificationScreen extends StatelessWidget {
@@ -218,7 +219,7 @@ class NotificationScreen extends StatelessWidget {
                 child: _empty(
                   Icons.confirmation_number_outlined,
                   'Chưa có voucher tích lũy',
-                  'Hoàn thành 10 lần sử dụng dịch vụ để nhận voucher giảm 25%.',
+                  'Hoàn thành điều kiện tích lũy để nhận voucher cho lần đặt lịch tiếp theo.',
                 ),
               ),
             ],
@@ -312,60 +313,94 @@ class NotificationScreen extends StatelessWidget {
   }
 
   Widget _loyaltyProgress(String userId) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('bookings')
-          .where('userId', isEqualTo: userId)
+          .collection('app_settings')
+          .doc('loyalty')
           .snapshots(),
-      builder: (context, snapshot) {
-        final completed = snapshot.data?.docs.where((document) {
-              return document.data()['status'] == 'completed';
-            }).length ??
-            0;
-        final progress = completed % 10;
-        final remaining = progress == 0 && completed > 0 ? 10 : 10 - progress;
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            color: const Color(0xF21A2430),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x77F6C768)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (context, settingsSnapshot) {
+        final settings = LoyaltySettings.fromMap(
+          settingsSnapshot.data?.data(),
+        );
+        if (!settings.isEnabled) {
+          return _loyaltyCard(
+            message: 'Chương trình tích lũy hiện đang tạm dừng.',
+          );
+        }
+        if (settings.rewardType == LoyaltyRewardType.minimumOrder) {
+          return _loyaltyCard(
+            message:
+                'Hoàn thành đơn từ ${_formatPrice(settings.minimumOrderAmount)} để nhận voucher giảm ${settings.discountPercent}% cho lần sau.',
+          );
+        }
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('bookings')
+              .where('userId', isEqualTo: userId)
+              .snapshots(),
+          builder: (context, bookingSnapshot) {
+            final completed = bookingSnapshot.data?.docs.where((document) {
+                  return document.data()['status'] == 'completed';
+                }).length ??
+                0;
+            final target = settings.requiredVisits < 1
+                ? 1
+                : settings.requiredVisits;
+            final progress = completed % target;
+            final remaining = progress == 0 && completed > 0
+                ? target
+                : target - progress;
+            return _loyaltyCard(
+              progress: progress / target,
+              message:
+                  '$progress/$target lượt · Còn $remaining lượt để nhận voucher giảm ${settings.discountPercent}%',
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _loyaltyCard({required String message, double? progress}) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: const Color(0xF21A2430),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x77F6C768)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.workspace_premium_rounded, color: _gold),
-                  SizedBox(width: 9),
-                  Text(
-                    'Tích điểm thành viên',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: progress / 10,
-                minHeight: 9,
-                borderRadius: BorderRadius.circular(99),
-                backgroundColor: const Color(0xFF263343),
-                color: _gold,
-              ),
-              const SizedBox(height: 8),
+              Icon(Icons.workspace_premium_rounded, color: _gold),
+              SizedBox(width: 9),
               Text(
-                '$progress/10 lượt · Còn $remaining lượt để nhận voucher giảm 25%',
-                style: const TextStyle(color: _muted),
+                'Tích điểm thành viên',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
-        );
-      },
+          if (progress != null) ...[
+            const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 9,
+              borderRadius: BorderRadius.circular(99),
+              backgroundColor: const Color(0xFF263343),
+              color: _gold,
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(message, style: const TextStyle(color: _muted)),
+        ],
+      ),
     );
   }
 

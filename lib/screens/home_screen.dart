@@ -9,6 +9,7 @@ import '../models/salon.dart';
 import 'admin_booking_screen.dart';
 import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
+import 'admin_loyalty_settings_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_report_screen.dart';
 import 'admin_voucher_screen.dart';
@@ -103,6 +104,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _openAdminLoyaltySettingsScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AdminLoyaltySettingsScreen(),
+      ),
+    );
+  }
+
   void _openNotifications(BuildContext context) {
     Navigator.of(
       context,
@@ -182,6 +191,8 @@ class HomeScreen extends StatelessWidget {
               _openAdminReportScreen(context);
             } else if (value == 'vouchers') {
               _openAdminVoucherScreen(context);
+            } else if (value == 'loyalty') {
+              _openAdminLoyaltySettingsScreen(context);
             } else {
               _openAdminBookingScreen(context);
             }
@@ -236,6 +247,16 @@ class HomeScreen extends StatelessWidget {
                 ),
                 title: Text(
                   'Quản lý voucher',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'loyalty',
+              child: ListTile(
+                leading: Icon(Icons.workspace_premium_outlined, color: _gold),
+                title: Text(
+                  'Quản lý tích điểm',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
