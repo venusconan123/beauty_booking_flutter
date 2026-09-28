@@ -11,6 +11,17 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function bookingUsesVoucher(bookingId, voucherId) {
+      let booking = getAfter(
+          /databases/$(database)/documents/bookings/$(bookingId)).data;
+      return (booking.keys().hasAll(['voucher']) &&
+              booking.voucher is map &&
+              booking.voucher.id == voucherId) ||
+          (booking.keys().hasAll(['voucherIds']) &&
+           booking.voucherIds is list &&
+           voucherId in booking.voucherIds);
+    }
+
     match /users/{userId} {
       allow create, read, update: if signedIn() &&
           request.auth.uid == userId;
@@ -31,8 +42,13 @@ service cloud.firestore {
              resource.data.isActive == true &&
              resource.data.isUsed == false &&
              request.resource.data.isUsed == true &&
+             request.resource.data.usedBookingId is string &&
              request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['isUsed', 'usedBookingId', 'usedAt', 'updatedAt']));
+                 .hasOnly(['isUsed', 'usedBookingId', 'usedAt', 'updatedAt']) &&
+             getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)).data.userId ==
+                 request.auth.uid &&
+             bookingUsesVoucher(
+                 request.resource.data.usedBookingId, voucherId));
       }
     }
 
@@ -85,8 +101,8 @@ service cloud.firestore {
                .hasOnly(['usedCount', 'lastBookingId', 'updatedAt']) &&
            getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.lastBookingId)).data.userId ==
                request.auth.uid &&
-           getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.lastBookingId)).data.voucher.id ==
-               voucherId);
+           bookingUsesVoucher(
+               request.resource.data.lastBookingId, voucherId));
 
       match /redemptions/{userId} {
         allow read: if signedIn() &&
@@ -97,8 +113,8 @@ service cloud.firestore {
             request.resource.data.bookingId is string &&
             getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.userId ==
                 request.auth.uid &&
-            getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.voucher.id ==
-                voucherId;
+            bookingUsesVoucher(
+                request.resource.data.bookingId, voucherId);
         allow update, delete: if admin();
       }
     }

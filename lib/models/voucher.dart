@@ -13,6 +13,7 @@ class Voucher {
   final bool isUsed;
   final bool isPersonal;
   final String source;
+  final String rewardType;
   final DateTime? expiresAt;
 
   const Voucher({
@@ -28,6 +29,7 @@ class Voucher {
     required this.isUsed,
     required this.isPersonal,
     required this.source,
+    required this.rewardType,
     required this.expiresAt,
   });
 
@@ -36,9 +38,15 @@ class Voucher {
     required bool isPersonal,
   }) {
     final data = document.data() ?? <String, dynamic>{};
+    final storedCode = data['code']?.toString() ?? '';
+    final source = data['source']?.toString() ?? (isPersonal ? 'loyalty' : 'admin');
+    final rewardType = data['rewardType']?.toString() ??
+        (source == 'loyalty_order' || storedCode.toUpperCase().startsWith('DON')
+            ? 'minimum_order'
+            : 'visit_count');
     return Voucher(
       id: document.id,
-      code: data['code']?.toString() ?? '',
+      code: rewardType == 'minimum_order' ? 'CHITIEU' : storedCode,
       title: data['title']?.toString() ?? 'Voucher ưu đãi',
       description: data['description']?.toString() ?? '',
       discountPercent: (data['discountPercent'] as num?)?.toInt() ?? 0,
@@ -49,7 +57,8 @@ class Voucher {
       isActive: data['isActive'] as bool? ?? false,
       isUsed: data['isUsed'] as bool? ?? false,
       isPersonal: isPersonal,
-      source: data['source']?.toString() ?? (isPersonal ? 'loyalty' : 'admin'),
+      source: source,
+      rewardType: rewardType,
       expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
     );
   }

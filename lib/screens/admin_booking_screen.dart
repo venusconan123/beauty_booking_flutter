@@ -829,12 +829,27 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final paymentStatus = payment['status']?.toString() ?? 'unpaid';
     final paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final isPaid = paymentStatus == 'paid';
-    final voucher = data['voucher'] is Map
-        ? Map<String, dynamic>.from(data['voucher'] as Map)
-        : const <String, dynamic>{};
-    final voucherCode = voucher['code']?.toString() ?? '';
-    final discountPercent =
-        (voucher['discountPercent'] as num?)?.toInt() ?? 0;
+    final vouchers = data['vouchers'] is List
+        ? (data['vouchers'] as List)
+              .whereType<Map>()
+              .map((voucher) => Map<String, dynamic>.from(voucher))
+              .toList()
+        : <Map<String, dynamic>>[];
+    if (vouchers.isEmpty && data['voucher'] is Map) {
+      vouchers.add(Map<String, dynamic>.from(data['voucher'] as Map));
+    }
+    final voucherSummary = vouchers.map((voucher) {
+      final storedCode = voucher['code']?.toString() ?? '';
+      final source = voucher['source']?.toString() ?? '';
+      final rewardType = voucher['rewardType']?.toString() ??
+          (source == 'loyalty_order' ||
+                  storedCode.toUpperCase().startsWith('DON')
+              ? 'minimum_order'
+              : 'visit_count');
+      final code = rewardType == 'minimum_order' ? 'CHITIEU' : storedCode;
+      final percent = (voucher['discountPercent'] as num?)?.toInt() ?? 0;
+      return '$code ($percent%)';
+    }).where((summary) => !summary.startsWith(' (')).join(' + ');
     final discountAmount =
         (data['discountAmount'] as num?)?.toInt() ?? 0;
     final hairstyle = data['hairstyle'] is Map
@@ -1007,11 +1022,11 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                   ),
                   const SizedBox(height: 13),
                   _paymentBanner(paymentIcon, paymentLabel, paymentColor),
-                  if (voucherCode.isNotEmpty) ...[
+                  if (voucherSummary.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     _paymentBanner(
                       Icons.confirmation_number_rounded,
-                      'Voucher $voucherCode · giảm $discountPercent% '
+                      'Voucher $voucherSummary '
                       '(-${_formatPrice(discountAmount)})',
                       _gold,
                     ),
