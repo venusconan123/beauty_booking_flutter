@@ -11,6 +11,17 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function verifiedOrLegacyUser() {
+      let profilePath =
+          /databases/$(database)/documents/users/$(request.auth.uid);
+      return signedIn() &&
+          exists(profilePath) &&
+          (request.auth.token.email_verified == true ||
+           !get(profilePath).data.keys()
+               .hasAll(['requiresEmailVerification']) ||
+           get(profilePath).data.requiresEmailVerification != true);
+    }
+
     function bookingUsesVoucher(bookingId, voucherId) {
       let booking = getAfter(
           /databases/$(database)/documents/bookings/$(bookingId)).data;
@@ -67,7 +78,8 @@ service cloud.firestore {
     }
 
     function validBookingCreate() {
-      return request.resource.data.keys().hasAll([
+      return verifiedOrLegacyUser() &&
+          request.resource.data.keys().hasAll([
             'userId', 'salonId', 'barberId', 'serviceIds', 'services',
             'appointmentAt', 'originalPrice', 'discountAmount', 'totalPrice',
             'totalDurationMinutes', 'slotIds', 'status', 'payment',
