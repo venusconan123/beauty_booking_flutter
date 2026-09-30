@@ -73,6 +73,11 @@ service cloud.firestore {
       allow create, update, delete: if admin();
     }
 
+    match /services/{serviceId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
     match /reports/{reportId} {
       allow create: if signedIn() &&
           request.resource.data.reporterId == request.auth.uid &&
