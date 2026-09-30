@@ -20,7 +20,7 @@ class NotificationScreen extends StatelessWidget {
       if (index > 0 && (value.length - index) % 3 == 0) result.write('.');
       result.write(value[index]);
     }
-    return '${result}đ';
+    return '$resultđ';
   }
 
   DateTime _dateOf(Map<String, dynamic> data) =>

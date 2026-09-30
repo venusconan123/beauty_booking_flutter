@@ -33,7 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (i > 0 && (raw.length - i) % 3 == 0) output.write('.');
       output.write(raw[i]);
     }
-    return '${output}đ';
+    return '$outputđ';
   }
 
   @override

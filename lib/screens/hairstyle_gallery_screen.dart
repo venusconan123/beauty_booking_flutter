@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
-import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../services/hairstyle_service.dart';
 import 'quick_booking_branch_screen.dart';
@@ -273,7 +272,7 @@ Widget _hairstyleImage(Hairstyle hairstyle) {
     return Image.network(
       hairstyle.imageUrl,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const ColoredBox(
+      errorBuilder: (_, _, _) => const ColoredBox(
         color: Color(0xFF202A35),
         child: Icon(
           Icons.broken_image_outlined,
