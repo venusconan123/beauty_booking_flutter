@@ -484,8 +484,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       } else {
         await _showSuccessDialog(
           message:
-              'Lịch đã được lưu và đang chờ xác nhận. '
-              'Bạn đã chọn thanh toán sau tại salon.',
+              'Lịch hẹn đã được xác nhận tự động. '
+              'Bạn sẽ thanh toán tại salon sau khi sử dụng dịch vụ.',
         );
       }
 
@@ -572,7 +572,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
           content: Text(
             message ??
                 'Lịch hẹn đã được lưu vào hệ thống '
-                    'và đang chờ xác nhận.',
+                    'và được xác nhận tự động.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -729,7 +729,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Admin chỉ sử dụng số này để xác nhận hoặc liên hệ về lịch hẹn.',
+                    'Chi nhánh chỉ sử dụng số này để liên hệ với bạn khi cần.',
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontSize: 13,

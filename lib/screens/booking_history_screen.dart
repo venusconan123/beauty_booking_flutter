@@ -25,6 +25,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   final Set<String> _startingPaymentIds = <String>{};
   _BookingSection _selectedSection = _BookingSection.registered;
 
+  String _effectiveStatus(Map<String, dynamic> data) {
+    final status = data['status']?.toString() ?? 'pending';
+    final payment = data['payment'];
+    final isPaid = payment is Map && payment['status'] == 'paid';
+    final isPayLater = payment is Map && payment['choice'] == 'pay_later';
+    return status == 'pending' && (isPaid || isPayLater)
+        ? 'confirmed'
+        : status;
+  }
+
   bool _belongsToSelectedSection(String status) {
     return switch (_selectedSection) {
       _BookingSection.registered =>
@@ -50,9 +60,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   String _getStatusText(String status) {
     switch (status) {
       case 'pending':
-        return 'Chờ xác nhận';
+        return 'Chờ thanh toán VNPAY';
       case 'confirmed':
-        return 'Đã xác nhận';
+        return 'Đã xác nhận tự động';
       case 'completed':
         return 'Đã hoàn thành';
       case 'cancelled':
@@ -507,8 +517,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     <QueryDocumentSnapshot<Map<String, dynamic>>>[
                       ...?snapshot.data?.docs,
                     ].where((booking) {
-                      final status =
-                          booking.data()['status']?.toString() ?? 'pending';
+                      final status = _effectiveStatus(booking.data());
                       return _belongsToSelectedSection(status);
                     }).toList();
                 bookings.sort((first, second) {
@@ -533,7 +542,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       _BookingSection.registered =>
                         'Lịch mới đăng ký hoặc đã hủy sẽ xuất hiện tại đây.',
                       _BookingSection.confirmed =>
-                        'Lịch được salon xác nhận sẽ xuất hiện tại đây.',
+                        'Lịch được hệ thống xác nhận tự động sẽ xuất hiện tại đây.',
                       _BookingSection.completed =>
                         'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
                     },
@@ -752,7 +761,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         data['salonName'] as String? ?? 'Không rõ chi nhánh';
     final String salonAddress = data['salonAddress'] as String? ?? '';
     final String barberName = data['barberName'] as String? ?? 'Thợ bất kỳ';
-    final String status = data['status'] as String? ?? 'pending';
+    final String rawStatus = data['status'] as String? ?? 'pending';
     final int totalPrice = (data['totalPrice'] as num?)?.toInt() ?? 0;
     final int totalDuration =
         (data['totalDurationMinutes'] as num?)?.toInt() ?? 0;
@@ -772,6 +781,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     final String paymentStatus = payment['status']?.toString() ?? 'unpaid';
     final String paymentChoice = payment['choice']?.toString() ?? 'pay_later';
     final bool isPaid = paymentStatus == 'paid';
+    final String status = _effectiveStatus(data);
     final bool isStartingPayment = _startingPaymentIds.contains(bookingId);
     final Color statusColor = _getStatusColor(status);
 
@@ -968,7 +978,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       ),
                     ),
                   ],
-                  if (status == 'pending') ...[
+                  if (rawStatus == 'pending' ||
+                      (status == 'confirmed' &&
+                          paymentChoice == 'pay_later' &&
+                          !isPaid)) ...[
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,

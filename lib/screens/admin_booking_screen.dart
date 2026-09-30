@@ -92,12 +92,22 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       return 'Đã xác nhận tự động';
     }
     return switch (status) {
-      'pending' => 'Chờ admin xác nhận',
-      'confirmed' => 'Đã xác nhận',
+      'pending' => 'Chờ thanh toán VNPAY',
+      'confirmed' => 'Đã xác nhận tự động',
       'completed' => 'Đã hoàn thành',
       'cancelled' => 'Đã hủy',
       _ => 'Không xác định',
     };
+  }
+
+  String _effectiveStatus(Map<String, dynamic> data) {
+    final status = data['status']?.toString() ?? 'pending';
+    final payment = data['payment'];
+    final isPaid = payment is Map && payment['status'] == 'paid';
+    final isPayLater = payment is Map && payment['choice'] == 'pay_later';
+    return status == 'pending' && (isPaid || isPayLater)
+        ? 'confirmed'
+        : status;
   }
 
   Color _statusColor(String status, {required bool isPaid}) {
@@ -132,7 +142,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final filtered = _bookingsForBranch(bookings, _selectedSalonId).where((
       booking,
     ) {
-      final status = booking.data()['status'] as String? ?? 'pending';
+      final status = _effectiveStatus(booking.data());
       return switch (_selectedFilter) {
         _BookingFilter.active => status == 'pending' || status == 'confirmed',
         _BookingFilter.cancelled => status == 'cancelled',
@@ -232,7 +242,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     return switch (status) {
       'confirmed' => (
         title: 'Lịch hẹn đã được xác nhận',
-        message: '$salonName đã xác nhận lịch hẹn của bạn.',
+        message: 'Hệ thống đã tự động xác nhận lịch hẹn tại $salonName.',
         type: 'booking_confirmed',
       ),
       'completed' => (
@@ -530,7 +540,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final selected = salon.id == _selectedSalonId;
     final branchBookings = _bookingsForBranch(bookings, salon.id);
     final activeCount = branchBookings.where((booking) {
-      final status = booking.data()['status'];
+      final status = _effectiveStatus(booking.data());
       return status == 'pending' || status == 'confirmed';
     }).length;
 
@@ -608,7 +618,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       return payment?['status'] == 'paid';
     }).length;
     final pendingCount = branchBookings
-        .where((booking) => booking.data()['status'] == 'pending')
+        .where((booking) => _effectiveStatus(booking.data()) == 'pending')
         .length;
 
     return Column(
@@ -639,7 +649,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                 children: [
                   _summaryPill(
                     Icons.pending_actions_rounded,
-                    '$pendingCount chờ xử lý',
+                    '$pendingCount chờ thanh toán',
                     const Color(0xFFFFB648),
                   ),
                   _summaryPill(
@@ -709,7 +719,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   ) {
     int countFor(_BookingFilter filter) {
       return branchBookings.where((booking) {
-        final status = booking.data()['status'];
+        final status = _effectiveStatus(booking.data());
         return switch (filter) {
           _BookingFilter.active => status == 'pending' || status == 'confirmed',
           _BookingFilter.cancelled => status == 'cancelled',
@@ -824,7 +834,6 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     required String bookingId,
     required Map<String, dynamic> data,
   }) {
-    final status = data['status'] as String? ?? 'pending';
     final barberName = data['barberName'] as String? ?? 'Chưa có thợ';
     final userName = data['userName'] as String? ?? '';
     final userEmail = data['userEmail'] as String? ?? '';
@@ -874,9 +883,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         ? Map<String, dynamic>.from(data['hairstyle'] as Map)
         : const <String, dynamic>{};
     final hairstyleName = hairstyle['name']?.toString() ?? '';
-    final effectiveStatus = isPaid && status == 'pending'
-        ? 'confirmed'
-        : status;
+    final effectiveStatus = _effectiveStatus(data);
     final isUpdating = _updatingBookingIds.contains(bookingId);
     final statusColor = _statusColor(effectiveStatus, isPaid: isPaid);
 
@@ -1074,8 +1081,6 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                     _actionButtons(
                       bookingId: bookingId,
                       status: effectiveStatus,
-                      paymentChoice: paymentChoice,
-                      isPaid: isPaid,
                     ),
                   ],
                 ],
@@ -1110,27 +1115,12 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   Widget _actionButtons({
     required String bookingId,
     required String status,
-    required String paymentChoice,
-    required bool isPaid,
   }) {
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 9,
       runSpacing: 9,
       children: [
-        if (status == 'pending' && paymentChoice == 'pay_later' && !isPaid)
-          FilledButton.icon(
-            onPressed: () => _requestStatusChange(
-              bookingId: bookingId,
-              newStatus: 'confirmed',
-            ),
-            icon: const Icon(Icons.check_circle_outline_rounded),
-            label: const Text('Xác nhận lịch'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _gold,
-              foregroundColor: _ink,
-            ),
-          ),
         if (status == 'confirmed')
           FilledButton.icon(
             onPressed: () => _requestStatusChange(

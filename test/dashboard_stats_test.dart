@@ -13,7 +13,13 @@ void main() {
         {
           'status': 'pending',
           'totalPrice': 80000,
-          'payment': {'status': 'unpaid'},
+          'payment': {'status': 'unpaid', 'choice': 'pay_now'},
+        },
+        {
+          // Dữ liệu cũ: thanh toán sau từng được lưu ở trạng thái pending.
+          'status': 'pending',
+          'totalPrice': 120000,
+          'payment': {'status': 'unpaid', 'choice': 'pay_later'},
         },
         {
           'status': 'cancelled',
@@ -22,13 +28,14 @@ void main() {
         },
       ]);
 
-      expect(stats.total, 3);
+      expect(stats.total, 4);
       expect(stats.completed, 1);
       expect(stats.pending, 1);
+      expect(stats.confirmed, 1);
       expect(stats.cancelled, 1);
       expect(stats.paid, 1);
       expect(stats.revenue, 150000);
-      expect(stats.cancellationRate, closeTo(1 / 3, 0.0001));
+      expect(stats.cancellationRate, closeTo(1 / 4, 0.0001));
     });
 
     test('không chia cho không khi chưa có lịch', () {

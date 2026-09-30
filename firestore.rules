@@ -194,7 +194,11 @@ service cloud.firestore {
 
       allow create: if signedIn() &&
           request.resource.data.userId == request.auth.uid &&
-          request.resource.data.status == 'pending' &&
+          request.resource.data.payment.choice in ['pay_now', 'pay_later'] &&
+          ((request.resource.data.payment.choice == 'pay_later' &&
+              request.resource.data.status == 'confirmed') ||
+           (request.resource.data.payment.choice == 'pay_now' &&
+              request.resource.data.status == 'pending')) &&
           request.resource.data.payment.provider == 'vnpay' &&
           request.resource.data.payment.environment == 'sandbox' &&
           request.resource.data.payment.status == 'unpaid' &&
@@ -209,7 +213,10 @@ service cloud.firestore {
 
       allow update: if signedIn() &&
           resource.data.userId == request.auth.uid &&
-          resource.data.status == 'pending' &&
+          (resource.data.status == 'pending' ||
+           (resource.data.status == 'confirmed' &&
+            resource.data.payment.choice == 'pay_later' &&
+            resource.data.payment.status == 'unpaid')) &&
           request.resource.data.status == 'cancelled' &&
           request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['status', 'updatedAt']);

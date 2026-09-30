@@ -29,13 +29,18 @@ class DashboardStats {
     var revenue = 0;
     for (final booking in bookings) {
       total++;
-      final status = booking['status']?.toString() ?? 'pending';
+      final rawStatus = booking['status']?.toString() ?? 'pending';
+      final payment = booking['payment'];
+      final isPaid = payment is Map && payment['status'] == 'paid';
+      final isPayLater = payment is Map && payment['choice'] == 'pay_later';
+      // Tương thích lịch cũ: trước đây lịch thanh toán sau được lưu pending.
+      final status = rawStatus == 'pending' && (isPaid || isPayLater)
+          ? 'confirmed'
+          : rawStatus;
       if (status == 'pending') pending++;
       if (status == 'confirmed') confirmed++;
       if (status == 'completed') completed++;
       if (status == 'cancelled') cancelled++;
-      final payment = booking['payment'];
-      final isPaid = payment is Map && payment['status'] == 'paid';
       if (isPaid) paid++;
       if (status == 'completed') {
         revenue += (booking['totalPrice'] as num?)?.toInt() ?? 0;

@@ -64,8 +64,8 @@ npm test
 npx wrangler deploy
 ```
 
-Ở màn hình xác nhận đặt lịch, khách có thể chọn **Thanh toán sau** (thanh toán tại salon) hoặc **Thanh toán ngay bằng VNPAY Sandbox**. Lựa chọn được lưu trong `payment.choice`; đặt lịch mới vẫn ở trạng thái `pending` cho đến khi admin duyệt. Chọn thanh toán ngay sẽ mở VNPAY ngay sau khi lịch được lưu, kể cả khi lịch chưa được admin xác nhận. Nếu không mở được VNPAY, lịch vẫn đã được lưu; khách có thể thử lại trong **Lịch hẹn của tôi**. Lịch chọn thanh toán sau có thể chuyển sang VNPAY sau khi admin xác nhận.
+Ở màn hình xác nhận đặt lịch, khách có thể chọn **Thanh toán sau** (thanh toán tại salon) hoặc **Thanh toán ngay bằng VNPAY Sandbox**. Lựa chọn được lưu trong `payment.choice`. Lịch thanh toán sau được xác nhận tự động ngay khi tạo. Lịch thanh toán ngay chỉ ở trạng thái `pending` trong lúc chờ VNPAY và tự chuyển sang `confirmed` khi IPN hợp lệ báo thanh toán thành công. Nếu không mở được VNPAY, lịch vẫn đã được lưu; khách có thể thử lại trong **Lịch hẹn của tôi**.
 
-Màn hình admin đọc Firestore để hiện **Thanh toán sau**, **Đang thanh toán qua VNPAY** hoặc **Đã thanh toán qua VNPAY Sandbox**. Chỉ IPN VNPAY có chữ ký hợp lệ và đúng số tiền mới cập nhật `payment.status` thành `paid`. Khi đó Worker đồng thời tự chuyển lịch sang `confirmed`, nên admin không cần xác nhận lịch đã thanh toán. Chỉ lịch chọn `pay_later` mới hiện thao tác **Xác nhận lịch** cho admin; lịch chọn thanh toán ngay nhưng chưa trả thành công phải được khách thử thanh toán lại hoặc admin hủy.
+Màn hình admin đọc Firestore để hiện **Thanh toán sau**, **Đang thanh toán qua VNPAY** hoặc **Đã thanh toán qua VNPAY Sandbox**. Chỉ IPN VNPAY có chữ ký hợp lệ và đúng số tiền mới cập nhật `payment.status` thành `paid`. Admin không cần xác nhận thủ công; màn hình quản lý chỉ giữ thao tác hoàn thành hoặc hủy lịch phù hợp.
 
 Đây là tích hợp **cổng VNPAY Sandbox thật**, không phải giao dịch tiền thật. Nếu Return URL báo đang chờ, hãy kiểm tra IPN URL đã đăng ký và Logs trong Cloudflare. Các lịch đã thanh toán rồi bị admin hủy cần quy trình hoàn tiền riêng; bản đồ án chưa có hoàn tiền.
