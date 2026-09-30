@@ -68,4 +68,6 @@ npx wrangler deploy
 
 Màn hình admin đọc Firestore để hiện **Thanh toán sau**, **Đang thanh toán qua VNPAY** hoặc **Đã thanh toán qua VNPAY Sandbox**. Chỉ IPN VNPAY có chữ ký hợp lệ và đúng số tiền mới cập nhật `payment.status` thành `paid`. Admin không cần xác nhận thủ công; màn hình quản lý chỉ giữ thao tác hoàn thành hoặc hủy lịch phù hợp.
 
+Trong **Lịch hẹn của tôi**, khách có thể thêm hoặc bỏ dịch vụ khi lịch chưa bắt đầu thanh toán và chưa dùng voucher. Hệ thống tính lại tổng tiền, tổng thời lượng và các slot của thợ trong một transaction. Nếu phần thời gian tăng thêm đã có lịch khác, thay đổi sẽ bị từ chối. Lịch đã thanh toán, đang được VNPAY xử lý, đã hoàn thành, đã hủy hoặc đã dùng voucher không được sửa dịch vụ để tránh sai lệch thanh toán.
+
 Đây là tích hợp **cổng VNPAY Sandbox thật**, không phải giao dịch tiền thật. Nếu Return URL báo đang chờ, hãy kiểm tra IPN URL đã đăng ký và Logs trong Cloudflare. Các lịch đã thanh toán rồi bị admin hủy cần quy trình hoàn tiền riêng; bản đồ án chưa có hoàn tiền.

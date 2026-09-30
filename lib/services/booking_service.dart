@@ -375,6 +375,153 @@ class BookingService {
     return bookingReference.id;
   }
 
+  Future<void> updateBookingServices({
+    required String bookingId,
+    required String userId,
+    required List<HairService> selectedServices,
+  }) async {
+    if (selectedServices.isEmpty) {
+      throw ArgumentError('Lịch hẹn phải có ít nhất một dịch vụ.');
+    }
+    if (selectedServices.map((service) => service.id).toSet().length !=
+        selectedServices.length) {
+      throw ArgumentError('Danh sách dịch vụ bị trùng.');
+    }
+    if (selectedServices.any(
+      (service) =>
+          service.name.isEmpty ||
+          service.price < 0 ||
+          service.durationMinutes <= 0,
+    )) {
+      throw ArgumentError('Thông tin dịch vụ không hợp lệ.');
+    }
+
+    final bookingReference = _firestore.collection('bookings').doc(bookingId);
+    await _firestore.runTransaction<void>((transaction) async {
+      final bookingSnapshot = await transaction.get(bookingReference);
+      if (!bookingSnapshot.exists) {
+        throw StateError('Không tìm thấy lịch hẹn.');
+      }
+
+      final booking = bookingSnapshot.data()!;
+      if (booking['userId'] != userId) {
+        throw StateError('Bạn không có quyền sửa lịch hẹn này.');
+      }
+      final status = booking['status']?.toString() ?? 'pending';
+      if (status != 'pending' && status != 'confirmed') {
+        throw StateError('Lịch đã kết thúc hoặc bị hủy nên không thể sửa.');
+      }
+      final payment = Map<String, dynamic>.from(
+        booking['payment'] as Map? ?? const <String, dynamic>{},
+      );
+      if (payment['status'] != 'unpaid') {
+        throw StateError(
+          'Không thể đổi dịch vụ sau khi đã bắt đầu hoặc hoàn tất thanh toán.',
+        );
+      }
+      final voucherIds = booking['voucherIds'] as List<dynamic>? ?? const [];
+      if (voucherIds.isNotEmpty) {
+        throw StateError(
+          'Lịch đã dùng voucher nên không thể đổi dịch vụ. '
+          'Hãy hủy lịch và đặt lại để voucher được tính chính xác.',
+        );
+      }
+
+      final appointmentAt = (booking['appointmentAt'] as Timestamp?)?.toDate();
+      final salonId = booking['salonId']?.toString() ?? '';
+      final barberId = booking['barberId']?.toString() ?? '';
+      if (appointmentAt == null || salonId.isEmpty || barberId.isEmpty) {
+        throw StateError('Lịch hẹn thiếu thông tin thời gian hoặc thợ.');
+      }
+      if (!appointmentAt.isAfter(DateTime.now())) {
+        throw StateError('Lịch đã đến giờ nên không thể đổi dịch vụ.');
+      }
+
+      final originalPrice = selectedServices.fold<int>(
+        0,
+        (total, service) => total + service.price,
+      );
+      final totalDuration = selectedServices.fold<int>(
+        0,
+        (total, service) => total + service.durationMinutes,
+      );
+      final occupiedTimes = _createOccupiedTimes(
+        appointmentAt: appointmentAt,
+        durationMinutes: totalDuration,
+      );
+      final newSlotReferences = occupiedTimes.map((slotTime) {
+        final slotId = _createSlotId(
+          salonId: salonId,
+          barberId: barberId,
+          slotTime: slotTime,
+        );
+        return _firestore.collection('booking_slots').doc(slotId);
+      }).toList();
+
+      // Firestore yêu cầu hoàn tất tất cả lượt đọc trước khi ghi.
+      final newSlotSnapshots = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final slotReference in newSlotReferences) {
+        newSlotSnapshots.add(await transaction.get(slotReference));
+      }
+      final hasConflict = newSlotSnapshots.any(
+        (slot) =>
+            slot.exists && slot.data()?['bookingId']?.toString() != bookingId,
+      );
+      if (hasConflict) {
+        throw const BookingConflictException(
+          'Không đủ thời gian trống để thêm dịch vụ. '
+          'Vui lòng chọn lịch khác hoặc bỏ bớt dịch vụ.',
+        );
+      }
+
+      final oldSlotIds = (booking['slotIds'] as List<dynamic>? ?? const [])
+          .map((slotId) => slotId.toString())
+          .toSet();
+      final newSlotIds = newSlotReferences
+          .map((reference) => reference.id)
+          .toSet();
+
+      transaction.update(bookingReference, {
+        'serviceIds': selectedServices.map((service) => service.id).toList(),
+        'services': selectedServices
+            .map(
+              (service) => {
+                'id': service.id,
+                'name': service.name,
+                'price': service.price,
+                'durationMinutes': service.durationMinutes,
+              },
+            )
+            .toList(),
+        'originalPrice': originalPrice,
+        'discountAmount': 0,
+        'totalPrice': originalPrice,
+        'totalDurationMinutes': totalDuration,
+        'slotIds': newSlotIds.toList(),
+        'payment': {...payment, 'amount': originalPrice},
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      for (final oldSlotId in oldSlotIds.difference(newSlotIds)) {
+        transaction.delete(
+          _firestore.collection('booking_slots').doc(oldSlotId),
+        );
+      }
+      for (var index = 0; index < newSlotReferences.length; index++) {
+        if (!newSlotSnapshots[index].exists) {
+          transaction.set(newSlotReferences[index], {
+            'bookingId': bookingId,
+            'userId': userId,
+            'salonId': salonId,
+            'barberId': barberId,
+            'slotAt': Timestamp.fromDate(occupiedTimes[index]),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    });
+  }
+
   Future<void> cancelBooking({
     required String bookingId,
     required String userId,

@@ -221,6 +221,38 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['status', 'updatedAt']);
 
+      allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          resource.data.status in ['pending', 'confirmed'] &&
+          request.resource.data.status == resource.data.status &&
+          resource.data.payment.status == 'unpaid' &&
+          request.resource.data.payment.status == 'unpaid' &&
+          request.resource.data.payment.provider ==
+              resource.data.payment.provider &&
+          request.resource.data.payment.environment ==
+              resource.data.payment.environment &&
+          request.resource.data.payment.choice ==
+              resource.data.payment.choice &&
+          request.resource.data.payment.diff(resource.data.payment)
+              .affectedKeys().hasOnly(['amount']) &&
+          request.resource.data.payment.amount ==
+              request.resource.data.totalPrice &&
+          request.resource.data.services is list &&
+          request.resource.data.services.size() > 0 &&
+          request.resource.data.serviceIds is list &&
+          request.resource.data.totalDurationMinutes > 0 &&
+          request.resource.data.originalPrice >= 0 &&
+          request.resource.data.discountAmount == 0 &&
+          request.resource.data.totalPrice ==
+              request.resource.data.originalPrice &&
+          request.resource.data.voucherIds.size() == 0 &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly([
+                'serviceIds', 'services', 'originalPrice',
+                'discountAmount', 'totalPrice', 'totalDurationMinutes',
+                'slotIds', 'payment', 'updatedAt'
+              ]);
+
       allow delete: if false;
     }
 
