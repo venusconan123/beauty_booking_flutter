@@ -25,6 +25,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   static const Color _muted = Color(0xFFB8C0CC);
 
   final Set<String> _updatingBookingIds = <String>{};
+  bool _cleaningSlots = false;
   late String _selectedSalonId;
   _BookingFilter _selectedFilter = _BookingFilter.active;
   Timer? _relativeTimeTicker;
@@ -57,6 +58,116 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   void dispose() {
     _relativeTimeTicker?.cancel();
     super.dispose();
+  }
+
+  Future<void> _cleanupCancelledSlotsForSelectedBranch() async {
+    if (_cleaningSlots) return;
+    setState(() => _cleaningSlots = true);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final results = await Future.wait([
+        firestore
+            .collection('booking_slots')
+            .where('salonId', isEqualTo: _selectedSalonId)
+            .get(),
+        firestore
+            .collection('bookings')
+            .where('salonId', isEqualTo: _selectedSalonId)
+            .get(),
+      ]);
+      final slotSnapshot = results[0];
+      final bookingSnapshot = results[1];
+      final bookingsById = {
+        for (final booking in bookingSnapshot.docs)
+          booking.id: booking.data(),
+      };
+      final staleSlots = slotSnapshot.docs.where((slot) {
+        final bookingId = slot.data()['bookingId']?.toString() ?? '';
+        final booking = bookingsById[bookingId];
+        if (booking == null) return false;
+        final status = booking['status']?.toString() ?? 'pending';
+        return status == 'cancelled' || status == 'completed';
+      }).toList();
+
+      if (!mounted) return;
+      if (staleSlots.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chi nhánh này không có khung giờ lỗi.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return;
+      }
+
+      final salon = sampleSalons.firstWhere(
+        (item) => item.id == _selectedSalonId,
+      );
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: _surface,
+          title: const Text(
+            'Dọn khung giờ lỗi?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Tìm thấy ${staleSlots.length} khung giờ còn sót của các lịch '
+            'đã hủy hoặc hoàn thành tại ${salon.name}. Bạn có muốn giải '
+            'phóng các khung giờ này không?',
+            style: const TextStyle(color: _muted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Không', style: TextStyle(color: _muted)),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.cleaning_services_rounded),
+              label: const Text('Dọn khung giờ'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      for (var start = 0; start < staleSlots.length; start += 450) {
+        final end = (start + 450 < staleSlots.length)
+            ? start + 450
+            : staleSlots.length;
+        final batch = firestore.batch();
+        for (final slot in staleSlots.sublist(start, end)) {
+          batch.delete(slot.reference);
+        }
+        await batch.commit();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã giải phóng ${staleSlots.length} khung giờ lỗi.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.code == 'permission-denied'
+                ? 'Tài khoản này không có quyền dọn khung giờ.'
+                : 'Không thể dọn khung giờ: ${error.message ?? error.code}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _cleaningSlots = false);
+    }
   }
 
   String _formatPrice(int price) => '${price ~/ 1000}.000đ';
@@ -272,6 +383,12 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final userId = data['userId']?.toString() ?? '';
     final salonName = data['salonName']?.toString() ?? 'salon';
     final notice = _notificationForStatus(newStatus, salonName);
+    final slotSnapshot = newStatus == 'completed'
+        ? await firestore
+            .collection('booking_slots')
+            .where('bookingId', isEqualTo: bookingId)
+            .get()
+        : null;
     final batch = firestore.batch();
     batch.update(bookingReference, {
       'status': newStatus,
@@ -293,6 +410,16 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
+    if (newStatus == 'completed') {
+      final rawSlotIds = data['slotIds'] as List<dynamic>? ?? const [];
+      final slotIds = {
+        ...rawSlotIds.map((value) => value.toString()),
+        ...?slotSnapshot?.docs.map((document) => document.id),
+      };
+      for (final slotId in slotIds) {
+        batch.delete(firestore.collection('booking_slots').doc(slotId));
+      }
+    }
     await batch.commit();
     if (newStatus == 'completed' && userId.isNotEmpty) {
       await VoucherService().awardLoyaltyVoucherIfEligible(
@@ -308,6 +435,13 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final notificationReference = firestore
         .collection('_notification_ids')
         .doc();
+    final slotSnapshot = await firestore
+        .collection('booking_slots')
+        .where('bookingId', isEqualTo: bookingId)
+        .get();
+    final discoveredSlotIds = slotSnapshot.docs
+        .map((document) => document.id)
+        .toSet();
     await firestore.runTransaction<void>((transaction) async {
       final bookingSnapshot = await transaction.get(bookingReference);
       if (!bookingSnapshot.exists) return;
@@ -334,7 +468,11 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
-      for (final slotId in rawSlotIds.map((value) => value.toString())) {
+      final slotIds = {
+        ...rawSlotIds.map((value) => value.toString()),
+        ...discoveredSlotIds,
+      };
+      for (final slotId in slotIds) {
         transaction.delete(firestore.collection('booking_slots').doc(slotId));
       }
     });
@@ -474,6 +612,26 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton.filledTonal(
+            tooltip: 'Dọn khung giờ lỗi của chi nhánh đang chọn',
+            onPressed: _cleaningSlots
+                ? null
+                : _cleanupCancelledSlotsForSelectedBranch,
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0x1AF6C768),
+              foregroundColor: _gold,
+            ),
+            icon: _cleaningSlots
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _gold,
+                    ),
+                  )
+                : const Icon(Icons.cleaning_services_rounded),
           ),
         ],
       ),
