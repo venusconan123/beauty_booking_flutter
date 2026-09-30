@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -47,19 +48,34 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      var requiresVerification = false;
+      final user = credential.user;
+      if (user != null && !user.emailVerified) {
+        final userDocument = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        requiresVerification =
+            userDocument.data()?['requiresEmailVerification'] == true;
+      }
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đăng nhập thành công.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(
+            requiresVerification
+                ? 'Vui lòng xác minh email trước khi sử dụng ứng dụng.'
+                : 'Đăng nhập thành công.',
+          ),
+          backgroundColor: requiresVerification ? Colors.orange : Colors.green,
         ),
       );
     } on FirebaseAuthException catch (error) {

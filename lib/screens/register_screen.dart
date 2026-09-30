@@ -82,10 +82,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           await user.sendEmailVerification();
           verificationEmailSent = true;
         } on FirebaseAuthException {
-          // The account remains on the verification screen, where the user
-          // can retry sending the email without creating another account.
+          // The account can sign in to the verification screen and retry
+          // sending the email without creating another account.
         }
       }
+
+      // Firebase signs a newly created account in automatically. Sign it out
+      // so registration can never bypass the email-verification gate while
+      // the Firestore user document is still being observed by AuthGate.
+      await FirebaseAuth.instance.signOut();
 
       if (!mounted) {
         return;
@@ -116,9 +121,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               verificationEmailSent
                   ? 'Men Hair Booking đã gửi liên kết xác minh đến $email. '
                         'Hãy mở email và xác minh tài khoản trước khi sử dụng '
-                        'ứng dụng.'
+                        'ứng dụng. Sau khi xác minh, hãy quay lại đăng nhập.'
                   : 'Hiện chưa thể gửi email xác minh đến $email. Hãy chọn '
-                        '“Gửi lại email xác minh” ở màn hình tiếp theo.',
+                        '“Gửi lại email xác minh” sau khi đăng nhập lại.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: _muted),
             ),
@@ -129,7 +134,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   backgroundColor: _gold,
                   foregroundColor: _ink,
                 ),
-                child: const Text('Đến trang xác minh'),
+                child: const Text('Về trang đăng nhập'),
               ),
             ],
           );
