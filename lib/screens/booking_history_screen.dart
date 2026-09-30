@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/hair_service.dart';
 import '../services/booking_service.dart';
+import '../services/hair_service_catalog.dart';
 import '../services/vnpay_payment_service.dart';
 
 enum _BookingSection { registered, confirmed, completed }
@@ -23,6 +25,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   static const Color _muted = Color(0xFFB8C0CC);
 
   final Set<String> _startingPaymentIds = <String>{};
+  final Set<String> _editingBookingIds = <String>{};
   _BookingSection _selectedSection = _BookingSection.registered;
 
   String _effectiveStatus(Map<String, dynamic> data) {
@@ -201,6 +204,202 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       );
     } finally {
       if (mounted) setState(() => _startingPaymentIds.remove(bookingId));
+    }
+  }
+
+  Future<List<HairService>?> _showServiceEditor(
+    Map<String, dynamic> booking,
+  ) async {
+    final currentServices = (booking['services'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((raw) {
+          final data = Map<String, dynamic>.from(raw);
+          return HairService.fromMap(data['id']?.toString() ?? '', data);
+        })
+        .where((service) => service.id.isNotEmpty)
+        .toList();
+    final selectedIds = currentServices.map((service) => service.id).toSet();
+
+    return showDialog<List<HairService>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => StreamBuilder<List<HairService>>(
+          stream: HairServiceCatalog().watchActive(),
+          builder: (context, snapshot) {
+            final services = <HairService>[...?snapshot.data];
+            for (final current in currentServices) {
+              if (!services.any((service) => service.id == current.id)) {
+                services.add(current);
+              }
+            }
+            final selected = services
+                .where((service) => selectedIds.contains(service.id))
+                .toList();
+            final totalPrice = selected.fold<int>(
+              0,
+              (total, service) => total + service.price,
+            );
+            final totalDuration = selected.fold<int>(
+              0,
+              (total, service) => total + service.durationMinutes,
+            );
+
+            return AlertDialog(
+              backgroundColor: _surface,
+              title: const Text(
+                'Chỉnh sửa dịch vụ',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              content: SizedBox(
+                width: 520,
+                height: 480,
+                child: snapshot.connectionState == ConnectionState.waiting &&
+                        services.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _gold),
+                      )
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: services.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(color: Color(0x22FFFFFF)),
+                              itemBuilder: (context, index) {
+                                final service = services[index];
+                                final checked = selectedIds.contains(service.id);
+                                return CheckboxListTile(
+                                  value: checked,
+                                  activeColor: _gold,
+                                  checkColor: _ink,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    service.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${_formatPrice(service.price)} • '
+                                    '${service.durationMinutes} phút',
+                                    style: const TextStyle(color: _muted),
+                                  ),
+                                  onChanged: (_) => setDialogState(() {
+                                    if (checked) {
+                                      selectedIds.remove(service.id);
+                                    } else {
+                                      selectedIds.add(service.id);
+                                    }
+                                  }),
+                                );
+                              },
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: _field,
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '$totalDuration phút',
+                                  style: const TextStyle(color: _muted),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  _formatPrice(totalPrice),
+                                  style: const TextStyle(
+                                    color: _gold,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Đóng'),
+                ),
+                FilledButton.icon(
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(selected),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Lưu dịch vụ'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: _ink,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editBookingServices({
+    required String bookingId,
+    required Map<String, dynamic> booking,
+  }) async {
+    final selectedServices = await _showServiceEditor(booking);
+    if (selectedServices == null || !mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _editingBookingIds.add(bookingId));
+    try {
+      await BookingService().updateBookingServices(
+        bookingId: bookingId,
+        userId: user.uid,
+        selectedServices: selectedServices,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã cập nhật dịch vụ và tổng tiền.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on BookingConflictException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), backgroundColor: Colors.orange),
+      );
+    } on StateError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.code == 'permission-denied'
+                ? 'Bạn không có quyền sửa dịch vụ của lịch này.'
+                : 'Không thể cập nhật dịch vụ: ${error.message}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _editingBookingIds.remove(bookingId));
     }
   }
 
@@ -783,6 +982,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     final bool isPaid = paymentStatus == 'paid';
     final String status = _effectiveStatus(data);
     final bool isStartingPayment = _startingPaymentIds.contains(bookingId);
+    final bool isEditingServices = _editingBookingIds.contains(bookingId);
+    final bool hasVouchers =
+        (data['voucherIds'] as List<dynamic>? ?? const []).isNotEmpty;
+    final bool canEditServices =
+        !isPaid &&
+        paymentStatus == 'unpaid' &&
+        !hasVouchers &&
+        (status == 'pending' || status == 'confirmed');
     final Color statusColor = _getStatusColor(status);
 
     return Container(
@@ -930,6 +1137,51 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       text: 'Đang chờ VNPAY xác nhận thanh toán',
                       color: const Color(0xFFFFB648),
                     ),
+                  if (canEditServices) ...[
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: isEditingServices
+                            ? null
+                            : () => _editBookingServices(
+                                bookingId: bookingId,
+                                booking: data,
+                              ),
+                        icon: isEditingServices
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.design_services_outlined),
+                        label: Text(
+                          isEditingServices
+                              ? 'Đang cập nhật...'
+                              : 'Chỉnh sửa dịch vụ',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _gold,
+                          side: const BorderSide(color: Color(0x88F6C768)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (!isPaid && hasVouchers &&
+                      (status == 'pending' || status == 'confirmed')) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Lịch đang dùng voucher nên không thể đổi dịch vụ. '
+                      'Bạn có thể hủy và đặt lại lịch.',
+                      style: TextStyle(color: _muted, fontSize: 12.5),
+                    ),
+                  ],
                   if (status == 'completed')
                     _reviewPanel(bookingId: bookingId, booking: data),
                   if (!isPaid &&
