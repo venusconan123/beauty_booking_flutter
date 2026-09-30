@@ -63,6 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final name = _nameController.text.trim();
       final email = _emailController.text.trim();
       final phone = _normalizePhone(_phoneController.text);
+      var verificationEmailSent = false;
 
       await user?.updateDisplayName(name);
       if (user != null) {
@@ -70,9 +71,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'name': name,
           'email': email,
           'phone': phone,
+          'requiresEmailVerification': true,
+          'emailVerified': false,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        try {
+          await FirebaseAuth.instance.setLanguageCode('vi');
+          await user.sendEmailVerification();
+          verificationEmailSent = true;
+        } on FirebaseAuthException {
+          // The account remains on the verification screen, where the user
+          // can retry sending the email without creating another account.
+        }
       }
 
       if (!mounted) {
@@ -90,17 +102,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               side: const BorderSide(color: Color(0x66F6C768)),
             ),
             icon: const Icon(
-              Icons.check_circle_rounded,
+              Icons.mark_email_unread_rounded,
               color: _gold,
               size: 56,
             ),
-            title: const Text(
-              'Đăng ký thành công',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              verificationEmailSent
+                  ? 'Kiểm tra email của bạn'
+                  : 'Tài khoản đã được tạo',
+              style: const TextStyle(color: Colors.white),
             ),
             content: Text(
-              'Chào mừng ${_nameController.text.trim()} '
-              'đến với Men Hair Booking.',
+              verificationEmailSent
+                  ? 'Men Hair Booking đã gửi liên kết xác minh đến $email. '
+                        'Hãy mở email và xác minh tài khoản trước khi sử dụng '
+                        'ứng dụng.'
+                  : 'Hiện chưa thể gửi email xác minh đến $email. Hãy chọn '
+                        '“Gửi lại email xác minh” ở màn hình tiếp theo.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: _muted),
             ),
@@ -111,7 +129,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   backgroundColor: _gold,
                   foregroundColor: _ink,
                 ),
-                child: const Text('Tiếp tục'),
+                child: const Text('Đến trang xác minh'),
               ),
             ],
           );
