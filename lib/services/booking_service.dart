@@ -304,7 +304,10 @@ class BookingService {
             .toList(),
         'totalDurationMinutes': totalDuration,
         'slotIds': slotIds,
-        'status': 'pending',
+        // Thanh toán sau được áp dụng lịch ngay. Thanh toán VNPAY chỉ ở trạng
+        // thái chờ trong thời gian cổng thanh toán xử lý và sẽ được IPN xác
+        // nhận tự động sau khi giao dịch thành công.
+        'status': paymentChoice == 'pay_later' ? 'confirmed' : 'pending',
         'payment': {
           'provider': 'vnpay',
           'environment': 'sandbox',

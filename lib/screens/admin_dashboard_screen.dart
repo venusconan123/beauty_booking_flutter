@@ -147,7 +147,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     SizedBox(
                       width: width,
-                      child: _metric('Chờ xác nhận', '${stats.pending}', Icons.schedule_rounded),
+                      child: _metric('Chờ thanh toán', '${stats.pending}', Icons.schedule_rounded),
                     ),
                     SizedBox(
                       width: width,
