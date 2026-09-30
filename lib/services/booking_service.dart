@@ -529,6 +529,13 @@ class BookingService {
     final DocumentReference<Map<String, dynamic>> bookingReference = _firestore
         .collection('bookings')
         .doc(bookingId);
+    final staleSlotSnapshot = await _firestore
+        .collection('booking_slots')
+        .where('bookingId', isEqualTo: bookingId)
+        .get();
+    final discoveredSlotIds = staleSlotSnapshot.docs
+        .map((document) => document.id)
+        .toSet();
 
     await _firestore.runTransaction<void>((transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> bookingSnapshot =
@@ -544,22 +551,24 @@ class BookingService {
         throw StateError('Bạn không có quyền hủy lịch hẹn này.');
       }
 
-      if (bookingData['status'] == 'cancelled') {
-        return;
-      }
-
+      final bool alreadyCancelled = bookingData['status'] == 'cancelled';
       final List<dynamic> rawSlotIds =
           bookingData['slotIds'] as List<dynamic>? ?? [];
 
-      final List<String> slotIds = rawSlotIds
-          .map((slotId) => slotId.toString())
-          .toList();
+      final Set<String> slotIds = {
+        ...rawSlotIds.map((slotId) => slotId.toString()),
+        ...discoveredSlotIds,
+      };
 
-      transaction.update(bookingReference, {
-        'status': 'cancelled',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      if (!alreadyCancelled) {
+        transaction.update(bookingReference, {
+          'status': 'cancelled',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
+      // Query by bookingId as well as using slotIds so older bookings or
+      // bookings whose services changed cannot leave ghost time slots behind.
       for (final String slotId in slotIds) {
         final DocumentReference<Map<String, dynamic>> slotReference = _firestore
             .collection('booking_slots')
