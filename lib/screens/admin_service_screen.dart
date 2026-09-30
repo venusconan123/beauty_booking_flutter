@@ -63,7 +63,9 @@ class _AdminServiceScreenState extends State<AdminServiceScreen> {
         order: item.order,
       );
     } on FirebaseException catch (error) {
-      if (mounted) _message(error.message ?? 'Không thể cập nhật dịch vụ.', true);
+      if (mounted) {
+        _message(error.message ?? 'Không thể cập nhật dịch vụ.', true);
+      }
     } finally {
       if (mounted) setState(() => _savingIds.remove(item.service.id));
     }
@@ -358,7 +360,9 @@ class _ServiceDialogState extends State<_ServiceDialog> {
                   validator: _positive,
                 ),
                 _field(_description, 'Mô tả', lines: 3, validator: (value) {
-                  if ((value ?? '').trim().isEmpty) return 'Vui lòng nhập mô tả';
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Vui lòng nhập mô tả';
+                  }
                   return null;
                 }),
                 SwitchListTile(
