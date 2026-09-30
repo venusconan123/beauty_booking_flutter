@@ -22,9 +22,135 @@ service cloud.firestore {
            voucherId in booking.voucherIds);
     }
 
+    function validNewUser(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly([
+            'name', 'email', 'phone', 'requiresEmailVerification',
+            'emailVerified', 'createdAt', 'updatedAt'
+          ]) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 2 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.email is string &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.phone is string &&
+          request.resource.data.phone.matches('^0[0-9]{9}$') &&
+          request.resource.data.requiresEmailVerification == true &&
+          request.resource.data.emailVerified == false &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    function validOwnProfileUpdate(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['name', 'phone', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 2 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.phone is string &&
+          request.resource.data.phone.matches('^0[0-9]{9}$') &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    function validEmailVerificationUpdate(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.auth.token.email_verified == true &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['emailVerified', 'emailVerifiedAt', 'updatedAt']) &&
+          request.resource.data.emailVerified == true &&
+          request.resource.data.emailVerifiedAt is timestamp &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    function validBookingCreate() {
+      return request.resource.data.keys().hasAll([
+            'userId', 'salonId', 'barberId', 'serviceIds', 'services',
+            'appointmentAt', 'originalPrice', 'discountAmount', 'totalPrice',
+            'totalDurationMinutes', 'slotIds', 'status', 'payment',
+            'createdAt', 'updatedAt'
+          ]) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.salonId is string &&
+          request.resource.data.salonId.size() > 0 &&
+          request.resource.data.barberId is string &&
+          request.resource.data.barberId.size() > 0 &&
+          request.resource.data.serviceIds is list &&
+          request.resource.data.serviceIds.size() > 0 &&
+          request.resource.data.serviceIds.size() <= 10 &&
+          request.resource.data.services is list &&
+          request.resource.data.services.size() ==
+              request.resource.data.serviceIds.size() &&
+          request.resource.data.appointmentAt is timestamp &&
+          request.resource.data.appointmentAt > request.time &&
+          request.resource.data.originalPrice is number &&
+          request.resource.data.originalPrice > 0 &&
+          request.resource.data.discountAmount is number &&
+          request.resource.data.discountAmount >= 0 &&
+          request.resource.data.totalPrice is number &&
+          request.resource.data.totalPrice > 0 &&
+          request.resource.data.originalPrice ==
+              request.resource.data.totalPrice +
+              request.resource.data.discountAmount &&
+          request.resource.data.totalDurationMinutes is int &&
+          request.resource.data.totalDurationMinutes > 0 &&
+          request.resource.data.slotIds is list &&
+          request.resource.data.slotIds.size() > 0 &&
+          request.resource.data.slotIds.size() <= 48 &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.updatedAt is timestamp &&
+          request.resource.data.payment is map &&
+          request.resource.data.payment.keys().hasAll([
+            'choice', 'provider', 'environment', 'status', 'amount'
+          ]) &&
+          request.resource.data.payment.choice in ['pay_now', 'pay_later'] &&
+          ((request.resource.data.payment.choice == 'pay_later' &&
+              request.resource.data.status == 'confirmed') ||
+           (request.resource.data.payment.choice == 'pay_now' &&
+              request.resource.data.status == 'pending')) &&
+          request.resource.data.payment.provider == 'vnpay' &&
+          request.resource.data.payment.environment == 'sandbox' &&
+          request.resource.data.payment.status == 'unpaid' &&
+          request.resource.data.payment.amount ==
+              request.resource.data.totalPrice;
+    }
+
+    function validSlotCreate(slotId) {
+      let slot = request.resource.data;
+      let booking = getAfter(
+          /databases/$(database)/documents/bookings/$(slot.bookingId)).data;
+      return slot.keys().hasOnly([
+            'bookingId', 'userId', 'salonId', 'barberId', 'slotAt', 'createdAt'
+          ]) &&
+          slot.bookingId is string &&
+          slot.bookingId.size() > 0 &&
+          slot.userId == request.auth.uid &&
+          slot.salonId == booking.salonId &&
+          slot.barberId == booking.barberId &&
+          slot.slotAt is timestamp &&
+          slot.createdAt is timestamp &&
+          booking.userId == request.auth.uid &&
+          booking.slotIds is list &&
+          slotId in booking.slotIds;
+    }
+
+    function validOwnSlotDelete(slotId) {
+      let booking = getAfter(
+          /databases/$(database)/documents/bookings/$(resource.data.bookingId)).data;
+      return signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          (booking.status == 'cancelled' ||
+           !(slotId in booking.slotIds));
+    }
+
     match /users/{userId} {
-      allow create, read, update: if signedIn() &&
-          request.auth.uid == userId;
+      allow create: if validNewUser(userId);
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update: if validOwnProfileUpdate(userId) ||
+          validEmailVerificationUpdate(userId);
 
       match /notifications/{notificationId} {
         allow read: if signedIn() && request.auth.uid == userId;
@@ -192,18 +318,7 @@ service cloud.firestore {
       allow read: if signedIn() &&
           (resource.data.userId == request.auth.uid || admin());
 
-      allow create: if signedIn() &&
-          request.resource.data.userId == request.auth.uid &&
-          request.resource.data.payment.choice in ['pay_now', 'pay_later'] &&
-          ((request.resource.data.payment.choice == 'pay_later' &&
-              request.resource.data.status == 'confirmed') ||
-           (request.resource.data.payment.choice == 'pay_now' &&
-              request.resource.data.status == 'pending')) &&
-          request.resource.data.payment.provider == 'vnpay' &&
-          request.resource.data.payment.environment == 'sandbox' &&
-          request.resource.data.payment.status == 'unpaid' &&
-          request.resource.data.payment.amount ==
-              request.resource.data.totalPrice;
+      allow create: if signedIn() && validBookingCreate();
 
       allow update: if admin() &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -259,11 +374,9 @@ service cloud.firestore {
     match /booking_slots/{slotId} {
       allow read: if signedIn();
 
-      allow create: if signedIn() &&
-          request.resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && validSlotCreate(slotId);
 
-      allow delete: if signedIn() &&
-          (resource.data.userId == request.auth.uid || admin());
+      allow delete: if admin() || validOwnSlotDelete(slotId);
 
       allow update: if false;
     }
