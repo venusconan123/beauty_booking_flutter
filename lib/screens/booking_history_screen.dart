@@ -8,7 +8,7 @@ import '../services/booking_service.dart';
 import '../services/hair_service_catalog.dart';
 import '../services/vnpay_payment_service.dart';
 
-enum _BookingSection { registered, confirmed, completed }
+enum _BookingSection { registered, completed }
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -41,8 +41,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   bool _belongsToSelectedSection(String status) {
     return switch (_selectedSection) {
       _BookingSection.registered =>
-        status == 'pending' || status == 'cancelled',
-      _BookingSection.confirmed => status == 'confirmed',
+        status == 'pending' ||
+            status == 'confirmed' ||
+            status == 'cancelled',
       _BookingSection.completed => status == 'completed',
     };
   }
@@ -739,9 +740,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     title: 'Chưa có lịch trong mục này',
                     message: switch (_selectedSection) {
                       _BookingSection.registered =>
-                        'Lịch mới đăng ký hoặc đã hủy sẽ xuất hiện tại đây.',
-                      _BookingSection.confirmed =>
-                        'Lịch được hệ thống xác nhận tự động sẽ xuất hiện tại đây.',
+                        'Lịch mới đăng ký, đã xác nhận hoặc đã hủy sẽ xuất hiện tại đây.',
                       _BookingSection.completed =>
                         'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
                     },
@@ -784,7 +783,6 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   Widget _sectionSelector() {
     const items = <(_BookingSection, IconData, String)>[
       (_BookingSection.registered, Icons.edit_calendar_rounded, 'Đã đăng ký'),
-      (_BookingSection.confirmed, Icons.event_available_rounded, 'Đã xác nhận'),
       (_BookingSection.completed, Icons.task_alt_rounded, 'Đã hoàn thành'),
     ];
     return SingleChildScrollView(
