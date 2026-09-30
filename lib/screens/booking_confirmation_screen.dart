@@ -366,7 +366,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       if (index > 0 && (value.length - index) % 3 == 0) result.write('.');
       result.write(value[index]);
     }
-    return '${result}đ';
+    return '$resultđ';
   }
 
   String _formatDate(DateTime date) {

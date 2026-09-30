@@ -26,7 +26,7 @@ class _AdminServiceScreenState extends State<AdminServiceScreen> {
       if (index > 0 && (value.length - index) % 3 == 0) output.write('.');
       output.write(value[index]);
     }
-    return '${output}đ';
+    return '$outputđ';
   }
 
   Future<void> _edit(ServiceAdminItem? item) async {

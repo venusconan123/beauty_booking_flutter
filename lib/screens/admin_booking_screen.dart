@@ -72,8 +72,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   String _relativeCreatedTime(DateTime? createdAt) {
     if (createdAt == null) return 'Vừa đăng ký';
     final difference = DateTime.now().difference(createdAt);
-    if (difference.isNegative || difference.inSeconds < 45)
+    if (difference.isNegative || difference.inSeconds < 45) {
       return 'Vừa đăng ký';
+    }
     if (difference.inMinutes < 60) {
       return 'Đã đăng ký ${difference.inMinutes} phút trước';
     }
@@ -523,7 +524,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         itemCount: sampleSalons.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (_, index) => SizedBox(
           width: 248,
           child: _branchButton(sampleSalons[index], bookings, compact: true),
@@ -678,7 +679,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 8, 18, 32),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 15),
+                  separatorBuilder: (_, _) => const SizedBox(height: 15),
                   itemBuilder: (_, index) {
                     final booking = filtered[index];
                     return _buildBookingCard(
@@ -1218,7 +1219,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
             ),
           ),
         ),
-        if (trailing != null) trailing,
+        ?trailing,
       ],
     );
   }

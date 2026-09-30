@@ -497,7 +497,7 @@ Widget _managedImage(Hairstyle hairstyle) {
     return Image.network(
       hairstyle.imageUrl,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const ColoredBox(
+      errorBuilder: (_, _, _) => const ColoredBox(
         color: Color(0xFF202A35),
         child: Icon(Icons.broken_image_outlined, color: Colors.white54),
       ),

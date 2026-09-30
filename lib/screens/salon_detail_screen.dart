@@ -1211,7 +1211,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   (review) =>
                       (review.data()['salonRating'] as num?)?.toDouble() ?? 0,
                 )
-                .fold<double>(0, (sum, value) => sum + value) /
+                .fold<double>(0, (total, value) => total + value) /
             reviews.length;
     return Container(
       padding: const EdgeInsets.all(18),

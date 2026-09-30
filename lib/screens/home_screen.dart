@@ -874,7 +874,7 @@ class HomeScreen extends StatelessWidget {
       if (index > 0 && (raw.length - index) % 3 == 0) output.write('.');
       output.write(raw[index]);
     }
-    return '${output}đ';
+    return '$outputđ';
   }
 
   Widget _buildSalonSection(BuildContext context) {

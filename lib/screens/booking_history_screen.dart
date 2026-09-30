@@ -267,7 +267,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                           Expanded(
                             child: ListView.separated(
                               itemCount: services.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (_, _) =>
                                   const Divider(color: Color(0x22FFFFFF)),
                               itemBuilder: (context, index) {
                                 final service = services[index];

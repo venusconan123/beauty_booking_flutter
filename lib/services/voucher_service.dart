@@ -195,7 +195,7 @@ class VoucherService {
         'isActive': true,
         'isUsed': false,
         'source': 'loyalty',
-        if (milestone != null) 'milestone': milestone,
+        'milestone': ?milestone,
         'rewardType': rewardType,
         'sourceBookingId': bookingId,
         'createdAt': FieldValue.serverTimestamp(),
