@@ -76,7 +76,10 @@ class _AdminServiceScreenState extends State<AdminServiceScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _panel,
-        title: const Text('Xóa dịch vụ?', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Xóa dịch vụ?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Dịch vụ “${item.service.name}” sẽ bị xóa hoặc ẩn khỏi danh sách đặt lịch.',
           style: const TextStyle(color: _muted),
@@ -244,11 +247,15 @@ class _AdminServiceScreenState extends State<AdminServiceScreen> {
             ),
             PopupMenuButton<String>(
               color: _panel,
-              onSelected: (value) => value == 'edit' ? _edit(item) : _delete(item),
+              onSelected: (value) =>
+                  value == 'edit' ? _edit(item) : _delete(item),
               itemBuilder: (_) => const [
                 PopupMenuItem(
                   value: 'edit',
-                  child: Text('Chỉnh sửa', style: TextStyle(color: Colors.white)),
+                  child: Text(
+                    'Chỉnh sửa',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
                 PopupMenuItem(
                   value: 'delete',
@@ -315,7 +322,8 @@ class _ServiceDialogState extends State<_ServiceDialog> {
 
   void _submit() {
     if (!_key.currentState!.validate()) return;
-    final id = widget.item?.service.id ??
+    final id =
+        widget.item?.service.id ??
         'service_${DateTime.now().millisecondsSinceEpoch}';
     Navigator.pop(
       context,
@@ -348,10 +356,14 @@ class _ServiceDialogState extends State<_ServiceDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _field(_name, 'Tên dịch vụ', validator: (value) {
-                  if ((value ?? '').trim().length < 2) return 'Tên quá ngắn';
-                  return null;
-                }),
+                _field(
+                  _name,
+                  'Tên dịch vụ',
+                  validator: (value) {
+                    if ((value ?? '').trim().length < 2) return 'Tên quá ngắn';
+                    return null;
+                  },
+                ),
                 _field(_price, 'Giá (VNĐ)', number: true, validator: _positive),
                 _field(
                   _duration,
@@ -359,12 +371,17 @@ class _ServiceDialogState extends State<_ServiceDialog> {
                   number: true,
                   validator: _positive,
                 ),
-                _field(_description, 'Mô tả', lines: 3, validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'Vui lòng nhập mô tả';
-                  }
-                  return null;
-                }),
+                _field(
+                  _description,
+                  'Mô tả',
+                  lines: 3,
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'Vui lòng nhập mô tả';
+                    }
+                    return null;
+                  },
+                ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _active,
@@ -381,7 +398,10 @@ class _ServiceDialogState extends State<_ServiceDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
         FilledButton(onPressed: _submit, child: const Text('Lưu')),
       ],
     );
