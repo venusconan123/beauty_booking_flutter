@@ -9,6 +9,7 @@ import '../models/barber.dart';
 import '../models/hair_service.dart';
 import '../models/salon.dart';
 import '../services/barber_service.dart';
+import '../services/hair_service_catalog.dart';
 import '../services/salon_contact_service.dart';
 import 'service_selection_screen.dart';
 
@@ -37,6 +38,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final PageController _pageController = PageController();
   final BarberService _barberService = BarberService();
+  final HairServiceCatalog _serviceCatalog = HairServiceCatalog();
   final SalonContactService _contactService = SalonContactService();
   StreamSubscription<String>? _hotlineSubscription;
   late String _hotline;
@@ -538,16 +540,22 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   }
 
   Widget _servicesPage() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
-      children: [
-        _sectionHeading(
-          'Dịch vụ tại salon',
-          'Chọn dịch vụ ở bước đặt lịch tiếp theo',
-        ),
-        const SizedBox(height: 12),
-        ...widget.salon.services.map(_serviceCard),
-      ],
+    return StreamBuilder<List<HairService>>(
+      stream: _serviceCatalog.watchActive(),
+      builder: (context, snapshot) {
+        final services = snapshot.data ?? widget.salon.services;
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
+          children: [
+            _sectionHeading(
+              'Dịch vụ tại salon',
+              'Chọn dịch vụ ở bước đặt lịch tiếp theo',
+            ),
+            const SizedBox(height: 12),
+            ...services.map(_serviceCard),
+          ],
+        );
+      },
     );
   }
 

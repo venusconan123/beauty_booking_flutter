@@ -7,6 +7,7 @@ import '../models/hair_service.dart';
 import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import 'admin_chat_screen.dart';
+import 'admin_dashboard_screen.dart';
 import 'admin_booking_screen.dart';
 import 'admin_barber_screen.dart';
 import 'admin_hairstyle_screen.dart';
@@ -14,6 +15,7 @@ import 'admin_loyalty_settings_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_report_screen.dart';
 import 'admin_salon_contact_screen.dart';
+import 'admin_service_screen.dart';
 import 'admin_voucher_screen.dart';
 import 'booking_branch_selection_screen.dart';
 import 'booking_history_screen.dart';
@@ -22,7 +24,9 @@ import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
 import 'salon_map_screen.dart';
 import 'notification_screen.dart';
+import 'profile_screen.dart';
 import 'support_chat_screen.dart';
+import '../services/hair_service_catalog.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -75,6 +79,24 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const AdminBookingScreen()));
+  }
+
+  void _openAdminDashboardScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminDashboardScreen()),
+    );
+  }
+
+  void _openAdminServiceScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminServiceScreen()),
+    );
+  }
+
+  void _openProfile(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
+    );
   }
 
   void _openAdminBarberScreen(BuildContext context) {
@@ -204,7 +226,11 @@ class HomeScreen extends StatelessWidget {
           iconColor: Colors.white,
           icon: const Icon(Icons.admin_panel_settings_rounded),
           onSelected: (value) {
-            if (value == 'hairstyles') {
+            if (value == 'dashboard') {
+              _openAdminDashboardScreen(context);
+            } else if (value == 'services') {
+              _openAdminServiceScreen(context);
+            } else if (value == 'hairstyles') {
               _openAdminHairstyleScreen(context);
             } else if (value == 'employees') {
               _openAdminBarberScreen(context);
@@ -226,11 +252,31 @@ class HomeScreen extends StatelessWidget {
           },
           itemBuilder: (_) => const [
             PopupMenuItem(
+              value: 'dashboard',
+              child: ListTile(
+                leading: Icon(Icons.dashboard_outlined, color: _gold),
+                title: Text(
+                  'Dashboard tổng quan',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
               value: 'bookings',
               child: ListTile(
                 leading: Icon(Icons.calendar_month_outlined, color: _gold),
                 title: Text(
                   'Quản lý lịch hẹn',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'services',
+              child: ListTile(
+                leading: Icon(Icons.design_services_outlined, color: _gold),
+                title: Text(
+                  'Quản lý dịch vụ',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
@@ -441,6 +487,11 @@ class HomeScreen extends StatelessWidget {
                 tooltip: 'Thông báo',
                 icon: Icons.notifications_none_rounded,
                 onPressed: () => _openNotifications(context),
+              ),
+              _headerIcon(
+                tooltip: 'Hồ sơ cá nhân',
+                icon: Icons.account_circle_outlined,
+                onPressed: () => _openProfile(context),
               ),
               _headerIcon(
                 tooltip: 'Đăng xuất',
@@ -736,15 +787,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildServiceStrip(BuildContext context) {
-    const services = [
-      (Icons.workspace_premium_rounded, comboTenSteps, '150.000đ'),
-      (Icons.content_cut_rounded, hairCut, '80.000đ'),
-      (Icons.shower_rounded, hairWash, '30.000đ'),
-      (Icons.auto_awesome_rounded, hairStyling, '50.000đ'),
-      (Icons.colorize_rounded, hairDye, '300.000đ'),
-      (Icons.spa_outlined, skinCare, '100.000đ'),
-    ];
-
     return _contentWidth(
       child: Container(
         margin: const EdgeInsets.fromLTRB(18, 18, 18, 8),
@@ -754,53 +796,85 @@ class HomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: const Color(0x1F59472B)),
         ),
-        child: Wrap(
-          alignment: WrapAlignment.spaceEvenly,
-          runSpacing: 16,
-          spacing: 18,
-          children: [
-            for (final service in services)
-              InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: sampleSalons.isEmpty
-                    ? null
-                    : () => _openQuickBooking(context, service.$2),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: const Color(0xFFF0E6D5),
-                        child: Icon(service.$1, color: const Color(0xFF6F5429)),
+        child: StreamBuilder<List<HairService>>(
+          stream: HairServiceCatalog().watchActive(),
+          builder: (context, snapshot) {
+            final services = snapshot.data ?? commonServices;
+            return Wrap(
+              alignment: WrapAlignment.spaceEvenly,
+              runSpacing: 16,
+              spacing: 18,
+              children: [
+                for (final service in services)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: sampleSalons.isEmpty
+                        ? null
+                        : () => _openQuickBooking(context, service),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
                       ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            service.$2.name,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: const Color(0xFFF0E6D5),
+                            child: Icon(
+                              _homeServiceIcon(service.id),
+                              color: const Color(0xFF6F5429),
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            service.$3,
-                            style: const TextStyle(color: Color(0xFF9B6B24)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                service.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatHomePrice(service.price),
+                                style: const TextStyle(
+                                  color: Color(0xFF9B6B24),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  IconData _homeServiceIcon(String id) {
+    if (id.contains('combo')) return Icons.workspace_premium_rounded;
+    if (id.contains('wash')) return Icons.shower_rounded;
+    if (id.contains('dye')) return Icons.colorize_rounded;
+    if (id.contains('skin')) return Icons.spa_outlined;
+    if (id.contains('styling')) return Icons.auto_awesome_rounded;
+    return Icons.content_cut_rounded;
+  }
+
+  String _formatHomePrice(int price) {
+    final raw = price.toString();
+    final output = StringBuffer();
+    for (var index = 0; index < raw.length; index++) {
+      if (index > 0 && (raw.length - index) % 3 == 0) output.write('.');
+      output.write(raw[index]);
+    }
+    return '${output}đ';
   }
 
   Widget _buildSalonSection(BuildContext context) {

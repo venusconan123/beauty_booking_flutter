@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/hair_service.dart';
 import '../models/salon.dart';
+import '../services/hair_service_catalog.dart';
 import 'barber_selection_screen.dart';
 
 class ServiceSelectionScreen extends StatefulWidget {
@@ -22,8 +25,31 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
   static const _muted = Color(0xFFB8C0CC);
 
   final Set<String> _selectedServiceIds = {};
+  final HairServiceCatalog _catalog = HairServiceCatalog();
+  StreamSubscription<List<HairService>>? _serviceSubscription;
+  late List<HairService> _availableServices;
 
-  List<HairService> get _selectedServices => widget.salon.services
+  @override
+  void initState() {
+    super.initState();
+    _availableServices = widget.salon.services;
+    _serviceSubscription = _catalog.watchActive().listen((services) {
+      if (!mounted) return;
+      setState(() {
+        _availableServices = services;
+        final availableIds = services.map((service) => service.id).toSet();
+        _selectedServiceIds.removeWhere((id) => !availableIds.contains(id));
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _serviceSubscription?.cancel();
+    super.dispose();
+  }
+
+  List<HairService> get _selectedServices => _availableServices
       .where((service) => _selectedServiceIds.contains(service.id))
       .toList();
 
@@ -173,7 +199,7 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: widget.salon.services.length,
+                  itemCount: _availableServices.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
                     crossAxisSpacing: 14,
@@ -181,7 +207,7 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
                     childAspectRatio: columns == 1 ? 2.85 : 2.45,
                   ),
                   itemBuilder: (context, index) {
-                    return _serviceCard(widget.salon.services[index]);
+                    return _serviceCard(_availableServices[index]);
                   },
                 );
               },
