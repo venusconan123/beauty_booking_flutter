@@ -12,7 +12,23 @@ const {
   canPayBooking,
   bookingStatusAfterPayment,
   paymentNotification,
+  canUsePaymentAccount,
 } = await import('../src/index.js');
+
+test('requires verified email for newly registered payment accounts', () => {
+  assert.equal(canUsePaymentAccount(
+    { emailVerified: false },
+    { requiresEmailVerification: true },
+  ), false);
+  assert.equal(canUsePaymentAccount(
+    { emailVerified: true },
+    { requiresEmailVerification: true },
+  ), true);
+  assert.equal(canUsePaymentAccount(
+    { emailVerified: false },
+    {},
+  ), true);
+});
 
 test('auto-confirms a booking only after a successful VNPAY payment', () => {
   assert.equal(bookingStatusAfterPayment('pending', 'paid'), 'confirmed');
