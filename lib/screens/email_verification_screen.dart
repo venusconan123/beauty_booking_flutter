@@ -59,12 +59,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user != null && user.emailVerified) {
+        // Refresh the ID token first so Firestore Rules can trust the
+        // email_verified claim when accepting this system-field update.
+        await user.getIdToken(true);
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'emailVerified': true,
           'emailVerifiedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-        await user.getIdToken(true);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
