@@ -38,8 +38,21 @@ export function canPayBooking(booking) {
 
 async function createPayment(request, env) {
   requireEnvironment(env);
-  const userId = await verifyFirebaseUser(request, env);
-  if (!userId) return json({ message: 'Phiên đăng nhập không hợp lệ.' }, 401);
+  const identity = await verifyFirebaseUser(request, env);
+  if (!identity) return json({ message: 'Phiên đăng nhập không hợp lệ.' }, 401);
+
+  const userId = identity.userId;
+  if (!identity.emailVerified) {
+    const userDocument = await getDocument(env, `users/${userId}`);
+    const profile = userDocument
+      ? decodeFields(userDocument.fields || {})
+      : {};
+    if (!canUsePaymentAccount(identity, profile)) {
+      return json({
+        message: 'Bạn cần xác minh email trước khi thanh toán VNPAY.',
+      }, 403);
+    }
+  }
 
   const body = await request.json().catch(() => ({}));
   const bookingId = String(body.bookingId || '').trim();
@@ -225,6 +238,11 @@ async function processVnpayResult(url, env) {
   };
 }
 
+export function canUsePaymentAccount(identity, profile) {
+  return identity?.emailVerified === true ||
+    profile?.requiresEmailVerification !== true;
+}
+
 async function verifyFirebaseUser(request, env) {
   const authorization = request.headers.get('Authorization') || '';
   const idToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -240,7 +258,12 @@ async function verifyFirebaseUser(request, env) {
   );
   if (!response.ok) return null;
   const data = await response.json();
-  return data.users?.[0]?.localId || null;
+  const user = data.users?.[0];
+  if (!user?.localId) return null;
+  return {
+    userId: user.localId,
+    emailVerified: user.emailVerified === true,
+  };
 }
 
 async function googleAccessToken(env) {
