@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
 import '../services/booking_service.dart';
 import '../services/hair_service_catalog.dart';
@@ -27,6 +28,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   final Set<String> _startingPaymentIds = <String>{};
   final Set<String> _editingBookingIds = <String>{};
   _BookingSection _selectedSection = _BookingSection.registered;
+  String? _selectedSalonId;
 
   String _effectiveStatus(Map<String, dynamic> data) {
     final status = data['status']?.toString() ?? 'pending';
@@ -674,6 +676,36 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     );
   }
 
+  DateTime _bookingCreatedAt(
+    QueryDocumentSnapshot<Map<String, dynamic>> booking,
+  ) {
+    final data = booking.data();
+    return (data['createdAt'] as Timestamp?)?.toDate() ??
+        (data['appointmentAt'] as Timestamp?)?.toDate() ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _defaultSalonId(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  ) {
+    final sectionBookings = bookings.where((booking) {
+      return _belongsToSelectedSection(_effectiveStatus(booking.data()));
+    }).toList();
+    final newestFirst = [...sectionBookings]
+      ..sort(
+        (first, second) =>
+            _bookingCreatedAt(second).compareTo(_bookingCreatedAt(first)),
+      );
+    for (final booking in newestFirst) {
+      final salonId = booking.data()['salonId']?.toString();
+      if (salonId != null &&
+          sampleSalons.any((salon) => salon.id == salonId)) {
+        return salonId;
+      }
+    }
+    return sampleSalons.first.id;
+  }
+
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -713,69 +745,153 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                   );
                 }
 
-                final bookings =
+                final allBookings =
                     <QueryDocumentSnapshot<Map<String, dynamic>>>[
                       ...?snapshot.data?.docs,
-                    ].where((booking) {
-                      final status = _effectiveStatus(booking.data());
-                      return _belongsToSelectedSection(status);
-                    }).toList();
-                bookings.sort((first, second) {
-                  final firstTimestamp =
-                      first.data()['appointmentAt'] as Timestamp?;
-                  final secondTimestamp =
-                      second.data()['appointmentAt'] as Timestamp?;
-                  final firstDate =
-                      firstTimestamp?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  final secondDate =
-                      secondTimestamp?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  return secondDate.compareTo(firstDate);
-                });
+                    ];
+                final selectedSalonId =
+                    _selectedSalonId ?? _defaultSalonId(allBookings);
+                final bookings = allBookings.where((booking) {
+                  final data = booking.data();
+                  final status = _effectiveStatus(data);
+                  return data['salonId'] == selectedSalonId &&
+                      _belongsToSelectedSection(status);
+                }).toList()
+                  ..sort((first, second) {
+                    final timeComparison = _bookingCreatedAt(
+                      second,
+                    ).compareTo(_bookingCreatedAt(first));
+                    if (timeComparison != 0) return timeComparison;
+                    return second.id.compareTo(first.id);
+                  });
 
-                if (bookings.isEmpty) {
-                  return _messageState(
-                    icon: Icons.event_note_rounded,
-                    title: 'Chưa có lịch trong mục này',
-                    message: switch (_selectedSection) {
-                      _BookingSection.registered =>
-                        'Lịch mới đăng ký, đã xác nhận hoặc đã hủy sẽ xuất hiện tại đây.',
-                      _BookingSection.completed =>
-                        'Lịch đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.',
-                    },
-                  );
-                }
+                final selectedSalon = sampleSalons.firstWhere(
+                  (salon) => salon.id == selectedSalonId,
+                );
 
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double horizontal = constraints.maxWidth >= 900
-                        ? 32
-                        : 16;
-                    return ListView.separated(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontal,
-                        18,
-                        horizontal,
-                        32,
-                      ),
-                      itemCount: bookings.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 16),
-                      itemBuilder: (context, index) {
-                        final booking = bookings[index];
-                        return _buildBookingCard(
-                          context: context,
-                          bookingId: booking.id,
-                          data: booking.data(),
-                        );
-                      },
-                    );
-                  },
+                return Column(
+                  children: [
+                    _branchSelector(allBookings, selectedSalonId),
+                    Expanded(
+                      child: bookings.isEmpty
+                          ? _messageState(
+                              icon: Icons.event_note_rounded,
+                              title: 'Chưa có lịch tại chi nhánh này',
+                              message: switch (_selectedSection) {
+                                _BookingSection.registered =>
+                                  'Chưa có lịch đã đăng ký tại '
+                                      '${selectedSalon.name}.',
+                                _BookingSection.completed =>
+                                  'Chưa có lịch hoàn thành tại '
+                                      '${selectedSalon.name}.',
+                              },
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final double horizontal =
+                                    constraints.maxWidth >= 900 ? 32 : 16;
+                                return ListView.separated(
+                                  padding: EdgeInsets.fromLTRB(
+                                    horizontal,
+                                    18,
+                                    horizontal,
+                                    32,
+                                  ),
+                                  itemCount: bookings.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(height: 16),
+                                  itemBuilder: (context, index) {
+                                    final booking = bookings[index];
+                                    return _buildBookingCard(
+                                      context: context,
+                                      bookingId: booking.id,
+                                      data: booking.data(),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _branchSelector(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+    String selectedSalonId,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Row(
+        children: sampleSalons.map((salon) {
+          final selected = salon.id == selectedSalonId;
+          final count = bookings.where((booking) {
+            final data = booking.data();
+            return data['salonId'] == salon.id &&
+                _belongsToSelectedSection(_effectiveStatus(data));
+          }).length;
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: ChoiceChip(
+              selected: selected,
+              onSelected: (_) => setState(() => _selectedSalonId = salon.id),
+              avatar: Icon(
+                Icons.storefront_rounded,
+                size: 19,
+                color: selected ? _ink : _gold,
+              ),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(salon.name),
+                  const SizedBox(width: 8),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0x2208111E)
+                          : const Color(0x22F6C768),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$count',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: selected ? _ink : _gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              labelStyle: TextStyle(
+                color: selected ? _ink : Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+              selectedColor: _gold,
+              backgroundColor: _surface,
+              side: BorderSide(
+                color: selected ? _gold : const Color(0x44F6C768),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
