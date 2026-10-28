@@ -35,17 +35,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     final payment = data['payment'];
     final isPaid = payment is Map && payment['status'] == 'paid';
     final isPayLater = payment is Map && payment['choice'] == 'pay_later';
-    return status == 'pending' && (isPaid || isPayLater)
-        ? 'confirmed'
-        : status;
+    return status == 'pending' && (isPaid || isPayLater) ? 'confirmed' : status;
   }
 
   bool _belongsToSelectedSection(String status) {
     return switch (_selectedSection) {
       _BookingSection.registered =>
-        status == 'pending' ||
-            status == 'confirmed' ||
-            status == 'cancelled',
+        status == 'pending' || status == 'confirmed' || status == 'cancelled',
       _BookingSection.completed => status == 'completed',
     };
   }
@@ -259,7 +255,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               content: SizedBox(
                 width: 520,
                 height: 480,
-                child: snapshot.connectionState == ConnectionState.waiting &&
+                child:
+                    snapshot.connectionState == ConnectionState.waiting &&
                         services.isEmpty
                     ? const Center(
                         child: CircularProgressIndicator(color: _gold),
@@ -273,7 +270,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                                   const Divider(color: Color(0x22FFFFFF)),
                               itemBuilder: (context, index) {
                                 final service = services[index];
-                                final checked = selectedIds.contains(service.id);
+                                final checked = selectedIds.contains(
+                                  service.id,
+                                );
                                 return CheckboxListTile(
                                   value: checked,
                                   activeColor: _gold,
@@ -384,10 +383,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     } on StateError catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          backgroundColor: Colors.orange,
-        ),
+        SnackBar(content: Text(error.message), backgroundColor: Colors.orange),
       );
     } on FirebaseException catch (error) {
       if (!mounted) return;
@@ -698,8 +694,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       );
     for (final booking in newestFirst) {
       final salonId = booking.data()['salonId']?.toString();
-      if (salonId != null &&
-          sampleSalons.any((salon) => salon.id == salonId)) {
+      if (salonId != null && sampleSalons.any((salon) => salon.id == salonId)) {
         return salonId;
       }
     }
@@ -751,19 +746,19 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     ];
                 final selectedSalonId =
                     _selectedSalonId ?? _defaultSalonId(allBookings);
-                final bookings = allBookings.where((booking) {
-                  final data = booking.data();
-                  final status = _effectiveStatus(data);
-                  return data['salonId'] == selectedSalonId &&
-                      _belongsToSelectedSection(status);
-                }).toList()
-                  ..sort((first, second) {
-                    final timeComparison = _bookingCreatedAt(
-                      second,
-                    ).compareTo(_bookingCreatedAt(first));
-                    if (timeComparison != 0) return timeComparison;
-                    return second.id.compareTo(first.id);
-                  });
+                final bookings =
+                    allBookings.where((booking) {
+                      final data = booking.data();
+                      final status = _effectiveStatus(data);
+                      return data['salonId'] == selectedSalonId &&
+                          _belongsToSelectedSection(status);
+                    }).toList()..sort((first, second) {
+                      final timeComparison = _bookingCreatedAt(
+                        second,
+                      ).compareTo(_bookingCreatedAt(first));
+                      if (timeComparison != 0) return timeComparison;
+                      return second.id.compareTo(first.id);
+                    });
 
                 final selectedSalon = sampleSalons.firstWhere(
                   (salon) => salon.id == selectedSalonId,
@@ -1287,7 +1282,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                         ),
                       ),
                     ),
-                  ] else if (!isPaid && hasVouchers &&
+                  ] else if (!isPaid &&
+                      hasVouchers &&
                       (status == 'pending' || status == 'confirmed')) ...[
                     const SizedBox(height: 10),
                     const Text(
