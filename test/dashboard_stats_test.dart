@@ -1,4 +1,4 @@
-import 'package:beauty_booking_app/models/dashboard_stats.dart';
+import 'package:men_hair_booking/models/dashboard_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
