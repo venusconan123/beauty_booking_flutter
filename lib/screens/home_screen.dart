@@ -10,6 +10,7 @@ import 'admin_chat_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_booking_screen.dart';
 import 'admin_barber_screen.dart';
+import 'admin_staff_accounts_screen.dart';
 import 'admin_hairstyle_screen.dart';
 import 'admin_loyalty_settings_screen.dart';
 import 'admin_notification_screen.dart';
@@ -88,21 +89,21 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openAdminServiceScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminServiceScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminServiceScreen()));
   }
 
   void _openProfile(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ProfileScreen()));
   }
 
   void _openAdminBarberScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminBarberScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminBarberScreen()));
   }
 
   void _openAdminHairstyleScreen(BuildContext context) {
@@ -118,15 +119,15 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openAdminReportScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminReportScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminReportScreen()));
   }
 
   void _openAdminVoucherScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminVoucherScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminVoucherScreen()));
   }
 
   void _openAdminLoyaltySettingsScreen(BuildContext context) {
@@ -138,22 +139,20 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openSupportChat(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SupportChatScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SupportChatScreen()));
   }
 
   void _openAdminChatScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminChatScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminChatScreen()));
   }
 
   void _openAdminSalonContactScreen(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const AdminSalonContactScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const AdminSalonContactScreen()),
     );
   }
 
@@ -184,9 +183,8 @@ class HomeScreen extends StatelessWidget {
   void _openBookingBranchSelection(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const BookingBranchSelectionScreen(
-          salons: sampleSalons,
-        ),
+        builder: (_) =>
+            const BookingBranchSelectionScreen(salons: sampleSalons),
       ),
     );
   }
@@ -234,6 +232,12 @@ class HomeScreen extends StatelessWidget {
               _openAdminHairstyleScreen(context);
             } else if (value == 'employees') {
               _openAdminBarberScreen(context);
+            } else if (value == 'staff_accounts') {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AdminStaffAccountsScreen(),
+                ),
+              );
             } else if (value == 'notifications') {
               _openAdminNotificationScreen(context);
             } else if (value == 'reports') {
@@ -251,6 +255,16 @@ class HomeScreen extends StatelessWidget {
             }
           },
           itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'staff_accounts',
+              child: ListTile(
+                leading: Icon(Icons.manage_accounts, color: _gold),
+                title: Text(
+                  'Tài khoản nhân viên',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
             PopupMenuItem(
               value: 'dashboard',
               child: ListTile(
@@ -324,10 +338,7 @@ class HomeScreen extends StatelessWidget {
             PopupMenuItem(
               value: 'vouchers',
               child: ListTile(
-                leading: Icon(
-                  Icons.confirmation_number_outlined,
-                  color: _gold,
-                ),
+                leading: Icon(Icons.confirmation_number_outlined, color: _gold),
                 title: Text(
                   'Quản lý voucher',
                   style: TextStyle(color: Colors.white),

@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'email_verification_screen.dart';
-import 'home_screen.dart';
+import 'account_role_gate.dart';
 import 'login_screen.dart';
 
 class AuthGate extends StatefulWidget {
@@ -25,8 +25,7 @@ class _AuthGateState extends State<AuthGate> {
           .doc(user.uid)
           .get()
           .then(
-            (document) =>
-                document.data()?['requiresEmailVerification'] == true,
+            (document) => document.data()?['requiresEmailVerification'] == true,
           );
     }
     return _verificationFuture!;
@@ -111,7 +110,7 @@ class _AuthGateState extends State<AuthGate> {
               return EmailVerificationScreen(user: user);
             }
 
-            return const HomeScreen();
+            return AccountRoleGate(key: ValueKey(user.uid), user: user);
           },
         );
       },

@@ -1,0 +1,201 @@
+'use strict';
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+// Fail before constructing any SDK client if this is not a local demo suite.
+const projectId = 'demo-men-hair-booking';
+for (const [name, expected] of Object.entries({
+  FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080', FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+})) {
+  assert.equal(process.env[name], expected, `Refusing to run without local ${name}`);
+}
+assert.equal(process.env.GCLOUD_PROJECT, projectId, 'Only a demo project may be tested.');
+
+const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
+const { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
+const { initializeApp, deleteApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
+const { createStaffHandlers } = require('../src/staff');
+const app = initializeApp({ projectId }, 'staff-tests');
+const db = getFirestore(app);
+const auth = getAuth(app);
+const handlers = createStaffHandlers(db, auth);
+let env;
+const ctx = (uid, emailVerified = true) => env.authenticatedContext(uid, { email_verified: emailVerified }).firestore();
+const request = (uid, data) => ({ auth: uid ? { uid } : null, data });
+const rejectsCode = (promise, code) => assert.rejects(promise, (error) => error.code === code);
+
+before(async () => {
+  env = await initializeTestEnvironment({ projectId, firestore: {
+    host: '127.0.0.1', port: 8080,
+    rules: fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8'),
+  }});
+  for (const uid of ['admin', 'staff-a', 'staff-b', 'customer', 'target', 'target-2', 'target-off',
+    'duplicate-1', 'duplicate-2', 'same-uid', 'unverified', 'auth-disabled']) {
+    await auth.createUser({ uid, email: `${uid}@example.test`, password: 'Local-test-123!',
+      emailVerified: uid !== 'unverified', disabled: uid === 'auth-disabled' });
+  }
+  const batch = db.batch();
+  for (const [id, data] of Object.entries({
+    'admins/admin': { name: 'Admin local' },
+    'employees/employee-a': { name: 'Nhân viên A', salonId: 'salon_01', isActive: true },
+    'employees/employee-b': { name: 'Nhân viên B', salonId: 'salon_02', isActive: true },
+    'employees/employee-off': { name: 'Ngừng hoạt động', salonId: 'salon_01', isActive: false },
+    'staff_accounts/staff-a': { employeeId: 'employee-a', active: true },
+    'employee_accounts/employee-a': { uid: 'staff-a' },
+    'staff_accounts/staff-b': { employeeId: 'employee-b', active: true },
+    'employee_accounts/employee-b': { uid: 'staff-b' },
+    'users/customer': { name: 'Khách', email: 'private@example.test' },
+    'bookings/assigned-a': { barberId: 'employee-a', userId: 'customer', salonId: 'salon_01', status: 'confirmed' },
+    'bookings/assigned-b': { barberId: 'employee-b', userId: 'customer', salonId: 'salon_02', status: 'confirmed' },
+  })) batch.set(db.doc(id), data);
+  await batch.commit();
+});
+after(async () => { if (env) await env.cleanup(); await deleteApp(app); });
+
+test('Rules: staff can query only assigned bookings; admin and customer retain access', async () => {
+  const staff = ctx('staff-a');
+  await assertSucceeds(getDoc(doc(staff, 'bookings/assigned-a')));
+  const result = await assertSucceeds(getDocs(query(collection(staff, 'bookings'), where('barberId', '==', 'employee-a'))));
+  assert.equal(result.size, 1);
+  await assertFails(getDoc(doc(staff, 'bookings/assigned-b')));
+  await assertFails(getDocs(collection(staff, 'bookings')));
+  await assertFails(getDocs(query(collection(staff, 'bookings'), where('barberId', '==', 'employee-b'))));
+  await assertSucceeds(getDocs(collection(ctx('admin'), 'bookings')));
+  await assertSucceeds(getDocs(query(collection(ctx('customer'), 'bookings'), where('userId', '==', 'customer'))));
+});
+
+test('Rules: anonymous and unverified staff cannot read assigned bookings', async () => {
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'bookings/assigned-a')));
+  await assertFails(getDoc(doc(ctx('staff-a', false), 'bookings/assigned-a')));
+});
+
+test('Rules: private links cannot be enumerated; users cannot self-assign or modify roles', async () => {
+  const staff = ctx('staff-a');
+  await assertSucceeds(getDoc(doc(staff, 'staff_accounts/staff-a')));
+  await assertSucceeds(getDoc(doc(staff, 'employee_accounts/employee-a')));
+  await assertFails(getDocs(collection(staff, 'staff_accounts')));
+  await assertFails(getDoc(doc(staff, 'staff_accounts/staff-b')));
+  await assertFails(getDoc(doc(staff, 'employee_accounts/employee-b')));
+  await assertFails(getDoc(doc(staff, 'users/customer')));
+  for (const uid of ['customer', 'staff-a', 'admin']) {
+    await assertFails(setDoc(doc(ctx(uid), 'staff_accounts/self'), { employeeId: 'employee-a', active: true }));
+    await assertFails(updateDoc(doc(ctx(uid), 'staff_accounts/staff-a'), { active: true }));
+    await assertFails(deleteDoc(doc(ctx(uid), 'employee_accounts/employee-a')));
+  }
+  await assertFails(setDoc(doc(ctx('customer'), 'admins/customer'), { role: 'admin' }));
+  await assertSucceeds(getDocs(collection(ctx('admin'), 'staff_accounts')));
+});
+
+test('Rules: staff cannot start/complete or reassign bookings in phase one', async () => {
+  for (const change of [{ status: 'completed' }, { status: 'in_service' }, { barberId: 'employee-b' }, { totalPrice: 1 }]) {
+    await assertFails(updateDoc(doc(ctx('staff-a'), 'bookings/assigned-a'), change));
+  }
+  await assertFails(setDoc(doc(ctx('staff-a'), 'work_shifts/unauthorized'), { employeeId: 'employee-a' }));
+  await assertFails(setDoc(doc(ctx('staff-a'), 'audit_events/forged'), { actorUid: 'admin' }));
+});
+
+test('Backend: anonymous/customer/staff cannot link or activate accounts', async () => {
+  for (const uid of [null, 'customer', 'staff-a']) {
+    const expected = uid ? 'permission-denied' : 'unauthenticated';
+    await rejectsCode(handlers.linkStaffAccount(request(uid, { uid: 'target', employeeId: 'employee-a' })), expected);
+    await rejectsCode(handlers.setStaffAccountActive(request(uid, { uid: 'staff-a', active: true })), expected);
+  }
+});
+
+test('Backend: validates existing Auth, verified/enabled accounts, employee and branch', async () => {
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'not-real', employeeId: 'employee-a' })), 'not-found');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'auth-disabled', employeeId: 'employee-a' })), 'failed-precondition');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'unverified', employeeId: 'employee-a' })), 'failed-precondition');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target', employeeId: 'not-real' })), 'not-found');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target', employeeId: 'employee-off' })), 'failed-precondition');
+  await db.doc('employees/bad-branch').set({ salonId: 'other', isActive: true });
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target', employeeId: 'bad-branch' })), 'failed-precondition');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: '../bad', employeeId: 'employee-a' })), 'invalid-argument');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target', employeeId: '..' })), 'invalid-argument');
+  await rejectsCode(handlers.setStaffAccountActive(request('admin', { uid: 'staff-a', active: 'true' })), 'invalid-argument');
+  await rejectsCode(handlers.setStaffAccountActive(request('admin', { uid: 'unverified', active: true })), 'failed-precondition');
+});
+
+test('Backend: links both directions atomically and replay does not duplicate audit', async () => {
+  await db.doc('employees/target-employee').set({ name: 'Target', salonId: 'salon_03', isActive: true });
+  const data = { uid: 'target', employeeId: 'target-employee' };
+  assert.equal((await handlers.linkStaffAccount(request('admin', data))).alreadyLinked, false);
+  assert.equal((await handlers.linkStaffAccount(request('admin', data))).alreadyLinked, true);
+  assert.equal((await db.doc('employee_accounts/target-employee').get()).data().uid, 'target');
+  assert.equal((await db.doc('staff_accounts/target').get()).data().employeeId, 'target-employee');
+  assert.equal((await db.collection('audit_events').where('targetUid', '==', 'target').get()).size, 1);
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target-2', employeeId: 'target-employee' })), 'already-exists');
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target', employeeId: 'employee-a' })), 'already-exists');
+});
+
+test('Backend: simultaneous links to one employee allow exactly one UID', async () => {
+  await db.doc('employees/race-employee').set({ salonId: 'salon_01', isActive: true });
+  const results = await Promise.allSettled(['duplicate-1', 'duplicate-2'].map((uid) =>
+    handlers.linkStaffAccount(request('admin', { uid, employeeId: 'race-employee' }))));
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(results.find((r) => r.status === 'rejected').reason.code, 'already-exists');
+});
+
+test('Backend: simultaneous links of one UID to two employees allow exactly one employee', async () => {
+  for (const id of ['race-a', 'race-b']) await db.doc(`employees/${id}`).set({ salonId: 'salon_01', isActive: true });
+  const results = await Promise.allSettled(['race-a', 'race-b'].map((employeeId) =>
+    handlers.linkStaffAccount(request('admin', { uid: 'same-uid', employeeId }))));
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(results.find((r) => r.status === 'rejected').reason.code, 'already-exists');
+});
+
+test('Backend + Rules: deactivation immediately denies a still-authenticated client', async () => {
+  const staff = ctx('staff-a');
+  await assertSucceeds(getDoc(doc(staff, 'bookings/assigned-a')));
+  await handlers.setStaffAccountActive(request('admin', { uid: 'staff-a', active: false }));
+  await assertFails(getDoc(doc(staff, 'bookings/assigned-a')));
+  await assertSucceeds(getDoc(doc(staff, 'staff_accounts/staff-a')));
+  await rejectsCode(handlers.linkStaffAccount(request('admin', { uid: 'target-off', employeeId: 'employee-a' })), 'already-exists');
+  await handlers.setStaffAccountActive(request('admin', { uid: 'staff-a', active: true }));
+  await assertSucceeds(getDoc(doc(staff, 'bookings/assigned-a')));
+});
+
+test('Rules: inactive/missing employee or broken inverse link fails closed', async () => {
+  const ref = db.doc('employees/employee-a');
+  await ref.update({ isActive: false });
+  await assertFails(getDoc(doc(ctx('staff-a'), 'bookings/assigned-a')));
+  await rejectsCode(handlers.setStaffAccountActive(request('admin', { uid: 'staff-a', active: true })), 'failed-precondition');
+  await ref.update({ isActive: true });
+  await db.doc('employee_accounts/employee-a').update({ uid: 'different' });
+  await assertFails(getDoc(doc(ctx('staff-a'), 'bookings/assigned-a')));
+  await db.doc('employee_accounts/employee-a').update({ uid: 'staff-a' });
+  await db.doc('staff_accounts/orphan').set({ employeeId: 'missing-employee', active: true });
+  await db.doc('employee_accounts/missing-employee').set({ uid: 'orphan' });
+  await db.doc('bookings/orphan-booking').set({ barberId: 'missing-employee', userId: 'customer', salonId: 'salon_01' });
+  await assertFails(getDoc(doc(ctx('orphan'), 'bookings/orphan-booking')));
+});
+
+test('Callable HTTP: verifies Auth token and applies admin authorization in Functions emulator', async () => {
+  const endpoint = `http://127.0.0.1:5001/${projectId}/asia-southeast1/linkStaffAccount`;
+  const anonymous = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} }) });
+  assert.equal(anonymous.status, 401);
+  const login = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'customer@example.test', password: 'Local-test-123!', returnSecureToken: true }),
+  });
+  assert.equal(login.status, 200);
+  const token = (await login.json()).idToken;
+  const denied = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ data: { uid: 'target', employeeId: 'employee-a' } }) });
+  assert.equal(denied.status, 403);
+  const adminLogin = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.test', password: 'Local-test-123!', returnSecureToken: true }),
+  });
+  assert.equal(adminLogin.status, 200);
+  await db.doc('employees/http-employee').set({ salonId: 'salon_03', isActive: true });
+  const adminToken = (await adminLogin.json()).idToken;
+  const linked = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ data: { uid: 'target-2', employeeId: 'http-employee' } }) });
+  assert.equal(linked.status, 200);
+  assert.equal((await linked.json()).result.employeeId, 'http-employee');
+});

@@ -1,5 +1,12 @@
 rules_version = '2';
 
+// Phase 1: staff_accounts/{authUid} -> {employeeId, active, createdAt,
+// updatedAt, updatedBy}. employee_accounts/{employeeId} -> {uid, createdAt}.
+// Both link directions and audit_events are written only by trusted callables.
+// employees.salonId remains the primary branch; no private Auth data is added.
+// Staff may read only assigned bookings. Shifts/statistics writes are not
+// enabled in phase 1. Existing customer/admin behavior is retained.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -9,6 +16,40 @@ service cloud.firestore {
     function admin() {
       return signedIn() &&
           exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function activeStaff() {
+      let accountPath = /databases/$(database)/documents/staff_accounts/$(request.auth.uid);
+      let account = get(accountPath).data;
+      let employeePath = /databases/$(database)/documents/employees/$(account.employeeId);
+      let linkPath = /databases/$(database)/documents/employee_accounts/$(account.employeeId);
+      return signedIn() && request.auth.token.email_verified == true &&
+          exists(accountPath) && account.active == true &&
+          exists(employeePath) && get(employeePath).data.get('isActive', true) == true &&
+          get(employeePath).data.salonId in ['salon_01', 'salon_02', 'salon_03'] &&
+          exists(linkPath) && get(linkPath).data.uid == request.auth.uid;
+    }
+
+    function assignedStaffBooking() {
+      return activeStaff() && resource.data.barberId ==
+          get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId;
+    }
+
+    match /staff_accounts/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || admin());
+      allow list: if admin();
+      allow write: if false;
+    }
+
+    match /employee_accounts/{employeeId} {
+      allow get: if admin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow list: if admin();
+      allow write: if false;
+    }
+
+    match /audit_events/{eventId} {
+      allow read: if admin();
+      allow write: if false;
     }
 
     function verifiedOrLegacyUser() {
@@ -328,7 +369,7 @@ service cloud.firestore {
 
     match /bookings/{bookingId} {
       allow read: if signedIn() &&
-          (resource.data.userId == request.auth.uid || admin());
+          (resource.data.userId == request.auth.uid || admin() || assignedStaffBooking());
 
       allow create: if signedIn() && validBookingCreate();
 

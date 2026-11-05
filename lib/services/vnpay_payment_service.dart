@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
+import 'staff_account_service.dart';
+
 class VnpayPaymentException implements Exception {
   final String message;
 
@@ -32,6 +34,11 @@ class VnpayPaymentService {
     required String bookingId,
     required User user,
   }) async {
+    if (StaffAccountService.emulatorEnabled) {
+      throw const VnpayPaymentException(
+        'Không gọi thanh toán thật từ bản Emulator.',
+      );
+    }
     final String? idToken = await user.getIdToken();
     if (idToken == null || idToken.isEmpty) {
       throw const VnpayPaymentException(

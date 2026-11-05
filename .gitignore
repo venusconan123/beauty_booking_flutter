@@ -1,4 +1,6 @@
 # Miscellaneous
+**/node_modules/
+.firebase/
 *.class
 *.lock
 *.log
