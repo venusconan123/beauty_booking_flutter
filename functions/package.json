@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node --test test/staff.emulator.test.cjs"
+    "test": "node --test --test-concurrency=1 test/staff.emulator.test.cjs test/scheduling.emulator.test.cjs"
   },
   "dependencies": {
     "firebase-admin": "14.5.0",

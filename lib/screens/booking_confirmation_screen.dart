@@ -427,12 +427,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     });
 
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': user.displayName ?? '',
-        'email': user.email ?? '',
-        'phone': phone,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'phone': phone, 'updatedAt': FieldValue.serverTimestamp()},
+      );
 
       final DateTime appointmentDateTime = _createAppointmentDateTime();
 
@@ -505,10 +502,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     } on StateError catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          backgroundColor: Colors.orange,
-        ),
+        SnackBar(content: Text(error.message), backgroundColor: Colors.orange),
       );
     } on FirebaseException catch (error) {
       if (!mounted) {
@@ -730,10 +724,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Chi nhánh chỉ sử dụng số này để liên hệ với bạn khi cần.',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                 ],
               ),

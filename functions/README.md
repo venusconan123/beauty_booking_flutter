@@ -1,8 +1,12 @@
 # Staff phase one — local review
 
-No production migration or deployment is included. `firebase.json` is unchanged.
-The pre-existing `tools/check-firebase-access.cjs` is retained; it is not used by
-the emulator or the test suite.
+Phase 2A implementation, safety boundaries and test/demo instructions are now
+documented in [PHASE_2A.md](PHASE_2A.md). This file retains the phase-one baseline.
+
+No production migration or deployment is included. The phase-one instructions
+below are historical; current local index configuration is described in the
+development handoff. Local permission-probe scripts are excluded from this commit
+and are not used by the emulator or test suite.
 
 ## Scope
 
@@ -35,7 +39,7 @@ without replacing the system installation.
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 $env:PATH = $env:JAVA_HOME + '\bin;' + $env:PATH
 npm --prefix functions ci
-npx -y firebase-tools@latest emulators:exec --project demo-men-hair-booking --config firebase.emulator.json --only "auth,firestore,functions" "npm --prefix functions test"
+npx -y firebase-tools@latest emulators:exec --project demo-men-hair-booking --config firebase.test.json --only "auth,firestore,functions" "npm --prefix functions test"
 flutter analyze --no-pub
 flutter test --no-pub
 node --test cloudflare_worker/test/payment.test.js
@@ -105,3 +109,9 @@ role routing, otherwise the new role reads will fail closed.
 - Dependency audit after compatible patches: 0 high/critical findings, 6
   moderate findings in indirect glob/minimatch/rimraf and Google client
   dependencies. No forced major transitive overrides were applied for these.
+
+## Development snapshot
+
+Monthly-roster development is paused and remains unverified. See
+[MONTHLY_ROSTER_WIP.md](MONTHLY_ROSTER_WIP.md) before continuing or interpreting
+the earlier verification results in this repository.

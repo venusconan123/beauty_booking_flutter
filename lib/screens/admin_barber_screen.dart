@@ -31,7 +31,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
 
   Future<void> _initialize() async {
     try {
-      await _service.ensureDefaults();
+      // Demo fixtures are seeded explicitly; opening a screen never overwrites employees.
     } catch (error) {
       _initializationError = '$error';
     } finally {
@@ -42,11 +42,13 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
   Future<void> _openForm([Barber? barber]) async {
     final name = TextEditingController(text: barber?.name ?? '');
     final age = TextEditingController(text: '${barber?.age ?? 25}');
-    final experience =
-        TextEditingController(text: '${barber?.experienceYears ?? 1}');
+    final experience = TextEditingController(
+      text: '${barber?.experienceYears ?? 1}',
+    );
     final rating = TextEditingController(text: '${barber?.rating ?? 5}');
-    final reviewCount =
-        TextEditingController(text: '${barber?.reviewCount ?? 0}');
+    final reviewCount = TextEditingController(
+      text: '${barber?.reviewCount ?? 0}',
+    );
     final imageUrl = TextEditingController(text: barber?.imageUrl ?? '');
     final skills = TextEditingController(
       text: barber?.skills.join(', ') ?? 'Cắt tóc, Tạo kiểu',
@@ -95,9 +97,8 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                         .toList(),
                     onChanged: saving
                         ? null
-                        : (value) => setDialogState(
-                            () => salonId = value ?? salonId,
-                          ),
+                        : (value) =>
+                              setDialogState(() => salonId = value ?? salonId),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -123,7 +124,10 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                           items: const [
                             DropdownMenuItem(value: 'Nam', child: Text('Nam')),
                             DropdownMenuItem(value: 'Nữ', child: Text('Nữ')),
-                            DropdownMenuItem(value: 'Khác', child: Text('Khác')),
+                            DropdownMenuItem(
+                              value: 'Khác',
+                              child: Text('Khác'),
+                            ),
                           ],
                           onChanged: saving
                               ? null
@@ -178,12 +182,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                     Icons.image_outlined,
                   ),
                   const SizedBox(height: 12),
-                  _input(
-                    bio,
-                    'Giới thiệu',
-                    Icons.notes_rounded,
-                    maxLines: 4,
-                  ),
+                  _input(bio, 'Giới thiệu', Icons.notes_rounded, maxLines: 4),
                   SwitchListTile.adaptive(
                     value: isActive,
                     activeTrackColor: _gold,
@@ -197,9 +196,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                     ),
                     onChanged: saving
                         ? null
-                        : (value) => setDialogState(
-                            () => isActive = value,
-                          ),
+                        : (value) => setDialogState(() => isActive = value),
                   ),
                 ],
               ),
@@ -333,11 +330,11 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: _panel,
         title: const Text(
-          'Xóa nhân viên',
+          'Ngừng hoạt động nhân viên',
           style: TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Bạn có chắc muốn xóa ${barber.name} khỏi hệ thống?',
+          'Ngừng hoạt động ${barber.name}? Hồ sơ và lịch sử vẫn được giữ lại.',
           style: const TextStyle(color: _muted),
         ),
         actions: [
@@ -350,7 +347,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
               backgroundColor: const Color(0xFFD94B4B),
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa'),
+            child: const Text('Ngừng hoạt động'),
           ),
         ],
       ),
@@ -385,10 +382,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
           SizedBox(
             height: 72,
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               scrollDirection: Axis.horizontal,
               itemCount: sampleSalons.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -412,9 +406,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
           ),
           if (_initializing)
             const Expanded(
-              child: Center(
-                child: CircularProgressIndicator(color: _gold),
-              ),
+              child: Center(child: CircularProgressIndicator(color: _gold)),
             )
           else if (_initializationError != null)
             Expanded(
@@ -435,9 +427,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                 stream: _service.watchAll(),
                 builder: (context, snapshot) {
                   final employees = (snapshot.data ?? const <Barber>[])
-                      .where(
-                        (barber) => barber.salonId == _selectedSalonId,
-                      )
+                      .where((barber) => barber.salonId == _selectedSalonId)
                       .toList();
                   if (!snapshot.hasData) {
                     return const Center(
@@ -457,13 +447,12 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                       final columns = constraints.maxWidth >= 1100
                           ? 3
                           : constraints.maxWidth >= 680
-                              ? 2
-                              : 1;
+                          ? 2
+                          : 1;
                       return GridView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                         itemCount: employees.length,
-                        gridDelegate:
-                            SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
                           crossAxisSpacing: 14,
                           mainAxisSpacing: 14,
@@ -501,11 +490,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                 : null,
             child: barber.imageUrl?.isNotEmpty == true
                 ? null
-                : const Icon(
-                    Icons.person_rounded,
-                    color: _gold,
-                    size: 42,
-                  ),
+                : const Icon(Icons.person_rounded, color: _gold, size: 42),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -532,11 +517,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                 const SizedBox(height: 7),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: _gold,
-                      size: 18,
-                    ),
+                    const Icon(Icons.star_rounded, color: _gold, size: 18),
                     Text(
                       ' ${barber.rating}',
                       style: const TextStyle(color: Colors.white),
@@ -567,15 +548,12 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: 'edit',
-                child: Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: Text('Chỉnh sửa', style: TextStyle(color: Colors.white)),
               ),
               PopupMenuItem(
                 value: 'delete',
                 child: Text(
-                  'Xóa',
+                  'Ngừng hoạt động',
                   style: TextStyle(color: Colors.redAccent),
                 ),
               ),
@@ -586,4 +564,3 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
     );
   }
 }
-

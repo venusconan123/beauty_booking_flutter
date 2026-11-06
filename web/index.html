@@ -33,6 +33,10 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <div id="app-startup" role="status" aria-live="polite"
+    style="position:fixed;inset:0;display:grid;place-content:center;background:#faf9ff;color:#1e3a5f;font:16px system-ui;text-align:center;z-index:9999;padding:24px">
+    <p id="app-startup-message">Đang mở ứng dụng…</p>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

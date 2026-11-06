@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'register_screen.dart';
+import '../services/staff_account_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -108,7 +109,9 @@ class _LoginScreenState extends State<LoginScreen> {
           message = 'Không có kết nối mạng.';
           break;
         default:
-          message = error.message ?? message;
+          message = StaffAccountService.emulatorEnabled
+              ? 'Demo: ${error.code} — ${error.message ?? message}'
+              : error.message ?? message;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +337,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: StaffAccountService.emulatorEnabled && !_isLoading
+          ? PopupMenuButton<String>(
+              tooltip: 'Đăng nhập demo',
+              onSelected: (role) {
+                _emailController.text = 'local-$role@example.test';
+                _passwordController.text = 'Local-demo-123!';
+                _login();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'admin', child: Text('Admin demo')),
+                PopupMenuItem(value: 'staff', child: Text('Nhân viên demo')),
+                PopupMenuItem(value: 'customer', child: Text('Khách hàng demo')),
+              ],
+              child: const Chip(avatar: Icon(Icons.science_outlined), label: Text('Demo')),
+            )
+          : null,
       backgroundColor: _ink,
       body: Stack(
         fit: StackFit.expand,

@@ -1,6 +1,6 @@
 {
   "functions": [{ "source": "functions", "codebase": "staff" }],
-  "firestore": { "rules": "firestore.rules" },
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
   "emulators": {
     "auth": { "host": "127.0.0.1", "port": 9099 },
     "firestore": { "host": "127.0.0.1", "port": 8080 },

@@ -1,3 +1,4 @@
+import '../services/scheduling_service.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -64,107 +65,24 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     if (_cleaningSlots) return;
     setState(() => _cleaningSlots = true);
     try {
-      final firestore = FirebaseFirestore.instance;
-      final results = await Future.wait([
-        firestore
-            .collection('booking_slots')
-            .where('salonId', isEqualTo: _selectedSalonId)
-            .get(),
-        firestore
-            .collection('bookings')
-            .where('salonId', isEqualTo: _selectedSalonId)
-            .get(),
-      ]);
-      final slotSnapshot = results[0];
-      final bookingSnapshot = results[1];
-      final bookingsById = {
-        for (final booking in bookingSnapshot.docs)
-          booking.id: booking.data(),
-      };
-      final staleSlots = slotSnapshot.docs.where((slot) {
-        final bookingId = slot.data()['bookingId']?.toString() ?? '';
-        final booking = bookingsById[bookingId];
-        if (booking == null) return false;
-        final status = booking['status']?.toString() ?? 'pending';
-        return status == 'cancelled' || status == 'completed';
-      }).toList();
-
-      if (!mounted) return;
-      if (staleSlots.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chi nhánh này không có khung giờ lỗi.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        return;
-      }
-
-      final salon = sampleSalons.firstWhere(
-        (item) => item.id == _selectedSalonId,
-      );
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: _surface,
-          title: const Text(
-            'Dọn khung giờ lỗi?',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Text(
-            'Tìm thấy ${staleSlots.length} khung giờ còn sót của các lịch '
-            'đã hủy hoặc hoàn thành tại ${salon.name}. Bạn có muốn giải '
-            'phóng các khung giờ này không?',
-            style: const TextStyle(color: _muted),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Không', style: TextStyle(color: _muted)),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.cleaning_services_rounded),
-              label: const Text('Dọn khung giờ'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-
-      for (var start = 0; start < staleSlots.length; start += 450) {
-        final end = (start + 450 < staleSlots.length)
-            ? start + 450
-            : staleSlots.length;
-        final batch = firestore.batch();
-        for (final slot in staleSlots.sublist(start, end)) {
-          batch.delete(slot.reference);
-        }
-        await batch.commit();
-      }
-
+      final result = await SchedulingService().call('releaseStaleSlots', {
+        'salonId': _selectedSalonId,
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Đã giải phóng ${staleSlots.length} khung giờ lỗi.',
+              'Đã giải phóng ${result['count']} khung giờ; lịch sử được giữ lại.',
             ),
-            backgroundColor: Colors.green,
           ),
         );
       }
-    } on FirebaseException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.code == 'permission-denied'
-                ? 'Tài khoản này không có quyền dọn khung giờ.'
-                : 'Không thể dọn khung giờ: ${error.message ?? error.code}',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
     } finally {
       if (mounted) setState(() => _cleaningSlots = false);
     }
@@ -217,9 +135,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final payment = data['payment'];
     final isPaid = payment is Map && payment['status'] == 'paid';
     final isPayLater = payment is Map && payment['choice'] == 'pay_later';
-    return status == 'pending' && (isPaid || isPayLater)
-        ? 'confirmed'
-        : status;
+    return status == 'pending' && (isPaid || isPayLater) ? 'confirmed' : status;
   }
 
   Color _statusColor(String status, {required bool isPaid}) {
@@ -342,141 +258,44 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       if (mounted) setState(() => _updatingBookingIds.remove(bookingId));
     }
-  }
-
-  ({String title, String message, String type}) _notificationForStatus(
-    String status,
-    String salonName,
-  ) {
-    return switch (status) {
-      'confirmed' => (
-        title: 'Lịch hẹn đã được xác nhận',
-        message: 'Hệ thống đã tự động xác nhận lịch hẹn tại $salonName.',
-        type: 'booking_confirmed',
-      ),
-      'completed' => (
-        title: 'Lịch hẹn đã hoàn thành',
-        message:
-            'Cảm ơn bạn đã sử dụng dịch vụ tại $salonName. Hãy để lại đánh giá nhé!',
-        type: 'booking_completed',
-      ),
-      _ => (
-        title: 'Lịch hẹn đã được cập nhật',
-        message: 'Trạng thái lịch hẹn tại $salonName vừa thay đổi.',
-        type: 'booking_updated',
-      ),
-    };
   }
 
   Future<void> _updateBookingAndNotify(
     String bookingId,
     String newStatus,
   ) async {
-    final firestore = FirebaseFirestore.instance;
-    final bookingReference = firestore.collection('bookings').doc(bookingId);
-    final bookingSnapshot = await bookingReference.get();
-    if (!bookingSnapshot.exists) return;
-    final data = bookingSnapshot.data()!;
-    final userId = data['userId']?.toString() ?? '';
-    final salonName = data['salonName']?.toString() ?? 'salon';
-    final notice = _notificationForStatus(newStatus, salonName);
-    final slotSnapshot = newStatus == 'completed'
-        ? await firestore
-            .collection('booking_slots')
-            .where('bookingId', isEqualTo: bookingId)
-            .get()
-        : null;
-    final batch = firestore.batch();
-    batch.update(bookingReference, {
+    await SchedulingService().call('changeBookingStatus', {
+      'bookingId': bookingId,
       'status': newStatus,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'requestId': SchedulingService.requestId(),
     });
-    if (userId.isNotEmpty) {
-      final notificationReference = firestore
-          .collection('users')
-          .doc(userId)
-          .collection('notifications')
-          .doc();
-      batch.set(notificationReference, {
-        'type': notice.type,
-        'title': notice.title,
-        'message': notice.message,
-        'bookingId': bookingId,
-        'salonId': data['salonId']?.toString() ?? '',
-        'salonName': salonName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
+    // Existing admin completion only; the staff service workflow remains phase 2B.
     if (newStatus == 'completed') {
-      final rawSlotIds = data['slotIds'] as List<dynamic>? ?? const [];
-      final slotIds = {
-        ...rawSlotIds.map((value) => value.toString()),
-        ...?slotSnapshot?.docs.map((document) => document.id),
-      };
-      for (final slotId in slotIds) {
-        batch.delete(firestore.collection('booking_slots').doc(slotId));
+      final booking = await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .get();
+      final userId = booking.data()?['userId'] as String?;
+      if (userId != null) {
+        await VoucherService().awardLoyaltyVoucherIfEligible(
+          userId: userId,
+          bookingId: bookingId,
+        );
       }
-    }
-    await batch.commit();
-    if (newStatus == 'completed' && userId.isNotEmpty) {
-      await VoucherService().awardLoyaltyVoucherIfEligible(
-        userId: userId,
-        bookingId: bookingId,
-      );
     }
   }
 
-  Future<void> _cancelBookingAsAdmin(String bookingId) async {
-    final firestore = FirebaseFirestore.instance;
-    final bookingReference = firestore.collection('bookings').doc(bookingId);
-    final notificationReference = firestore
-        .collection('_notification_ids')
-        .doc();
-    final slotSnapshot = await firestore
-        .collection('booking_slots')
-        .where('bookingId', isEqualTo: bookingId)
-        .get();
-    final discoveredSlotIds = slotSnapshot.docs
-        .map((document) => document.id)
-        .toSet();
-    await firestore.runTransaction<void>((transaction) async {
-      final bookingSnapshot = await transaction.get(bookingReference);
-      if (!bookingSnapshot.exists) return;
-      final data = bookingSnapshot.data()!;
-      final rawSlotIds = data['slotIds'] as List<dynamic>? ?? <dynamic>[];
-      transaction.update(bookingReference, {
-        'status': 'cancelled',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      final userId = data['userId']?.toString() ?? '';
-      if (userId.isNotEmpty) {
-        final userNotification = firestore
-            .collection('users')
-            .doc(userId)
-            .collection('notifications')
-            .doc(notificationReference.id);
-        transaction.set(userNotification, {
-          'type': 'booking_cancelled',
-          'title': 'Lịch hẹn đã bị hủy',
-          'message': 'Lịch hẹn tại ${data['salonName'] ?? 'salon'} đã bị hủy.',
-          'bookingId': bookingId,
-          'salonId': data['salonId']?.toString() ?? '',
-          'salonName': data['salonName']?.toString() ?? '',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      final slotIds = {
-        ...rawSlotIds.map((value) => value.toString()),
-        ...discoveredSlotIds,
-      };
-      for (final slotId in slotIds) {
-        transaction.delete(firestore.collection('booking_slots').doc(slotId));
-      }
-    });
-  }
+  Future<void> _cancelBookingAsAdmin(String bookingId) =>
+      _updateBookingAndNotify(bookingId, 'cancelled');
 
   @override
   Widget build(BuildContext context) {
@@ -1023,21 +842,24 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     if (vouchers.isEmpty && data['voucher'] is Map) {
       vouchers.add(Map<String, dynamic>.from(data['voucher'] as Map));
     }
-    final voucherSummary = vouchers.map((voucher) {
-      final storedCode = voucher['code']?.toString() ?? '';
-      final source = voucher['source']?.toString() ?? '';
-      final storedRewardType = voucher['rewardType']?.toString() ?? '';
-      final isOrderReward = storedRewardType == 'minimum_order' ||
-          source == 'loyalty_order' ||
-          storedCode.toUpperCase().startsWith('DON') ||
-          storedCode.toUpperCase() == 'CHITIEU';
-      final rewardType = isOrderReward ? 'minimum_order' : 'visit_count';
-      final code = rewardType == 'minimum_order' ? 'CHITIEU' : storedCode;
-      final percent = (voucher['discountPercent'] as num?)?.toInt() ?? 0;
-      return '$code ($percent%)';
-    }).where((summary) => !summary.startsWith(' (')).join(' + ');
-    final discountAmount =
-        (data['discountAmount'] as num?)?.toInt() ?? 0;
+    final voucherSummary = vouchers
+        .map((voucher) {
+          final storedCode = voucher['code']?.toString() ?? '';
+          final source = voucher['source']?.toString() ?? '';
+          final storedRewardType = voucher['rewardType']?.toString() ?? '';
+          final isOrderReward =
+              storedRewardType == 'minimum_order' ||
+              source == 'loyalty_order' ||
+              storedCode.toUpperCase().startsWith('DON') ||
+              storedCode.toUpperCase() == 'CHITIEU';
+          final rewardType = isOrderReward ? 'minimum_order' : 'visit_count';
+          final code = rewardType == 'minimum_order' ? 'CHITIEU' : storedCode;
+          final percent = (voucher['discountPercent'] as num?)?.toInt() ?? 0;
+          return '$code ($percent%)';
+        })
+        .where((summary) => !summary.startsWith(' ('))
+        .join(' + ');
+    final discountAmount = (data['discountAmount'] as num?)?.toInt() ?? 0;
     final hairstyle = data['hairstyle'] is Map
         ? Map<String, dynamic>.from(data['hairstyle'] as Map)
         : const <String, dynamic>{};
@@ -1271,10 +1093,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     );
   }
 
-  Widget _actionButtons({
-    required String bookingId,
-    required String status,
-  }) {
+  Widget _actionButtons({required String bookingId, required String status}) {
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 9,

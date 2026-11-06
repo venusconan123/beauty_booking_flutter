@@ -11,6 +11,7 @@ import 'admin_dashboard_screen.dart';
 import 'admin_booking_screen.dart';
 import 'admin_barber_screen.dart';
 import 'admin_staff_accounts_screen.dart';
+import 'work_shifts_screen.dart';
 import 'admin_hairstyle_screen.dart';
 import 'admin_loyalty_settings_screen.dart';
 import 'admin_notification_screen.dart';
@@ -238,6 +239,12 @@ class HomeScreen extends StatelessWidget {
                   builder: (_) => const AdminStaffAccountsScreen(),
                 ),
               );
+            } else if (value == 'work_shifts') {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const WorkShiftsScreen(),
+                ),
+              );
             } else if (value == 'notifications') {
               _openAdminNotificationScreen(context);
             } else if (value == 'reports') {
@@ -255,6 +262,16 @@ class HomeScreen extends StatelessWidget {
             }
           },
           itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'work_shifts',
+              child: ListTile(
+                leading: Icon(Icons.calendar_month, color: _gold),
+                title: Text(
+                  'Lịch làm nhân viên',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
             PopupMenuItem(
               value: 'staff_accounts',
               child: ListTile(

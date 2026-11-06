@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/staff_access.dart';
+import 'work_shifts_screen.dart';
 
 class StaffPortalScreen extends StatefulWidget {
   const StaffPortalScreen({super.key, required this.access});
@@ -41,6 +42,7 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> {
     access: widget.access,
     email: FirebaseAuth.instance.currentUser?.email ?? '',
     onSignOut: () => FirebaseAuth.instance.signOut(),
+    shifts: WorkShiftsScreen(access: widget.access),
     bookings: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _bookings,
       builder: (context, snapshot) {
@@ -76,11 +78,13 @@ class StaffWorkspace extends StatefulWidget {
     required this.email,
     required this.onSignOut,
     required this.bookings,
+    this.shifts,
   });
   final StaffAccess access;
   final String email;
   final VoidCallback onSignOut;
   final Widget bookings;
+  final Widget? shifts;
 
   @override
   State<StaffWorkspace> createState() => _StaffWorkspaceState();
@@ -96,10 +100,12 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
       appBar: AppBar(title: Text('${titles[_tab]} • ${widget.access.name}')),
       body: switch (_tab) {
         0 => widget.bookings,
-        1 => const StaffPhaseOnePlaceholder(
-          icon: Icons.calendar_month_outlined,
-          text: 'Lịch làm sẽ có trong phiên bản tiếp theo.',
-        ),
+        1 =>
+          widget.shifts ??
+              const StaffPhaseOnePlaceholder(
+                icon: Icons.calendar_month_outlined,
+                text: 'Lịch làm sẽ có trong phiên bản tiếp theo.',
+              ),
         2 => const StaffPhaseOnePlaceholder(
           icon: Icons.bar_chart,
           text: 'Thống kê sẽ có trong phiên bản tiếp theo.',

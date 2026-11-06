@@ -8,6 +8,7 @@ import 'screens/auth_gate.dart';
 import 'services/staff_account_service.dart';
 
 Future<void> main() async {
+  debugPrint('[startup] dart-main');
   WidgetsFlutterBinding.ensureInitialized();
 
   if (StaffAccountService.emulatorEnabled) {
@@ -20,18 +21,22 @@ Future<void> main() async {
         projectId: 'demo-men-hair-booking',
       ),
     );
+    debugPrint('[startup] firebase-ready (demo)');
     const host = StaffAccountService.emulatorHost;
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+    debugPrint('[startup] auth-emulator-ready');
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: false,
     );
     FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+    debugPrint('[startup] firestore-emulator-ready');
   } else {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
 
+  debugPrint('[startup] run-app');
   runApp(const MenHairBookingApp());
 }
 
@@ -48,6 +53,9 @@ class MenHairBookingApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const AuthGate(),
+      builder: (context, child) => StaffAccountService.emulatorEnabled
+          ? Padding(padding: const EdgeInsets.only(bottom: 48), child: child)
+          : child ?? const SizedBox.shrink(),
     );
   }
 }

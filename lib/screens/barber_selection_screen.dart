@@ -20,8 +20,7 @@ class BarberSelectionScreen extends StatefulWidget {
   });
 
   @override
-  State<BarberSelectionScreen> createState() =>
-      _BarberSelectionScreenState();
+  State<BarberSelectionScreen> createState() => _BarberSelectionScreenState();
 }
 
 class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
@@ -37,11 +36,14 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
   void _continue() {
     if (_selectedBarberId == null) return;
     final useAnyBarber = _selectedBarberId == 'any_barber';
+    if (!useAnyBarber && !_barbers.any((barber) => barber.id == _selectedBarberId)) {
+      setState(() => _selectedBarberId = null);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lịch làm đã thay đổi. Vui lòng chọn lại nhân viên.')));
+      return;
+    }
     final selectedBarber = useAnyBarber
         ? null
-        : _barbers.firstWhere(
-            (barber) => barber.id == _selectedBarberId,
-          );
+        : _barbers.firstWhere((barber) => barber.id == _selectedBarberId);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => DateTimeSelectionScreen(
@@ -70,16 +72,22 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
       body: StreamBuilder<List<Barber>>(
         stream: BarberService().watchBySalon(widget.salon.id),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.hasError) {
             return const Center(
-              child: CircularProgressIndicator(color: _gold),
+              child: Text(
+                'Không thể kiểm tra lịch làm. Vui lòng thử lại.',
+                style: TextStyle(color: _muted),
+              ),
             );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator(color: _gold));
           }
           _barbers = snapshot.data!;
           if (_barbers.isEmpty) {
             return const Center(
               child: Text(
-                'Chi nhánh hiện chưa có nhân viên.',
+                'Chi nhánh chưa có nhân viên được xếp ca trong 7 ngày tới.',
                 style: TextStyle(color: _muted),
               ),
             );
@@ -117,10 +125,10 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
                   final columns = constraints.maxWidth >= 1000
                       ? 4
                       : constraints.maxWidth >= 680
-                          ? 3
-                          : constraints.maxWidth >= 460
-                              ? 2
-                              : 1;
+                      ? 3
+                      : constraints.maxWidth >= 460
+                      ? 2
+                      : 1;
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -151,8 +159,7 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
           child: SizedBox(
             height: 51,
             child: FilledButton.icon(
-              onPressed:
-                  _selectedBarberId == null ? null : _continue,
+              onPressed: _selectedBarberId == null ? null : _continue,
               style: FilledButton.styleFrom(
                 backgroundColor: _gold,
                 foregroundColor: _ink,
@@ -236,11 +243,7 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
                   : null,
               child: barber.imageUrl?.isNotEmpty == true
                   ? null
-                  : const Icon(
-                      Icons.person_rounded,
-                      size: 48,
-                      color: _gold,
-                    ),
+                  : const Icon(Icons.person_rounded, size: 48, color: _gold),
             ),
             const SizedBox(height: 11),
             Text(
@@ -290,4 +293,3 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
     );
   }
 }
-

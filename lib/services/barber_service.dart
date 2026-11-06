@@ -2,26 +2,44 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
+import 'scheduling_service.dart';
+import 'staff_account_service.dart';
 
 class BarberService {
   final CollectionReference<Map<String, dynamic>> _collection =
       FirebaseFirestore.instance.collection('employees');
 
   Stream<List<Barber>> watchBySalon(String salonId) {
-    return _collection.snapshots().map(
-      (snapshot) {
-        final barbers = snapshot.docs
-            .where((document) => document.id != '_catalog')
-            .map((document) => Barber.fromDocument(document.id, document.data()))
-            .where((barber) => barber.salonId == salonId && barber.isActive)
-            .toList();
-        if (snapshot.docs.isEmpty) {
-          return getBarbersBySalonId(salonId).map(_profiled).toList();
-        }
-        barbers.sort((first, second) => second.rating.compareTo(first.rating));
-        return barbers;
-      },
-    );
+    if (StaffAccountService.emulatorEnabled) return _scheduledBarbers(salonId);
+    return _collection.snapshots().map((snapshot) {
+      final barbers = snapshot.docs
+          .where((document) => document.id != '_catalog')
+          .map((document) => Barber.fromDocument(document.id, document.data()))
+          .where((barber) => barber.salonId == salonId && barber.isActive)
+          .toList();
+      if (snapshot.docs.isEmpty) {
+        return getBarbersBySalonId(salonId).map(_profiled).toList();
+      }
+      barbers.sort((first, second) => second.rating.compareTo(first.rating));
+      return barbers;
+    });
+  }
+
+  Stream<List<Barber>> _scheduledBarbers(String salonId) async* {
+    while (true) {
+      final result = await SchedulingService().call('listBookableStaff', {
+        'salonId': salonId,
+      });
+      yield (result['employees'] as List)
+          .map(
+            (row) => Barber.fromDocument(
+              (row as Map)['id'] as String,
+              Map<String, dynamic>.from(row),
+            ),
+          )
+          .toList();
+      await Future<void>.delayed(const Duration(seconds: 10));
+    }
   }
 
   Stream<List<Barber>> watchAll() {
@@ -91,7 +109,10 @@ class BarberService {
     });
   }
 
-  Future<void> delete(String id) => _collection.doc(id).delete();
+  Future<void> delete(String id) => _collection.doc(id).update({
+    'isActive': false,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
 
   Barber _profiled(Barber barber) {
     final number = int.tryParse(barber.id.split('_').last) ?? 1;
@@ -113,7 +134,8 @@ class BarberService {
       gender: 'Nam',
       skills: skillSets[(number - 1) % skillSets.length],
       reviewCount: 68 + number * 17,
-      bio: 'Chuyên gia tóc nam với ${barber.experienceYears} năm kinh nghiệm, '
+      bio:
+          'Chuyên gia tóc nam với ${barber.experienceYears} năm kinh nghiệm, '
           'tư vấn kiểu tóc phù hợp khuôn mặt và phong cách cá nhân.',
       isActive: true,
     );

@@ -7,7 +7,7 @@ const path = require('node:path');
 // Fail before constructing any SDK client if this is not a local demo suite.
 const projectId = 'demo-men-hair-booking';
 for (const [name, expected] of Object.entries({
-  FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080', FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+  FIRESTORE_EMULATOR_HOST: '127.0.0.1:8180', FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9199',
 })) {
   assert.equal(process.env[name], expected, `Refusing to run without local ${name}`);
 }
@@ -30,7 +30,7 @@ const rejectsCode = (promise, code) => assert.rejects(promise, (error) => error.
 
 before(async () => {
   env = await initializeTestEnvironment({ projectId, firestore: {
-    host: '127.0.0.1', port: 8080,
+    host: '127.0.0.1', port: 8180,
     rules: fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8'),
   }});
   for (const uid of ['admin', 'staff-a', 'staff-b', 'customer', 'target', 'target-2', 'target-off',
@@ -175,10 +175,10 @@ test('Rules: inactive/missing employee or broken inverse link fails closed', asy
 });
 
 test('Callable HTTP: verifies Auth token and applies admin authorization in Functions emulator', async () => {
-  const endpoint = `http://127.0.0.1:5001/${projectId}/asia-southeast1/linkStaffAccount`;
+  const endpoint = `http://127.0.0.1:5101/${projectId}/asia-southeast1/linkStaffAccount`;
   const anonymous = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} }) });
   assert.equal(anonymous.status, 401);
-  const login = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+  const login = await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'customer@example.test', password: 'Local-test-123!', returnSecureToken: true }),
   });
@@ -187,7 +187,7 @@ test('Callable HTTP: verifies Auth token and applies admin authorization in Func
   const denied = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ data: { uid: 'target', employeeId: 'employee-a' } }) });
   assert.equal(denied.status, 403);
-  const adminLogin = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+  const adminLogin = await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'admin@example.test', password: 'Local-test-123!', returnSecureToken: true }),
   });
@@ -198,4 +198,48 @@ test('Callable HTTP: verifies Auth token and applies admin authorization in Func
     body: JSON.stringify({ data: { uid: 'target-2', employeeId: 'http-employee' } }) });
   assert.equal(linked.status, 200);
   assert.equal((await linked.json()).result.employeeId, 'http-employee');
+});
+
+test('Callable HTTP: admin creates a shift, customer books it, staff cannot mutate shifts', async () => {
+  async function tokenFor(email) {
+    const response = await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'Local-test-123!', returnSecureToken: true }),
+    });
+    assert.equal(response.status, 200);
+    return (await response.json()).idToken;
+  }
+  async function call(name, token, data) {
+    const response = await fetch(`http://127.0.0.1:5101/${projectId}/asia-southeast1/${name}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ data }),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+  const adminToken = await tokenFor('admin@example.test');
+  const customerToken = await tokenFor('customer@example.test');
+  const staffToken = await tokenFor('staff-a@example.test');
+  const { dateKey, dayStart } = require('../src/scheduling');
+  const date = dateKey(Date.now() + 2 * 86400000);
+  await db.doc('employees/http-schedule-worker').set({ name: 'HTTP worker', salonId: 'salon_01', isActive: true });
+  await db.doc('services/http-cut').set({ name: 'HTTP cut', durationMinutes: 30, price: 80000, isActive: true });
+  const payload = { requestId: 'http-shift', employeeId: 'http-schedule-worker', salonId: 'salon_01', dates: [date], startMinute: 540, endMinute: 660 };
+  assert.equal((await call('saveShifts', staffToken, payload)).status, 403);
+  assert.equal((await call('saveShifts', customerToken, payload)).status, 403);
+  const shift = await call('saveShifts', adminToken, payload);
+  assert.equal(shift.status, 200, JSON.stringify(shift.body));
+  const bookingData = { requestId: 'http-booking', barberId: payload.employeeId, salonId: payload.salonId,
+    serviceIds: ['http-cut'], appointmentAt: dayStart(date) + 540 * 60000, userPhone: '0901234567', paymentChoice: 'pay_later' };
+  const booked = await call('createBooking', customerToken, bookingData);
+  assert.equal(booked.status, 200, JSON.stringify(booked.body));
+  const replay = await call('createBooking', customerToken, bookingData);
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.result.bookingId, booked.body.result.bookingId);
+  const saved = (await db.doc(`bookings/${booked.body.result.bookingId}`).get()).data();
+  assert.equal(saved.workShiftId, shift.body.result.shiftIds[0]);
+  assert.equal(saved.totalPrice, 80000);
+  assert.equal(saved.totalDurationMinutes, 30);
+  assert.equal((await call('createBooking', customerToken, { ...bookingData, requestId: 'http-conflict' })).status, 400);
+  assert.equal((await call('cancelShift', adminToken, { requestId: 'http-cancel', shiftId: saved.workShiftId, expectedRevision: 1 })).status, 400);
+  assert.equal((await db.doc(`work_shifts/${saved.workShiftId}`).get()).data().status, 'scheduled');
 });
