@@ -575,7 +575,9 @@ class WorkspaceStore {
     _changed('Hủy ca $id');
   }
 
-  void swapShifts(String aId, String bId) {
+  /// Preview a strict two-shift transfer or an explicit two-day schedule exchange.
+  /// Every active shift/OFF on all branches is included in wholeDays mode.
+  List<RowData> previewSwap(String aId, String bId, {bool wholeDays = false}) {
     _admin();
     final a = shifts.firstWhere((s) => s['id'] == aId),
         b = shifts.firstWhere((s) => s['id'] == bId);
@@ -587,48 +589,106 @@ class WorkspaceStore {
         'Chọn hai ca làm của hai nhân viên ở hai ngày khác nhau. OFF không phải ca làm.',
       );
     }
-    for (final employee in [
-      a['employeeId'] as String,
-      b['employeeId'] as String,
-    ]) {
+    final employees = [a['employeeId'] as String, b['employeeId'] as String];
+    final days = [a['day'] as String, b['day'] as String];
+    for (final employee in employees) {
       if (person(employee)['active'] != true) {
         throw StateError('Nhân viên đã ngừng hoạt động.');
       }
-      for (final day in [a['day'] as String, b['day'] as String]) {
+      for (final day in days) {
         if (day.compareTo(dayKey(today)) < 0) {
           throw StateError('Không đổi ca trong quá khứ.');
         }
-        if (liveBookings(employee, day).isNotEmpty) {
+        final live = liveBookings(employee, day);
+        if (live.isNotEmpty) {
+          final booking = live.first;
           throw StateError(
-            '${person(employee)['name']} có lịch khách ngày ${shortDate(day)}. Cần trống cả hai người trong cả hai ngày.',
+            '${person(employee)['name']} có lịch khách ${clockText(booking['start'] as int)} ngày ${shortDate(day)} tại ${branchName(booking['salonId'] as String)}. Cần trống lịch khách ở cả hai người trong cả hai ngày.',
           );
         }
       }
     }
-    for (final pair in [
-      (a, b['employeeId'] as String),
-      (b, a['employeeId'] as String),
-    ]) {
-      for (final s in activeShifts(
-        pair.$2,
-        pair.$1['day'] as String,
-      ).where((s) => s['id'] != aId && s['id'] != bId)) {
-        if (_overlaps(
-          pair.$1['start'] as int,
-          pair.$1['end'] as int,
-          s['start'] as int,
-          s['end'] as int,
-        )) {
-          throw StateError(
-            '${person(pair.$2)['name']} trùng ${s['code']} ${clockText(s['start'] as int)}–${clockText(s['end'] as int)} ngày ${shortDate(s['day'] as String)} tại ${branchName(s['salonId'] as String)}.',
-          );
+    final affected = wholeDays
+        ? shifts
+              .where(
+                (s) =>
+                    employees.contains(s['employeeId']) &&
+                    days.contains(s['day']) &&
+                    s['status'] != 'cancelled',
+              )
+              .toList()
+        : [a, b];
+    final changes = [
+      for (final shift in affected)
+        <String, dynamic>{
+          ...shift,
+          'nextEmployeeId': shift['employeeId'] == employees[0]
+              ? employees[1]
+              : employees[0],
+        },
+    ]..sort((x, y) => (x['id'] as String).compareTo(y['id'] as String));
+    final byId = {for (final change in changes) change['id']: change};
+    for (final employee in employees) {
+      for (final day in days) {
+        final finalRows = shifts
+            .where(
+              (shift) =>
+                  shift['day'] == day &&
+                  shift['status'] != 'cancelled' &&
+                  (byId[shift['id']]?['nextEmployeeId'] ??
+                          shift['employeeId']) ==
+                      employee,
+            )
+            .toList();
+        for (var i = 0; i < finalRows.length; i++) {
+          for (var j = i + 1; j < finalRows.length; j++) {
+            final x = finalRows[i], y = finalRows[j];
+            if (_overlaps(
+              x['start'] as int,
+              x['end'] as int,
+              y['start'] as int,
+              y['end'] as int,
+            )) {
+              final existing = byId.containsKey(x['id']) ? y : x;
+              throw StateError(
+                '${person(employee)['name']} trùng ${existing['code']} ${clockText(existing['start'] as int)}–${clockText(existing['end'] as int)} ngày ${shortDate(day)} tại ${branchName(existing['salonId'] as String)}.',
+              );
+            }
+          }
         }
       }
     }
-    final first = a['employeeId'];
-    a['employeeId'] = b['employeeId'];
-    b['employeeId'] = first;
-    _changed('Đổi hai ca A/B');
+    return changes;
+  }
+
+  void swapShifts(String aId, String bId, {String? expected}) =>
+      _applySwap(aId, bId, wholeDays: false, expected: expected);
+
+  void swapEmployeeDays(String aId, String bId, {required String expected}) =>
+      _applySwap(aId, bId, wholeDays: true, expected: expected);
+
+  void _applySwap(
+    String aId,
+    String bId, {
+    required bool wholeDays,
+    String? expected,
+  }) {
+    // Recheck roles, all four booking conditions and all final intervals at save.
+    final changes = previewSwap(aId, bId, wholeDays: wholeDays);
+    if (expected != null && jsonEncode(changes) != expected) {
+      throw StateError(
+        'Lịch đã thay đổi sau khi xem trước. Hãy đóng và chọn lại để xem bản mới.',
+      );
+    }
+    for (final change in changes) {
+      shifts.firstWhere((s) => s['id'] == change['id'])['employeeId'] =
+          change['nextEmployeeId'];
+    }
+    _changed(
+      wholeDays
+          ? 'Hoán đổi lịch 2 ngày (${changes.length} ca/OFF)'
+          : 'Đổi hai ca A/B',
+    );
   }
 
   void savePerson(RowData p) {
