@@ -38,6 +38,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final PageController _pageController = PageController();
   final BarberService _barberService = BarberService();
+  Future<List<Barber>>? _employeesFuture;
   final HairServiceCatalog _serviceCatalog = HairServiceCatalog();
   final SalonContactService _contactService = SalonContactService();
   StreamSubscription<String>? _hotlineSubscription;
@@ -47,22 +48,22 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   void initState() {
     super.initState();
     _hotline = widget.salon.hotline;
-    _hotlineSubscription = _contactService
-        .watchHotline(widget.salon)
-        .listen((value) {
-          if (mounted && value != _hotline) {
-            setState(() => _hotline = value);
-          }
-        }, onError: (_) {});
+    _hotlineSubscription = _contactService.watchHotline(widget.salon).listen((
+      value,
+    ) {
+      if (mounted && value != _hotline) {
+        setState(() => _hotline = value);
+      }
+    }, onError: (_) {});
   }
 
   Future<void> _callHotline() async {
     final phone = _hotline.replaceAll(RegExp(r'[^0-9+]'), '');
     final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
     if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hotline: $_hotline')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Hotline: $_hotline')));
     }
   }
 
@@ -107,10 +108,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _panel,
-        title: const Text(
-          'Gửi báo cáo',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Gửi báo cáo', style: TextStyle(color: Colors.white)),
         content: Text(
           'Bạn muốn báo cáo thông tin “$targetName” để admin kiểm tra?',
           style: const TextStyle(color: _muted),
@@ -290,9 +288,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             label: Text(_sections[index].$2),
             selectedColor: _gold,
             backgroundColor: _field,
-            side: BorderSide(
-              color: selected ? _gold : const Color(0x445D7390),
-            ),
+            side: BorderSide(color: selected ? _gold : const Color(0x445D7390)),
             labelStyle: TextStyle(
               color: selected ? _ink : Colors.white,
               fontWeight: FontWeight.w800,
@@ -507,10 +503,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                 label: 'Có chỗ để xe',
               ),
               SizedBox(height: 10),
-              _FacilityRow(
-                icon: Icons.wifi_rounded,
-                label: 'Wi-Fi miễn phí',
-              ),
+              _FacilityRow(icon: Icons.wifi_rounded, label: 'Wi-Fi miễn phí'),
               SizedBox(height: 10),
               _FacilityRow(
                 icon: Icons.ac_unit_rounded,
@@ -530,10 +523,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         Icon(icon, color: color, size: 21),
         const SizedBox(width: 9),
         Expanded(
-          child: Text(
-            text,
-            style: TextStyle(color: color, height: 1.4),
-          ),
+          child: Text(text, style: TextStyle(color: color, height: 1.4)),
         ),
       ],
     );
@@ -652,11 +642,13 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       }).toList();
       bookings.sort((first, second) {
         final firstTime =
-            (first.data()['appointmentAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                0;
+            (first.data()['appointmentAt'] as Timestamp?)
+                ?.millisecondsSinceEpoch ??
+            0;
         final secondTime =
-            (second.data()['appointmentAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                0;
+            (second.data()['appointmentAt'] as Timestamp?)
+                ?.millisecondsSinceEpoch ??
+            0;
         return secondTime.compareTo(firstTime);
       });
 
@@ -950,18 +942,43 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   }
 
   Widget _employeesPage() {
-    return StreamBuilder<List<Barber>>(
-      stream: _barberService.watchBySalon(widget.salon.id),
+    return FutureBuilder<List<Barber>>(
+      future: _employeesFuture ??= _barberService
+          .watchBySalon(widget.salon.id)
+          .first,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: _gold),
+        void refresh() => setState(
+          () => _employeesFuture = _barberService
+              .watchBySalon(widget.salon.id)
+              .first,
+        );
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Không thể tải danh sách thợ.',
+                  style: TextStyle(color: _muted),
+                ),
+                TextButton(onPressed: refresh, child: const Text('Thử lại')),
+              ],
+            ),
           );
+        }
+        if (!snapshot.hasData ||
+            snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _gold));
         }
         final employees = snapshot.data!;
         return ListView(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
           children: [
+            TextButton.icon(
+              onPressed: refresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Làm mới danh sách thợ'),
+            ),
             _sectionHeading(
               'Đội ngũ nhân viên',
               'Xem hồ sơ, kinh nghiệm và đánh giá của từng thợ',
@@ -990,11 +1007,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                 : null,
             child: barber.imageUrl?.isNotEmpty == true
                 ? null
-                : const Icon(
-                    Icons.person_rounded,
-                    color: _gold,
-                    size: 45,
-                  ),
+                : const Icon(Icons.person_rounded, color: _gold, size: 45),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -1032,10 +1045,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                           ),
                           child: Text(
                             skill,
-                            style: const TextStyle(
-                              color: _muted,
-                              fontSize: 11,
-                            ),
+                            style: const TextStyle(color: _muted, fontSize: 11),
                           ),
                         ),
                       )
@@ -1155,18 +1165,18 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: _gold),
-          );
+          return const Center(child: CircularProgressIndicator(color: _gold));
         }
         final reviews = [...snapshot.data!.docs];
         reviews.sort((first, second) {
           final firstTime =
-              (first.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                  0;
+              (first.data()['createdAt'] as Timestamp?)
+                  ?.millisecondsSinceEpoch ??
+              0;
           final secondTime =
-              (second.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                  0;
+              (second.data()['createdAt'] as Timestamp?)
+                  ?.millisecondsSinceEpoch ??
+              0;
           return secondTime.compareTo(firstTime);
         });
         return ListView(
@@ -1207,12 +1217,12 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     final average = reviews.isEmpty
         ? widget.salon.rating
         : reviews
-                .map(
-                  (review) =>
-                      (review.data()['salonRating'] as num?)?.toDouble() ?? 0,
-                )
-                .fold<double>(0, (total, value) => total + value) /
-            reviews.length;
+                  .map(
+                    (review) =>
+                        (review.data()['salonRating'] as num?)?.toDouble() ?? 0,
+                  )
+                  .fold<double>(0, (total, value) => total + value) /
+              reviews.length;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: _panelDecoration(),
@@ -1450,10 +1460,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: _gold,
               foregroundColor: _ink,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 17,
-                vertical: 14,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
             ),
             icon: const Icon(Icons.calendar_month_rounded, size: 20),
             label: const Text(
@@ -1516,9 +1523,7 @@ class _FacilityRow extends StatelessWidget {
         const SizedBox(width: 9),
         Text(
           label,
-          style: const TextStyle(
-            color: _SalonDetailScreenState._muted,
-          ),
+          style: const TextStyle(color: _SalonDetailScreenState._muted),
         ),
       ],
     );

@@ -11,12 +11,14 @@ class BarberSelectionScreen extends StatefulWidget {
   final Salon salon;
   final List<HairService> selectedServices;
   final Hairstyle? selectedHairstyle;
+  final Stream<List<Barber>> Function(String)? loadBarbers;
 
   const BarberSelectionScreen({
     super.key,
     required this.salon,
     required this.selectedServices,
     this.selectedHairstyle,
+    this.loadBarbers,
   });
 
   @override
@@ -32,29 +34,54 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
 
   String? _selectedBarberId;
   List<Barber> _barbers = const [];
+  late Stream<List<Barber>> _barbersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _barbersStream = _load();
+  }
+
+  Stream<List<Barber>> _load() =>
+      (widget.loadBarbers ?? BarberService().watchBySalon)(widget.salon.id);
+
+  void _refresh() => setState(() {
+    _selectedBarberId = null;
+    _barbers = const [];
+    _barbersStream = _load();
+  });
 
   void _continue() {
     if (_selectedBarberId == null) return;
     final useAnyBarber = _selectedBarberId == 'any_barber';
-    if (!useAnyBarber && !_barbers.any((barber) => barber.id == _selectedBarberId)) {
+    if (!useAnyBarber &&
+        !_barbers.any((barber) => barber.id == _selectedBarberId)) {
       setState(() => _selectedBarberId = null);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lịch làm đã thay đổi. Vui lòng chọn lại nhân viên.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lịch làm đã thay đổi. Vui lòng chọn lại nhân viên.'),
+        ),
+      );
       return;
     }
     final selectedBarber = useAnyBarber
         ? null
         : _barbers.firstWhere((barber) => barber.id == _selectedBarberId);
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => DateTimeSelectionScreen(
-          salon: widget.salon,
-          selectedServices: widget.selectedServices,
-          selectedHairstyle: widget.selectedHairstyle,
-          selectedBarber: selectedBarber,
-          useAnyBarber: useAnyBarber,
-        ),
-      ),
-    );
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => DateTimeSelectionScreen(
+              salon: widget.salon,
+              selectedServices: widget.selectedServices,
+              selectedHairstyle: widget.selectedHairstyle,
+              selectedBarber: selectedBarber,
+              useAnyBarber: useAnyBarber,
+            ),
+          ),
+        )
+        .then((_) {
+          if (mounted) _refresh();
+        });
   }
 
   @override
@@ -68,9 +95,16 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
           'Chọn nhân viên',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Làm mới danh sách thợ',
+            onPressed: _refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: StreamBuilder<List<Barber>>(
-        stream: BarberService().watchBySalon(widget.salon.id),
+        stream: _barbersStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(
@@ -80,7 +114,8 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
               ),
             );
           }
-          if (!snapshot.hasData) {
+          if (!snapshot.hasData ||
+              snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: _gold));
           }
           _barbers = snapshot.data!;

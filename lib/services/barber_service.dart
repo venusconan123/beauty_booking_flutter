@@ -13,20 +13,17 @@ class BarberService {
   }
 
   Stream<List<Barber>> _scheduledBarbers(String salonId) async* {
-    while (true) {
-      final result = await SchedulingService().call('listBookableStaff', {
-        'salonId': salonId,
-      });
-      yield (result['employees'] as List)
-          .map(
-            (row) => Barber.fromDocument(
-              (row as Map)['id'] as String,
-              Map<String, dynamic>.from(row),
-            ),
-          )
-          .toList();
-      await Future<void>.delayed(const Duration(seconds: 10));
-    }
+    final result = await SchedulingService().call('listBookableStaff', {
+      'salonId': salonId,
+    });
+    yield (result['employees'] as List)
+        .map(
+          (row) => Barber.fromDocument(
+            (row as Map)['id'] as String,
+            Map<String, dynamic>.from(row),
+          ),
+        )
+        .toList();
   }
 
   Stream<List<Barber>> watchAll() {

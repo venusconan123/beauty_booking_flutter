@@ -1,6 +1,6 @@
 {
   "project": "men-hair-booking",
-  "sourceCommit": "f7cb96ed359ea100793cd5f7d9816bd07f1dc804",
+  "sourceCommit": "5084af0caeeb38c726592576273f7f40f53f397f",
   "approved": false,
   "executed": false,
   "purpose": "Review only. No executable migration is included.",
@@ -116,7 +116,7 @@
   "deletes": [],
   "emulatorDataToImport": [],
   "changesToExistingPasswordsOrUids": [],
-  "sourceDescription": "f7cb96e plus current uncommitted production-preparation changes",
+  "sourceDescription": "5084af0 baseline plus local low-cost query/polling/runtime optimizations; these optimizations add no migration, data writes or Rules changes",
   "writeControl": {
     "path": "app_settings/scheduling_v2",
     "mode": "create-if-absent after approval, re-read before apply",
@@ -128,10 +128,11 @@
       "bookingWritesEnabled": false
     },
     "openSequence": [
-      "Approve roster/staff preparation while booking/payment stay closed",
-      "Cut over Rules/client/Worker and verify backups/staging",
-      "Open booking for approved canary",
-      "Open payment creation separately after IPN reconciliation"
+      "Close/drain old writers and in-flight payment creation during approved maintenance; take verified T0 backup",
+      "Deploy compatible index/Functions/Rules/client/Worker with booking and payment gates closed",
+      "After legacy writes are blocked, open approved roster/staff preparation and verify links/schedules",
+      "Open booking only after staging, approved data and controlled pilot readiness",
+      "Open payment creation separately after sandbox IPN/reconciliation approval"
     ],
     "requiresApproval": true
   },
@@ -139,5 +140,8 @@
     "completion": "Existing admin completion creates legacy loyalty vouchers and notifications atomically, no historical backfill",
     "payment": "Verified callback may set payment.requiresReview/payment.refundRequired and audit_events/payment_<orderId>; never resurrect cancelled/completed bookings",
     "cancellation": "Cancelling a paid booking preserves paid and sets payment.refundRequired; does not execute refund"
-  }
+  },
+  "reviewReport": "docs/FIREBASE_THESIS_MINIMAL_PLAN.md",
+  "voucherCancellationPolicy": "Cancellation preserves consumed promo quota/personal-voucher usage; no automatic voucher restoration in this implementation; business approval required",
+  "profileWrite": "Checkout updates users/{uid}.phone and updatedAt before gated booking creation; scheduling gate is not a global database write freeze"
 }

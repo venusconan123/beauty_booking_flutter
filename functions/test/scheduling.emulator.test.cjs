@@ -35,6 +35,71 @@ function booking(employeeId, date = d1, minute = 540, extra = {}) {
     appointmentAt: dayStart(date) + minute * 60000, userPhone: '0901234567', paymentChoice: 'pay_later', ...extra };
 }
 const readShift = (id) => db.doc(`work_shifts/${id}`).get();
+
+// Count the documents actually returned by real Emulator queries, rather than
+// checking query text or treating duration as a reliable performance assertion.
+function measuredDatabase(reads) {
+  const remember = (snapshot) => { if (snapshot.docs) reads.push(...snapshot.docs.map((d) => d.ref.path)); return snapshot; };
+  const queryProxy = (query) => new Proxy(query, { get(target, property) {
+    if (property === 'where') return (...args) => queryProxy(target.where(...args));
+    if (property === 'get') return async (...args) => remember(await target.get(...args));
+    const value = Reflect.get(target, property, target);
+    return typeof value === 'function' ? value.bind(target) : value;
+  }});
+  return {
+    doc: db.doc.bind(db), getAll: db.getAll.bind(db),
+    collection: (...args) => queryProxy(db.collection(...args)),
+    runTransaction: (callback) => db.runTransaction((tx) => callback(new Proxy(tx, { get(target, property) {
+      if (property === 'get') return async (...args) => remember(await target.get(...args));
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    }}))),
+  };
+}
+
+test('bounded shift queries do not return old/far-future roster history', async () => {
+  const e = await employee(); const current = await shift(e);
+  const prefix = `old-roster-${++n}-`; const batch = db.batch();
+  for (let i = 0; i < 120; i++) batch.set(db.doc(`work_shifts/${prefix}${i}`), {
+    employeeId: e, salonId: 'salon_01', dateKey: i % 2 ? '2029-12-01' : '2031-01-01',
+    startMinute: 540, endMinute: 1020, status: 'scheduled', revision: 1,
+  });
+  await batch.commit();
+  const reads = []; const measured = createSchedulingHandlers(measuredDatabase(reads), auth, { clock: () => Date.UTC(2030, 0, 1) });
+  const staff = await measured.listBookableStaff(customer({ salonId: 'salon_01' }));
+  assert.ok(staff.employees.some((row) => row.id === e));
+  const availability = await measured.getAvailability(customer({ salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'], barberId: e }));
+  assert.ok(availability.slots.some((slot) => slot.time === '09:00'));
+  assert.ok(reads.includes(`work_shifts/${current.id}`));
+  assert.ok(!reads.some((value) => value.startsWith(`work_shifts/${prefix}`)));
+  await measured.createBooking(customer(booking(e)));
+  assert.ok(!reads.some((value) => value.startsWith(`work_shifts/${prefix}`)));
+  assert.equal((await db.collection('work_shifts').where('employeeId', '==', e).get()).size, 121);
+});
+
+test('A/B shares employee booking reads within an attempt while preserving all four day guards', async () => {
+  const a = await employee(), b = await employee(); const sa = await shift(a), sb = await shift(b, d2);
+  const closed = db.doc(`bookings/read-once-${++n}`);
+  await closed.set({ barberId: a, status: 'completed', appointmentAt: Timestamp.fromMillis(dayStart('2029-12-01')), totalDurationMinutes: 30 });
+  const reads = []; const measured = createSchedulingHandlers(measuredDatabase(reads), auth, { clock: () => Date.UTC(2030, 0, 1) });
+  await measured.swapShifts(admin({ shiftAId: sa.id, shiftBId: sb.id, revisionA: 1, revisionB: 1 }));
+  assert.equal(reads.filter((value) => value === closed.path).length, 1);
+  for (const worker of [a, b]) for (const day of [d1, d2]) {
+    assert.ok((await db.doc(`employee_days/${worker}_${day}`).get()).exists);
+  }
+});
+
+test('legacy active booking missing a timestamp still blocks availability conservatively', async () => {
+  const e = await employee(); await shift(e);
+  const malformed = db.doc(`bookings/malformed-${++n}`);
+  await malformed.set({ barberId: e, status: 'pending', totalDurationMinutes: 30 });
+  try {
+    await denied(handlers.getAvailability(customer({ salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'], barberId: e })), 'failed-precondition');
+  } finally {
+    // Do not poison later any-barber tests with this deliberate invalid fixture.
+    await malformed.update({ status: 'cancelled' });
+  }
+});
 before(async () => {
   env = await initializeTestEnvironment({ projectId: 'demo-men-hair-booking', firestore: {
     host: '127.0.0.1', port: 8180, rules: fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8'),

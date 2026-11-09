@@ -50,6 +50,9 @@ function available(shifts, bookings, salonId, start, minutes, excludeId) {
 }
 
 function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
+  // Share employee/history reads only inside one transaction attempt, never
+  // across requests/retries. Day guards and all-branch checks remain separate.
+  const transactionEmployees = new WeakMap();
   async function identity(request, admin = false) {
     if (!request.auth) fail('unauthenticated', 'Vui lòng đăng nhập.');
     const user = await auth.getUser(request.auth.uid);
@@ -76,10 +79,18 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     const key = `${employeeId}_${date}`;
     if (cache.has(key)) return cache.get(key);
     const guard = db.doc(`employee_days/${key}`);
-    const [guardDoc, employee, shifts, bookings] = await Promise.all([
-      tx.get(guard), tx.get(db.doc(`employees/${employeeId}`)),
-      tx.get(db.collection('work_shifts').where('employeeId', '==', employeeId)),
+    let employeeReads = transactionEmployees.get(cache);
+    if (!employeeReads) { employeeReads = new Map(); transactionEmployees.set(cache, employeeReads); }
+    if (!employeeReads.has(employeeId)) employeeReads.set(employeeId, Promise.all([
+      tx.get(db.doc(`employees/${employeeId}`)),
+      // Legacy rows may lack dateKey/status/endAt. Keep the conservative scan
+      // until a separately approved migration can bound these safely.
       tx.get(db.collection('bookings').where('barberId', '==', employeeId)),
+    ]));
+    const [employee, bookings] = await employeeReads.get(employeeId);
+    const [guardDoc, shifts] = await Promise.all([
+      tx.get(guard),
+      tx.get(db.collection('work_shifts').where('employeeId', '==', employeeId).where('dateKey', '==', date)),
     ]);
     const profile = employee.data();
     const live = bookings.docs.map((doc) => ({ ...doc.data(), id: doc.id })).filter(active);
@@ -394,7 +405,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
         fail('failed-precondition', 'Giá hoặc thời lượng dịch vụ đã thay đổi. Vui lòng chọn lại dịch vụ.');
       }
       const values = await vouchers(tx, data.vouchers ?? [], user.uid, items.price);
-      const shiftQuery = await tx.get(db.collection('work_shifts').where('salonId', '==', data.salonId));
+      const shiftQuery = await tx.get(db.collection('work_shifts').where('salonId', '==', data.salonId).where('dateKey', '==', date));
       const candidates = [...new Set(shiftQuery.docs.map((s) => s.data()).filter((s) => s.dateKey === date && s.status === 'scheduled').map((s) => s.employeeId))];
       const requested = data.barberId ? id(data.barberId) : null;
       const cache = new Map(); let assigned;
@@ -492,7 +503,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     dayStart(data.dateKey);
     return db.runTransaction(async (tx) => {
       const items = await catalog(tx, data.serviceIds);
-      const all = await tx.get(db.collection('work_shifts').where('salonId', '==', data.salonId));
+      const all = await tx.get(db.collection('work_shifts').where('salonId', '==', data.salonId).where('dateKey', '==', data.dateKey));
       const employees = [...new Set(all.docs.map((doc) => doc.data()).filter((s) => s.dateKey === data.dateKey && s.status === 'scheduled').map((s) => s.employeeId))];
       const cache = new Map(); const days = [];
       for (const employee of employees) {
@@ -514,8 +525,9 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
   async function listBookableStaff(request) {
     await identity(request); const data = request.data ?? {};
     if (!SALONS[data.salonId]) fail('invalid-argument', 'Chi nhánh không hợp lệ.');
-    const shifts = await db.collection('work_shifts').where('salonId', '==', data.salonId).get();
     const today = dateKey(clock()); const end = dateKey(clock() + 7 * DAY);
+    const shifts = await db.collection('work_shifts').where('salonId', '==', data.salonId)
+      .where('dateKey', '>=', today).where('dateKey', '<', end).get();
     const ids = [...new Set(shifts.docs.map((s) => s.data()).filter((s) => s.status === 'scheduled' && s.dateKey >= today && s.dateKey < end).map((s) => s.employeeId))];
     const profiles = ids.length ? await db.getAll(...ids.map((value) => db.doc(`employees/${value}`))) : [];
     return { employees: profiles.filter((s) => s.exists && s.data().isActive !== false).map((s) => ({ ...s.data(), id: s.id })) };

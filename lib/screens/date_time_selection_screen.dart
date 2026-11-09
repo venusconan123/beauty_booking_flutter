@@ -13,6 +13,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
   final Hairstyle? selectedHairstyle;
   final Barber? selectedBarber;
   final bool useAnyBarber;
+  final SchedulingService? schedulingService;
 
   const DateTimeSelectionScreen({
     super.key,
@@ -21,6 +22,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
     this.selectedHairstyle,
     required this.selectedBarber,
     required this.useAnyBarber,
+    this.schedulingService,
   });
 
   @override
@@ -44,6 +46,8 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
   String? _selectedTime;
   Set<String> _serverTimes = {};
   String? _serverDate;
+  int _availabilityGeneration = 0;
+  late final SchedulingService _scheduling;
 
   int get _totalDuration {
     return widget.selectedServices.fold(0, (total, service) {
@@ -98,26 +102,29 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     });
 
     _selectedDate = _availableDates.first;
+    _scheduling = widget.schedulingService ?? SchedulingService();
     _bookedSlotsStream = _createBookedSlotsStream();
   }
 
   Stream<Map<String, List<DateTime>>> _createBookedSlotsStream() async* {
     final date = SchedulingService.dateKey(_selectedDate!);
-    while (mounted && date == SchedulingService.dateKey(_selectedDate!)) {
-      final result = await SchedulingService().call('getAvailability', {
-        'salonId': widget.salon.id,
-        'dateKey': date,
-        'serviceIds': widget.selectedServices.map((s) => s.id).toList(),
-        'barberId': widget.useAnyBarber ? null : widget.selectedBarber?.id,
-      });
-      if (!mounted || date != SchedulingService.dateKey(_selectedDate!)) return;
-      _serverTimes = (result['slots'] as List)
-          .map((s) => (s as Map)['time'] as String)
-          .toSet();
-      _serverDate = date;
-      yield <String, List<DateTime>>{};
-      await Future<void>.delayed(const Duration(seconds: 5));
+    final generation = ++_availabilityGeneration;
+    final result = await _scheduling.call('getAvailability', {
+      'salonId': widget.salon.id,
+      'dateKey': date,
+      'serviceIds': widget.selectedServices.map((s) => s.id).toList(),
+      'barberId': widget.useAnyBarber ? null : widget.selectedBarber?.id,
+    });
+    if (!mounted ||
+        generation != _availabilityGeneration ||
+        date != SchedulingService.dateKey(_selectedDate!)) {
+      return;
     }
+    _serverTimes = (result['slots'] as List)
+        .map((s) => (s as Map)['time'] as String)
+        .toSet();
+    _serverDate = date;
+    yield <String, List<DateTime>>{};
   }
 
   bool _isSameDate(DateTime first, DateTime second) {
@@ -197,6 +204,8 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     });
   }
 
+  void _refreshAvailability() => _selectDate(_selectedDate!);
+
   void _selectTime(String time, bool isUnavailable) {
     if (isUnavailable) {
       return;
@@ -212,21 +221,25 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) {
-          return BookingConfirmationScreen(
-            salon: widget.salon,
-            selectedServices: widget.selectedServices,
-            selectedHairstyle: widget.selectedHairstyle,
-            selectedBarber: widget.selectedBarber,
-            useAnyBarber: widget.useAnyBarber,
-            selectedDate: _selectedDate!,
-            selectedTime: _selectedTime!,
-          );
-        },
-      ),
-    );
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return BookingConfirmationScreen(
+                salon: widget.salon,
+                selectedServices: widget.selectedServices,
+                selectedHairstyle: widget.selectedHairstyle,
+                selectedBarber: widget.selectedBarber,
+                useAnyBarber: widget.useAnyBarber,
+                selectedDate: _selectedDate!,
+                selectedTime: _selectedTime!,
+              );
+            },
+          ),
+        )
+        .then((_) {
+          if (mounted) _refreshAvailability();
+        });
   }
 
   @override
@@ -349,6 +362,11 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Làm mới giờ trống',
+            onPressed: _refreshAvailability,
+            icon: const Icon(Icons.refresh, color: Colors.white),
           ),
         ],
       ),
@@ -635,7 +653,7 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
                   final suggested = time == suggestedTime;
                   return InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => _selectTime(time, unavailable),
+                    onTap: unavailable ? null : () => _selectTime(time, false),
                     child: Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(

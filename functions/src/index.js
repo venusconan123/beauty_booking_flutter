@@ -7,12 +7,17 @@ const { createStaffHandlers } = require('./staff');
 const { createSchedulingHandlers } = require('./scheduling');
 initializeApp();
 const handlers = createStaffHandlers(getFirestore(), getAuth());
+// Small dissertation workload: scale to zero and bound each callable separately.
+// Fractional CPU disables multi-request concurrency; transactions still protect
+// requests across instances/functions. This is not a billing hard cap.
+const runtime = { region: 'asia-southeast1', minInstances: 0, maxInstances: 2,
+  memory: '256MiB', cpu: 'gcf_gen1', concurrency: 1 };
 // No provisioning, migrations, triggers, or writes occur on module load.
-exports.linkStaffAccount = onCall({ region: 'asia-southeast1' }, handlers.linkStaffAccount);
-exports.setStaffAccountActive = onCall({ region: 'asia-southeast1' }, handlers.setStaffAccountActive);
+exports.linkStaffAccount = onCall(runtime, handlers.linkStaffAccount);
+exports.setStaffAccountActive = onCall(runtime, handlers.setStaffAccountActive);
 const scheduling = createSchedulingHandlers(getFirestore(), getAuth());
 for (const [name, handler] of Object.entries(scheduling)) {
-  exports[name] = onCall({ region: 'asia-southeast1' }, async (request) => {
+  exports[name] = onCall(runtime, async (request) => {
     const started = Date.now();
     const trace = (stage, extra = {}) => {
       if (process.env.FUNCTIONS_EMULATOR === 'true') console.info(JSON.stringify({

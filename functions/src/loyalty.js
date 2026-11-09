@@ -19,7 +19,7 @@ async function prepareLoyalty(tx, db, bookingId, booking) {
       discountPercent: number(settings.orderDiscountPercent, legacyDiscount, 100), title: 'Ưu đãi cho đơn hàng đủ điều kiện' });
   }
   if (visitsEnabled) {
-    const history = await tx.get(db.collection('bookings').where('userId', '==', booking.userId));
+    const history = await tx.get(db.collection('bookings').where('userId', '==', booking.userId).where('status', '==', 'completed'));
     const completed = history.docs.filter((d) => d.id !== bookingId && d.data().status === 'completed').length + 1;
     if (completed >= requiredVisits) {
       const milestone = Math.floor(completed / requiredVisits);

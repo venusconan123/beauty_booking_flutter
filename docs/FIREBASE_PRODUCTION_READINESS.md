@@ -1,5 +1,13 @@
 # Bản xem trước chuyển bảng phân ca sang Firebase thật
 
+> **Cập nhật theo quy mô khóa luận:** [FIREBASE_THESIS_MINIMAL_PLAN.md](FIREBASE_THESIS_MINIMAL_PLAN.md).
+> Phương án mới dùng project hiện có, không tạo staging; tối ưu cục bộ sau 5084af0.
+
+> **Hồ sơ chi tiết của commit 5084af0:** [FIREBASE_DEPLOYMENT_REVIEW_5084AF0.md](FIREBASE_DEPLOYMENT_REVIEW_5084AF0.md).
+> Phần dưới giữ làm hồ sơ baseline f7cb96e: các mô tả thiếu transport/gate và lỗi
+> voucher/callback là phát hiện lịch sử, đã sửa trong 5084af0. Không dùng trạng
+> thái “chưa commit/push” bên dưới để đánh giá bản hiện hành. Quan sát cloud chưa đọc lại.
+
 > Cập nhật mã cục bộ sau rà soát: xem [PRODUCTION_PREP_LOCAL_REVIEW.md](PRODUCTION_PREP_LOCAL_REVIEW.md).
 > Các phát hiện transport/gate/voucher/callback bên dưới là baseline f7cb96e;
 > nhiều mục đã sửa cục bộ và kiểm thử Emulator, chưa áp dụng lên cloud.

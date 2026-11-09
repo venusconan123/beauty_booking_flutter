@@ -1,19 +1,18 @@
 {
   "project": "men-hair-booking",
   "database": "(default)",
-  "sourceCommit": "f7cb96ed359ea100793cd5f7d9816bd07f1dc804",
+  "sourceCommit": "5084af0caeeb38c726592576273f7f40f53f397f",
   "observedAtUtc": "2026-11-09T04:00:46.934Z",
   "approved": false,
   "executed": false,
-  "readiness": "local-tested; cloud rollout remains blocked pending approval and staging",
+  "readiness": "Local candidate verified: direct Web two-tab booking/cancel/conflict and idle no-polling; Emulator 43/43, Flutter 22/22, analyze and Web build pass; cloud apply remains unapproved",
   "blockers": [
-    "Billing disabled and Functions API disabled; no changes made",
-    "No staging HTTPS/runtime/IAM/App Check verification; Emulator Web flows verified separately",
-    "Six server catalog services still need approval/apply",
-    "No approved staff UID mapping or future schedule",
-    "No production backup/PITR or restore rehearsal",
-    "Legacy client cutover and coordinated Worker release must be approved",
-    "Real IPN retry/refund/reconciliation cases not verified"
+    "No billing/API activation, IAM change or deployment approved; Functions requires Blaze and actual inventory/runtime checks",
+    "Back up and verify restore plan before any real mutation; no scheduled backup/PITR required by minimal demo proposal unless separately approved",
+    "Catalog prices, staff UID mappings, future shifts, voucher cancellation policy and legacy client cutover still require approval",
+    "Cloud index READY, CORS/runtime cold starts and actual usage are unverified; Emulator/build are not live-cloud evidence",
+    "Legacy bookings still scanned per employee conservatively, admin history/dashboard still broad; no migration/data deletion performed",
+    "Payment creation remains closed until separately approved; real IPN/reconciliation/refund and ancillary Rules findings remain outside this optimization"
   ],
   "databaseEdition": "STANDARD",
   "location": "asia-southeast1",
@@ -96,17 +95,20 @@
     "functions/src/write_control.js": "250c31c80109f8345fd53dfc2ba55ac3c6828bc7b11641f54def49de81b829f0",
     "firestore.rules": "38536ef52b9d3c6aaed10be8bcaee670658d07816325f01d9c7cff1b8854b0c0",
     "firebase.production.preview.json": "49d6cfac26c515d3dc9057a87d852978389484df8fb5d92e81adcadcc1977483",
-    "functions/src/loyalty.js": "6d6946c52045fb80528b45687e86e884a8057ef001905579de5289c2a1dd28dc",
+    "functions/src/loyalty.js": "9409dc75db45886748db0dffca38e41dbe44a078ca1868be8b5b5d2d7261df12",
     "functions/src/staff.js": "57de6dd30d767be10e5c1400c7c7f8445c15bb23680bb165e62c42f4b8ebb563",
-    "functions/src/index.js": "1388bb4e4011e4c6e1d9fefd8ea458354d5f15e26f3099b1def7a4a64f2b083d",
+    "functions/src/index.js": "4ecd947dce19e1bd74db669c14224a7f7fdcf0a13c420fdf778a2aa8b1122302",
     "firestore.indexes.json": "4b09b4fb0fe9b11b6e13f459650a09b2cd2124217947d8afae537441f86df410",
-    "functions/src/scheduling.js": "82ae4a667a0bdabfebd833143dbd2afc7f133f4fe62dead3fc38c9359dad0817",
+    "functions/src/scheduling.js": "c5bedb21dce6098fbb0d3f9a958f42b950883d1a98bcecd28dfb7bf3e9f68eca",
     "lib/services/scheduling_service.dart": "ea9c8b3bf63ff68b0971f38b8a329e283317c92b2f54ff1c7f6287f3de20eaf2",
     "lib/services/staff_account_service.dart": "6c5436f51c2ede69aea206e2930ea96984a8fda24cae2aff0390668773d3c44c",
-    "lib/services/barber_service.dart": "95f5ff1d659a3b1ebf5e2bfbb1fa33c2561f8fcec9b2244679b49931f2105a69",
+    "lib/services/barber_service.dart": "9cbe16b75fa03ae1af33132f1da3f9a0e825dc5b91c8e7d85698bc3827d44926",
     "lib/screens/booking_confirmation_screen.dart": "04d415f66d293e2160ceabbfa0cf8ce84cf715fcf924fae503e05eaf5f6347e6",
     "lib/screens/booking_history_screen.dart": "fb5d2777b5c96b28a40c2f103e439aed9517a2847c1111baf7d683e757242c94",
-    "lib/screens/work_shifts_screen.dart": "59e7b8d6c27e2e55fefa237639d487d1d8ca6ad5adc20951019531144b1f13cb"
+    "lib/screens/work_shifts_screen.dart": "59e7b8d6c27e2e55fefa237639d487d1d8ca6ad5adc20951019531144b1f13cb",
+    "lib/screens/barber_selection_screen.dart": "d56bbed1afa198835e1e965b0e487411538112eb3e1fbba311953dabc5e28f66",
+    "lib/screens/date_time_selection_screen.dart": "c725efba9d6716a323eb41fe7bda7c14a0efd4547e19ba77bdd869b61bbc9782",
+    "lib/screens/salon_detail_screen.dart": "7b4f0e89cf5745d8f7ddb69758152ef2e6ad961f01755cc6e3d0f58f19c0541b"
   },
   "resolvedLocally": [
     "Customer quota replay on an existing redeemed booking is denied",
@@ -115,6 +117,23 @@
     "Production transport no longer requires Emulator flag; server write gates default closed"
   ],
   "localChangesIncluded": true,
-  "webVerification": "docs/WEB_EMULATOR_VERIFICATION.md",
-  "sourceCommitMeaning": "Read-only audit baseline; candidate changes are included in the containing commit"
+  "webVerification": "docs/OPTIMIZED_WEB_EMULATOR_VERIFICATION.md",
+  "sourceCommitMeaning": "Baseline implementation 5084af0 plus optimized source/config changes included in the containing commit; sourceSha256 identifies the candidate",
+  "reviewReport": "docs/FIREBASE_THESIS_MINIMAL_PLAN.md",
+  "reviewStatus": "draft-for-approval; no resource creation, billing/API/IAM changes, deployments or real data writes authorized by this report",
+  "stagingProjectId": null,
+  "stagingResourcesCreated": false,
+  "runtimeLimitsConfiguredInSource": true,
+  "costEstimateStatus": "Thesis demo target 0-5 USD/month under documented small-use assumptions; not a bill/cap, no cloud usage measured",
+  "implementationReviewReport": "docs/FIREBASE_DEPLOYMENT_REVIEW_5084AF0.md",
+  "runtimeOptionsPreview": {
+    "cpu": "gcf_gen1",
+    "minInstances": 0,
+    "scope": "per callable; not a billing cap",
+    "memory": "256MiB",
+    "maxInstances": 2,
+    "concurrency": 1
+  },
+  "stagingApproach": "No new staging project per user request; Emulator first, controlled smoke tests on existing project only after explicit approval for real writes",
+  "implementationChangesIncludedInContainingCommit": true
 }

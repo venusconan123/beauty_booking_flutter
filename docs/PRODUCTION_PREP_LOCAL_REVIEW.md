@@ -1,5 +1,12 @@
 # Hoàn tất chuẩn bị production cục bộ — công tắc ghi, voucher, thanh toán
 
+> Hướng triển khai theo yêu cầu khóa luận và tối ưu cục bộ sau 5084af0:
+> [FIREBASE_THESIS_MINIMAL_PLAN.md](FIREBASE_THESIS_MINIMAL_PLAN.md).
+
+> Các thay đổi mô tả ở đây đã nằm trong commit `5084af0` và đã push.
+> Bản duyệt triển khai, chi phí và staging hiện hành:
+> [FIREBASE_DEPLOYMENT_REVIEW_5084AF0.md](FIREBASE_DEPLOYMENT_REVIEW_5084AF0.md).
+
 Ngày cập nhật: 09/11/2026. Nhánh `codex/staff-phase-one`, baseline `f7cb96e`.
 Bản này tổng hợp thay đổi được rà soát để commit/push theo yêu cầu sau kiểm thử
 Web; kết quả trực tiếp tại [WEB_EMULATOR_VERIFICATION.md](WEB_EMULATOR_VERIFICATION.md).
