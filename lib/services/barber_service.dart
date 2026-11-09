@@ -3,26 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import 'scheduling_service.dart';
-import 'staff_account_service.dart';
 
 class BarberService {
   final CollectionReference<Map<String, dynamic>> _collection =
       FirebaseFirestore.instance.collection('employees');
 
   Stream<List<Barber>> watchBySalon(String salonId) {
-    if (StaffAccountService.emulatorEnabled) return _scheduledBarbers(salonId);
-    return _collection.snapshots().map((snapshot) {
-      final barbers = snapshot.docs
-          .where((document) => document.id != '_catalog')
-          .map((document) => Barber.fromDocument(document.id, document.data()))
-          .where((barber) => barber.salonId == salonId && barber.isActive)
-          .toList();
-      if (snapshot.docs.isEmpty) {
-        return getBarbersBySalonId(salonId).map(_profiled).toList();
-      }
-      barbers.sort((first, second) => second.rating.compareTo(first.rating));
-      return barbers;
-    });
+    return _scheduledBarbers(salonId);
   }
 
   Stream<List<Barber>> _scheduledBarbers(String salonId) async* {

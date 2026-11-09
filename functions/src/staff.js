@@ -1,4 +1,5 @@
 'use strict';
+const { requireWrites } = require('./write_control');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue } = require('firebase-admin/firestore');
 const SALONS = new Set(['salon_01', 'salon_02', 'salon_03']);
@@ -35,6 +36,7 @@ function createStaffHandlers(db, auth) {
     if (user.disabled) throw new HttpsError('failed-precondition', 'Tài khoản Auth đã ngừng hoạt động.');
     if (!user.emailVerified) throw new HttpsError('failed-precondition', 'Tài khoản cần xác minh email trước khi liên kết.');
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'staffWritesEnabled');
       const employeeRef = db.doc(`employees/${employeeId}`);
       const accountRef = db.doc(`staff_accounts/${uid}`);
       const linkRef = db.doc(`employee_accounts/${employeeId}`);
@@ -75,6 +77,7 @@ function createStaffHandlers(db, auth) {
       }
     }
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'staffWritesEnabled');
       const ref = db.doc(`staff_accounts/${uid}`);
       const [admin, account] = await tx.getAll(db.doc(`admins/${actor}`), ref);
       if (!admin.exists) throw new HttpsError('permission-denied', 'Quyền quản trị đã thay đổi.');

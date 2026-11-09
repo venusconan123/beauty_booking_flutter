@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
-import '../services/voucher_service.dart';
 
 enum _BookingFilter { active, cancelled, completed }
 
@@ -278,20 +277,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       'status': newStatus,
       'requestId': SchedulingService.requestId(),
     });
-    // Existing admin completion only; the staff service workflow remains phase 2B.
-    if (newStatus == 'completed') {
-      final booking = await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(bookingId)
-          .get();
-      final userId = booking.data()?['userId'] as String?;
-      if (userId != null) {
-        await VoucherService().awardLoyaltyVoucherIfEligible(
-          userId: userId,
-          bookingId: bookingId,
-        );
-      }
-    }
+    // Existing loyalty rewards now commit atomically inside the callable.
   }
 
   Future<void> _cancelBookingAsAdmin(String bookingId) =>

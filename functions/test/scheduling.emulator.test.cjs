@@ -303,3 +303,149 @@ test('Rules: staff views only home-branch shifts, including monthly queries; cli
   const customerDb = env.authenticatedContext('s2-customer', { email_verified: true }).firestore();
   await assertFails(getDoc(doc(customerDb, `work_shifts/${b.id}`)));
 });
+
+test('cutover controls pause mutations without changing existing rows; production defaults closed', async () => {
+  const { requireWrites } = require('../src/write_control');
+  const oldProject = process.env.GCLOUD_PROJECT;
+  try {
+    process.env.GCLOUD_PROJECT = 'men-hair-booking';
+    await denied(requireWrites({ get: async () => ({ exists: false, data: () => undefined }) }, { doc: () => null }, 'bookingWritesEnabled'), 'failed-precondition');
+  } finally { process.env.GCLOUD_PROJECT = oldProject; }
+  const ref = db.doc('app_settings/scheduling_v2');
+  await ref.set({ protocolVersion: 2, bookingWritesEnabled: false, rosterWritesEnabled: false, staffWritesEnabled: false });
+  const e = await employee();
+  await denied(shift(e), 'failed-precondition');
+  assert.equal((await db.collection('work_shifts').where('employeeId', '==', e).get()).size, 0);
+  await ref.update({ bookingWritesEnabled: true, rosterWritesEnabled: true, staffWritesEnabled: true });
+  await shift(e);
+  const result = await handlers.createBooking(customer(booking(e)));
+  const before = (await db.doc(`bookings/${result.bookingId}`).get()).data();
+  await ref.update({ bookingWritesEnabled: false });
+  await denied(handlers.changeBookingStatus(customer({ bookingId: result.bookingId, status: 'cancelled' })), 'failed-precondition');
+  assert.deepEqual((await db.doc(`bookings/${result.bookingId}`).get()).data(), before);
+  await ref.update({ bookingWritesEnabled: true });
+});
+
+test('Rules: a legacy redeemed booking cannot drain promotion quota or forge redemptions', async () => {
+  const key = `quota-${++n}`; const booked = `legacy-promo-${n}`;
+  await db.doc(`voucher_templates/${key}`).set({ isActive: true, usedCount: 1, usageLimit: 10 });
+  await db.doc(`bookings/${booked}`).set({ userId: 's2-customer', voucherIds: [key], status: 'completed' });
+  const client = env.authenticatedContext('s2-customer', { email_verified: true }).firestore();
+  await assertFails(updateDoc(doc(client, `voucher_templates/${key}`), { usedCount: 2, lastBookingId: booked }));
+  await assertFails(setDoc(doc(client, `voucher_templates/${key}/redemptions/s2-customer`), { userId: 's2-customer', bookingId: booked }));
+  const slot = `private-slot-${++n}`;
+  await db.doc(`booking_slots/${slot}`).set({ userId: 'other-customer', bookingId: booked });
+  await assertFails(getDoc(doc(client, `booking_slots/${slot}`)));
+  await assertSucceeds(getDoc(doc(env.authenticatedContext('s2-admin').firestore(), `booking_slots/${slot}`)));
+});
+
+test('completion and legacy loyalty rewards commit together and do not duplicate on repeated completion', async () => {
+  await db.doc('app_settings/loyalty').set({ visitRewardEnabled: true, requiredVisits: 1, visitDiscountPercent: 25, orderRewardEnabled: false });
+  const e = await employee(); await shift(e);
+  const result = await handlers.createBooking(customer(booking(e)));
+  const input = { bookingId: result.bookingId, status: 'completed', requestId: `complete-${++n}` };
+  await handlers.changeBookingStatus(admin(input));
+  const first = await db.collection('users/s2-customer/vouchers').where('sourceBookingId', '==', result.bookingId).get();
+  assert.equal(first.size, 1);
+  await handlers.changeBookingStatus(admin(input));
+  await handlers.changeBookingStatus(admin({ ...input, requestId: `complete-again-${++n}` }));
+  assert.equal((await db.collection('users/s2-customer/vouchers').where('sourceBookingId', '==', result.bookingId).get()).size, 1);
+  assert.equal((await db.doc(`bookings/${result.bookingId}`).get()).data().status, 'completed');
+});
+
+test('reading availability and making a new booking preserve a legacy past booking without schema or shift link', async () => {
+  const e = await employee(); await shift(e);
+  const ref = db.doc(`bookings/legacy-preserved-${++n}`);
+  await ref.set({ userId: 's2-customer', barberId: e, salonId: 'salon_01', status: 'confirmed',
+    appointmentAt: Timestamp.fromMillis(dayStart('2026-11-02') + 570 * 60000), totalDurationMinutes: 60,
+    totalPrice: 150000, services: [{ name: 'Giá lưu lúc đặt', price: 150000, durationMinutes: 60 }] });
+  const before = (await ref.get()).data();
+  await handlers.getAvailability(customer({ salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'] }));
+  await handlers.createBooking(customer(booking(e)));
+  assert.deepEqual((await ref.get()).data(), before);
+});
+
+test('signed Worker callbacks share guards, survive cancellation races and never resurrect closed bookings', async () => {
+  const { generateKeyPairSync, webcrypto } = require('node:crypto');
+  globalThis.crypto ||= webcrypto;
+  const { processVnpayResult, hmacSha512, sortedQuery } = await import('../../cloudflare_worker/src/index.js');
+  const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const fixture = { VNP_TMN_CODE: 'LOCAL', VNP_HASH_SECRET: 'local-emulator-callback-secret',
+    FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify({ project_id: 'demo-men-hair-booking', client_email: 'test@fixture.invalid', private_key: privateKey }) };
+  const originalFetch = globalThis.fetch;
+  let beforeCommit = null;
+  globalThis.fetch = async (input, options) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.hostname === 'oauth2.googleapis.com') return new Response(JSON.stringify({ access_token: 'owner', expires_in: 3600 }), { status: 200 });
+    if (url.hostname === 'firestore.googleapis.com') {
+      assert.ok(url.pathname.startsWith('/v1/projects/demo-men-hair-booking/databases/(default)/documents'));
+      if (url.pathname.endsWith(':commit') && beforeCommit) { const action = beforeCommit; beforeCommit = null; await action(); }
+      return originalFetch(`http://127.0.0.1:8180${url.pathname}${url.search}`, options);
+    }
+    if (url.hostname === '127.0.0.1' && ['8180', '9199'].includes(url.port)) return originalFetch(input, options);
+    throw Error(`Test denied unexpected network host: ${url.hostname}`);
+  };
+  try {
+    for (const state of ['pending', 'cancelled', 'completed', 'race', 'duplicates', 'parallel-cancel']) {
+      const e = await employee(); await shift(e);
+      const booked = await handlers.createBooking(customer(booking(e, d1, 540, { paymentChoice: 'pay_now' })));
+      const bookingRef = db.doc(`bookings/${booked.bookingId}`);
+      const orderId = `callback-${++n}`; const orderRef = db.doc(`payment_orders/${orderId}`);
+      await bookingRef.update({ status: ['race', 'duplicates', 'parallel-cancel'].includes(state) ? 'pending' : state,
+        'payment.status': 'pending', 'payment.orderId': orderId });
+      await orderRef.set({ bookingId: bookingRef.id, userId: 's2-customer', amount: 80000, status: 'pending' });
+      const params = { vnp_TmnCode: fixture.VNP_TMN_CODE, vnp_TxnRef: orderId, vnp_Amount: '8000000', vnp_ResponseCode: '00', vnp_TransactionStatus: '00' };
+      const signed = `${sortedQuery(params)}&vnp_SecureHash=${await hmacSha512(fixture.VNP_HASH_SECRET, sortedQuery(params))}`;
+      const url = new URL(`https://fixture.invalid/vnpay-ipn?${signed}`);
+      if (state === 'pending') {
+        const before = (await bookingRef.get()).data();
+        for (const [changes, code] of [[{ vnp_Amount: '1' }, '04'], [{ vnp_TmnCode: 'OTHER' }, '97']]) {
+          const invalid = sortedQuery({ ...params, ...changes });
+          const badUrl = new URL(`https://fixture.invalid/vnpay-ipn?${invalid}&vnp_SecureHash=${await hmacSha512(fixture.VNP_HASH_SECRET, invalid)}`);
+          assert.equal((await processVnpayResult(badUrl, fixture)).code, code);
+          assert.deepEqual((await bookingRef.get()).data(), before);
+          assert.equal((await orderRef.get()).data().status, 'pending');
+        }
+      }
+      if (state === 'race') {
+        beforeCommit = () => handlers.changeBookingStatus(admin({ bookingId: bookingRef.id, status: 'cancelled' }));
+        await assert.rejects(processVnpayResult(url, fixture), /Firestore commit failed/);
+        assert.equal((await orderRef.get()).data().status, 'pending');
+      }
+      if (state === 'duplicates') {
+        const oldVersion = (await db.doc(`employee_days/${e}_${d1}`).get()).data().version;
+        const simultaneous = await Promise.allSettled([processVnpayResult(url, fixture), processVnpayResult(url, fixture)]);
+        assert.equal(simultaneous.filter((r) => r.status === 'fulfilled' && r.value.code === '00').length, 1);
+        assert.equal((await db.doc(`employee_days/${e}_${d1}`).get()).data().version, oldVersion + 1);
+      } else if (state === 'parallel-cancel') {
+        const simultaneous = await Promise.allSettled([
+          processVnpayResult(url, fixture),
+          handlers.changeBookingStatus(admin({ bookingId: bookingRef.id, status: 'cancelled' })),
+        ]);
+        assert.equal(simultaneous[1].status, 'fulfilled');
+        // A precondition failure is retryable; a successful receipt must stay final.
+        const retried = await processVnpayResult(url, fixture);
+        assert.ok(['00', '02'].includes(retried.code));
+      } else {
+        assert.equal((await processVnpayResult(url, fixture)).code, '00');
+      }
+      const after = (await bookingRef.get()).data();
+      assert.equal(after.status, ['pending', 'duplicates'].includes(state) ? 'confirmed' : ['race', 'parallel-cancel'].includes(state) ? 'cancelled' : state);
+      assert.equal(after.payment.status, 'paid');
+      if (['cancelled', 'completed', 'race'].includes(state)) assert.equal(after.payment.requiresReview, true);
+      if (['cancelled', 'race', 'parallel-cancel'].includes(state)) assert.equal(after.payment.refundRequired, true);
+      if (['race', 'parallel-cancel'].includes(state)) {
+        const slots = await db.collection('booking_slots').where('bookingId', '==', bookingRef.id).get();
+        assert.ok(slots.size > 0);
+        assert.ok(slots.docs.every((slot) => slot.data().state === 'released'));
+      }
+      const guard = db.doc(`employee_days/${e}_${d1}`); const version = (await guard.get()).data().version;
+      assert.equal((await processVnpayResult(url, fixture)).code, '02');
+      assert.equal((await guard.get()).data().version, version);
+      assert.equal((await orderRef.get()).data().status, 'paid');
+      const recordedStatus = (await db.doc(`audit_events/payment_${orderId}`).get()).data().afterStatus;
+      if (state === 'parallel-cancel') assert.ok(['confirmed', 'cancelled'].includes(recordedStatus));
+      else assert.equal(recordedStatus, after.status);
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});

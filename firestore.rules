@@ -55,17 +55,6 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    function bookingUsesVoucher(bookingId, voucherId) {
-      let booking = getAfter(
-          /databases/$(database)/documents/bookings/$(bookingId)).data;
-      return (booking.keys().hasAll(['voucher']) &&
-              booking.voucher is map &&
-              booking.voucher.id == voucherId) ||
-          (booking.keys().hasAll(['voucherIds']) &&
-           booking.voucherIds is list &&
-           voucherId in booking.voucherIds);
-    }
-
     function validNewUser(userId) {
       return signedIn() &&
           request.auth.uid == userId &&
@@ -126,19 +115,8 @@ service cloud.firestore {
         allow read: if signedIn() &&
             (request.auth.uid == userId || admin());
         allow create, delete: if admin();
-        allow update: if admin() ||
-            (signedIn() &&
-             request.auth.uid == userId &&
-             resource.data.isActive == true &&
-             resource.data.isUsed == false &&
-             request.resource.data.isUsed == true &&
-             request.resource.data.usedBookingId is string &&
-             request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['isUsed', 'usedBookingId', 'usedAt', 'updatedAt']) &&
-             getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)).data.userId ==
-                 request.auth.uid &&
-             bookingUsesVoucher(
-                 request.resource.data.usedBookingId, voucherId));
+        // Consumption is atomic with backend booking creation, never a client counter.
+        allow update: if admin();
       }
     }
 
@@ -212,33 +190,12 @@ service cloud.firestore {
     match /voucher_templates/{voucherId} {
       allow read: if signedIn();
       allow create, delete: if admin();
-      allow update: if admin() ||
-          (signedIn() &&
-           resource.data.isActive == true &&
-           resource.data.usedCount is int &&
-           resource.data.usageLimit is int &&
-           resource.data.usedCount < resource.data.usageLimit &&
-           request.resource.data.usedCount == resource.data.usedCount + 1 &&
-           request.resource.data.lastBookingId is string &&
-           request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['usedCount', 'lastBookingId', 'updatedAt']) &&
-           getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.lastBookingId)).data.userId ==
-               request.auth.uid &&
-           bookingUsesVoucher(
-               request.resource.data.lastBookingId, voucherId));
+      allow update: if admin();
 
       match /redemptions/{userId} {
         allow read: if signedIn() &&
             (request.auth.uid == userId || admin());
-        allow create: if signedIn() &&
-            request.auth.uid == userId &&
-            request.resource.data.userId == request.auth.uid &&
-            request.resource.data.bookingId is string &&
-            getAfter(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.userId ==
-                request.auth.uid &&
-            bookingUsesVoucher(
-                request.resource.data.bookingId, voucherId);
-        allow update, delete: if admin();
+        allow write: if false;
       }
     }
 
@@ -286,7 +243,7 @@ service cloud.firestore {
     }
 
     match /booking_slots/{slotId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (admin() || resource.data.userId == request.auth.uid);
       allow write: if false;
     }
     match /work_shifts/{shiftId} {

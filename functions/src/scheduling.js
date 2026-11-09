@@ -1,4 +1,6 @@
 'use strict';
+const { requireWrites } = require('./write_control');
+const { prepareLoyalty } = require('./loyalty');
 const crypto = require('node:crypto');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { Timestamp, FieldValue } = require('firebase-admin/firestore');
@@ -155,6 +157,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       if (shape.kind === 'work') validateShift({ ...shape, employeeId: cell.employeeId, dateKey: cell.dateKey, salonId: data.salonId });
     }
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'rosterWritesEnabled');
       await adminCheck(tx, user.uid);
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const cache = new Map(); const changes = [];
@@ -205,6 +208,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     if (data.shiftId && (dates.length !== 1 || !Number.isInteger(data.expectedRevision))) fail('invalid-argument', 'Sửa một ca cần phiên bản hiện tại.');
     const shiftRefs = dates.map(() => db.collection('work_shifts').doc());
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'rosterWritesEnabled');
       await adminCheck(tx, user.uid);
       const op = await operation(tx, user.uid, data.requestId, data);
       if (op.result) return op.result;
@@ -245,6 +249,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
   async function cancelShift(request) {
     const user = await identity(request, true); const data = request.data ?? {};
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'rosterWritesEnabled');
       await adminCheck(tx, user.uid);
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const ref = db.doc(`work_shifts/${id(data.shiftId)}`); const snap = await tx.get(ref);
@@ -263,6 +268,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     const user = await identity(request, true); const data = request.data ?? {};
     if (data.shiftAId === data.shiftBId) fail('invalid-argument', 'Chọn hai ca khác nhau.');
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'rosterWritesEnabled');
       await adminCheck(tx, user.uid);
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const refs = [data.shiftAId, data.shiftBId].map((value) => db.doc(`work_shifts/${id(value)}`));
@@ -378,6 +384,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     if (!['pay_now', 'pay_later'].includes(data.paymentChoice) || !/^0\d{9}$/.test(data.userPhone ?? '')) fail('invalid-argument', 'Thông tin thanh toán/số điện thoại không hợp lệ.');
     const ref = db.collection('bookings').doc();
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'bookingWritesEnabled');
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const profile = await tx.get(db.doc(`users/${user.uid}`));
       if (!profile.exists || (profile.data().requiresEmailVerification === true && !user.emailVerified)) fail('permission-denied', 'Cần hồ sơ hợp lệ và xác minh email.');
@@ -423,6 +430,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
   async function updateBookingServices(request) {
     const user = await identity(request); const data = request.data ?? {};
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'bookingWritesEnabled');
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const ref = db.doc(`bookings/${id(data.bookingId)}`); const snap = await tx.get(ref);
       if (!snap.exists) fail('not-found', 'Không tìm thấy lịch hẹn.');
@@ -448,6 +456,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     const user = await identity(request); const data = request.data ?? {};
     if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(data.status)) fail('invalid-argument', 'Trạng thái không hợp lệ.');
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'bookingWritesEnabled');
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
       const ref = db.doc(`bookings/${id(data.bookingId)}`); const snap = await tx.get(ref);
       const admin = await tx.get(db.doc(`admins/${user.uid}`));
@@ -463,7 +472,10 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       const cache = new Map(); const day = await loadDay(tx, old.barberId, dateKey(start), cache);
       const slots = await tx.get(db.collection('booking_slots').where('bookingId', '==', ref.id));
       if (['pending', 'confirmed'].includes(data.status) && (!day.active || !available(day.shifts, day.bookings, old.salonId, start, duration(old), ref.id))) fail('failed-precondition', 'Không còn ca/giờ trống phù hợp.');
-      tx.update(ref, { status: data.status, updatedAt: FieldValue.serverTimestamp() });
+      const award = data.status === 'completed' ? await prepareLoyalty(tx, db, ref.id, old) : () => {};
+      tx.update(ref, { status: data.status, updatedAt: FieldValue.serverTimestamp(),
+        ...(data.status === 'cancelled' && old.payment?.status === 'paid' ? { 'payment.refundRequired': true } : {}) });
+      award();
       if (['cancelled', 'completed'].includes(data.status)) for (const slot of slots.docs) tx.update(slot.ref, { state: 'released', releasedAt: FieldValue.serverTimestamp() });
       guards(tx, cache); audit(tx, 'booking.status', user.uid, { bookingId: ref.id, status: old.status }, { status: data.status });
       tx.create(db.doc(`users/${old.userId}/notifications/schedule_${id(data.requestId)}`), {
@@ -512,6 +524,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     const user = await identity(request, true); const salonId = request.data?.salonId;
     if (!SALONS[salonId]) fail('invalid-argument', 'Chi nhánh không hợp lệ.');
     return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'rosterWritesEnabled');
       await adminCheck(tx, user.uid);
       const slots = await tx.get(db.collection('booking_slots').where('salonId', '==', salonId));
       const release = [];

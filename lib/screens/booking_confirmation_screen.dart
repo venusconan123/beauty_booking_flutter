@@ -9,6 +9,7 @@ import '../models/hairstyle.dart';
 import '../models/salon.dart';
 import '../models/voucher.dart';
 import '../services/booking_service.dart';
+import '../services/scheduling_service.dart';
 import '../services/vnpay_payment_service.dart';
 import '../services/voucher_service.dart';
 
@@ -491,6 +492,22 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       }
 
       Navigator.of(context).popUntil((route) => route.isFirst);
+    } on SchedulingRejectedException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Không thể lưu lịch hẹn'),
+          content: Text(error.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
     } on BookingConflictException catch (error) {
       if (!mounted) {
         return;

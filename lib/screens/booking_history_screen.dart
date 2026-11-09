@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
 import '../services/booking_service.dart';
+import '../services/scheduling_service.dart';
 import '../services/hair_service_catalog.dart';
 import '../services/vnpay_payment_service.dart';
 
@@ -27,6 +28,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
   final Set<String> _startingPaymentIds = <String>{};
   final Set<String> _editingBookingIds = <String>{};
+  final Set<String> _cancellingBookingIds = <String>{};
   _BookingSection _selectedSection = _BookingSection.registered;
   String? _selectedSalonId;
 
@@ -89,7 +91,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     }
   }
 
-  Future<void> _cancelBooking(BuildContext context, String bookingId) async {
+  Future<void> _cancelBooking(String bookingId) async {
+    if (_cancellingBookingIds.contains(bookingId)) return;
     final bool? shouldCancel = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -124,30 +127,47 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       ),
     );
 
-    if (shouldCancel != true) return;
+    if (shouldCancel != true || !mounted) return;
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bạn cần đăng nhập để hủy lịch hẹn.')),
       );
       return;
     }
 
+    setState(() => _cancellingBookingIds.add(bookingId));
     try {
       await BookingService().cancelBooking(
         bookingId: bookingId,
         userId: user.uid,
       );
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã hủy lịch hẹn.'),
           backgroundColor: Colors.green,
         ),
       );
+    } on SchedulingRejectedException catch (error) {
+      if (!mounted) return;
+      setState(() => _cancellingBookingIds.remove(bookingId));
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Không thể hủy lịch hẹn'),
+          content: Text(error.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
     } on FirebaseException catch (error) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -158,6 +178,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể hủy lịch hẹn: $error')));
+    } finally {
+      if (mounted) setState(() => _cancellingBookingIds.remove(bookingId));
     }
   }
 
@@ -1349,11 +1376,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       width: double.infinity,
                       height: 46,
                       child: OutlinedButton.icon(
-                        onPressed: () => _cancelBooking(context, bookingId),
+                        onPressed: _cancellingBookingIds.contains(bookingId)
+                            ? null
+                            : () => _cancelBooking(bookingId),
                         icon: const Icon(Icons.close_rounded),
-                        label: const Text(
-                          'Hủy lịch hẹn',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                        label: Text(
+                          _cancellingBookingIds.contains(bookingId)
+                              ? 'Đang hủy…'
+                              : 'Hủy lịch hẹn',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFFF7777),

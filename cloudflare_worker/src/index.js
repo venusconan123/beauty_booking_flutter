@@ -36,10 +36,18 @@ export function canPayBooking(booking) {
     (booking.status === 'pending' && booking.payment?.choice === 'pay_now');
 }
 
+export function paymentCreationIsEnabled(control) {
+  return control?.protocolVersion === 2 && control?.paymentCreationEnabled === true;
+}
+
 async function createPayment(request, env) {
   requireEnvironment(env);
   const identity = await verifyFirebaseUser(request, env);
   if (!identity) return json({ message: 'Phiên đăng nhập không hợp lệ.' }, 401);
+  const control = await getDocument(env, 'app_settings/scheduling_v2');
+  if (!paymentCreationIsEnabled(decodeFields(control?.fields || {}))) {
+    return json({ message: 'Tạo thanh toán đang tạm dừng để bảo trì. Các IPN đã có vẫn được đối soát.' }, 503);
+  }
 
   const userId = identity.userId;
   if (!identity.emailVerified) {
@@ -165,7 +173,7 @@ async function handleReturn(url, env) {
   });
 }
 
-async function processVnpayResult(url, env) {
+export async function processVnpayResult(url, env) {
   const parameters = Object.fromEntries(url.searchParams.entries());
   const receivedHash = String(parameters.vnp_SecureHash || '').toLowerCase();
   delete parameters.vnp_SecureHash;
@@ -198,7 +206,6 @@ async function processVnpayResult(url, env) {
   if (!bookingDocument) return { code: '01', message: 'Booking not found', paid: false };
   const booking = decodeFields(bookingDocument.fields || {});
   if (booking.userId !== order.userId ||
-      !canPayBooking(booking) ||
       booking.payment?.status !== 'pending' ||
       booking.payment?.orderId !== orderId ||
       Number(booking.totalPrice) !== Number(order.amount)) {
@@ -351,7 +358,8 @@ async function patchDocument(env, path, data, updateTime) {
 }
 
 export function bookingStatusAfterPayment(currentStatus, paymentStatus) {
-  return paymentStatus === 'paid' ? 'confirmed' : currentStatus;
+  return paymentStatus === 'paid' && ['pending', 'confirmed'].includes(currentStatus)
+    ? 'confirmed' : currentStatus;
 }
 
 export function paymentNotification(booking, paymentStatus) {
@@ -379,10 +387,28 @@ async function commitPayment(
   const token = await googleAccessToken(env);
   const bookingName = bookingDocument.name;
   const orderName = orderDocument.name;
-  const bookingStatus = bookingStatusAfterPayment(
+  const hasSchedule = typeof booking.barberId === 'string' &&
+    /^[A-Za-z0-9_-]{1,128}$/.test(booking.barberId) &&
+    booking.appointmentAt instanceof Date && Number.isFinite(booking.appointmentAt.getTime());
+  const terminal = ['cancelled', 'completed'].includes(booking.status);
+  // A late valid bank receipt is financial evidence, never permission to revive
+  // a closed booking or invent a missing legacy assignment.
+  if (payment.status === 'paid' && (terminal || !hasSchedule)) {
+    payment.requiresReview = true;
+    if (booking.status === 'cancelled') payment.refundRequired = true;
+  }
+  const bookingStatus = hasSchedule ? bookingStatusAfterPayment(
     booking.status,
     payment.status,
-  );
+  ) : booking.status;
+  let guardDocument;
+  let guardName;
+  if (hasSchedule) {
+    const day = new Date(booking.appointmentAt.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+    const guardPath = `employee_days/${booking.barberId}_${day}`;
+    guardDocument = await getDocument(env, guardPath);
+    guardName = `${bookingName.slice(0, bookingName.indexOf('/bookings/'))}/${guardPath}`;
+  }
   const writes = [
     {
       update: {
@@ -410,6 +436,24 @@ async function commitPayment(
       currentDocument: { updateTime: orderDocument.updateTime },
     },
   ];
+  if (guardName) writes.push({
+    update: { name: guardName, fields: encodeFields({
+      version: Number(decodeFields(guardDocument?.fields || {}).version || 0) + 1,
+      updatedAt: now,
+    }) },
+    ...(guardDocument ? { updateMask: { fieldPaths: ['version', 'updatedAt'] } } : {}),
+    currentDocument: guardDocument ? { updateTime: guardDocument.updateTime } : { exists: false },
+  });
+  const documentsRoot = bookingName.slice(0, bookingName.indexOf('/bookings/'));
+  const orderKey = orderName.split('/').at(-1);
+  writes.push({
+    update: { name: `${documentsRoot}/audit_events/payment_${orderKey}`, fields: encodeFields({
+      action: 'payment.record', actorType: 'vnpay-worker', bookingId: order.bookingId,
+      orderId: orderKey, beforeStatus: booking.status, afterStatus: bookingStatus,
+      paymentStatus: payment.status, requiresReview: payment.requiresReview === true, createdAt: now,
+    }) },
+    currentDocument: { exists: false },
+  });
   const notification = paymentNotification(booking, payment.status);
   if (notification && order.userId) {
     const documentsRoot = bookingName.slice(0, bookingName.indexOf('/bookings/'));
@@ -421,6 +465,10 @@ async function commitPayment(
         name: `${documentsRoot}/users/${order.userId}/notifications/vnpay_${safeOrderId}`,
         fields: encodeFields({
           ...notification,
+          ...(payment.requiresReview ? {
+            type: 'payment_review', title: 'Đã nhận kết quả thanh toán, cần đối soát',
+            message: 'Thanh toán đã được ghi nhận. Trạng thái lịch hẹn được giữ nguyên để quản trị viên đối soát.',
+          } : {}),
           bookingId: order.bookingId,
           createdAt: now,
         }),

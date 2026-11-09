@@ -1,0 +1,29 @@
+{
+  "score": 3,
+  "summary": "Local prototype revision closes customer voucher quota/redemption writes and raw slot cross-user reads. Emulator regression tests pass. Legacy installed-client cutover, ancillary schema limits and cloud/runtime verification remain. No production Rules changes or attacks were executed.",
+  "findings": [
+    {
+      "recommendation": "Approved maintenance/upgrade cutover; no permanent legacy write bypass.",
+      "severity": "major",
+      "issue": "Installed legacy clients still write directly and cannot share guarded production mutations safely.",
+      "check": "Business logic vs Rules"
+    },
+    {
+      "recommendation": "Separate scoped validator patch and compatibility tests before broad rollout.",
+      "severity": "minor",
+      "issue": "Ancillary reports/support paths still lack complete field/size constraints; this change is not an application-wide hardening.",
+      "check": "Storage abuse / type safety"
+    }
+  ],
+  "authoritySource": "admins/{authUid}, backend-owned staff_accounts and employee_accounts; no self-assigned role field",
+  "scheduleChecksAlreadyPassed": "40 backend/Rules/HTTP/Worker callback Emulator tests; 20 Flutter tests; not proof of deployed cloud or UI production workflows",
+  "rulesModifiedByThisAudit": true,
+  "resolvedLocally": [
+    "Customer quota replay on an existing redeemed booking is denied",
+    "Customer forged redemptions are denied; consumption stays with backend booking transaction",
+    "booking_slots reads are owner/admin scoped",
+    "Production transport no longer requires Emulator flag; server write gates default closed"
+  ],
+  "productionRulesModified": false,
+  "prototype": true
+}

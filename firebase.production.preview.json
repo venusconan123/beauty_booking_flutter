@@ -1,0 +1,13 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "staff",
+      "ignore": ["node_modules", ".git", "*.log", "*.local", ".env*", ".runtimeconfig.json", "**/service-account*.json", "**/*serviceAccount*.json", "**/*.pem", "test", "tools", "*.md"]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

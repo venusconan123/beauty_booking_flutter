@@ -13,7 +13,15 @@ const {
   bookingStatusAfterPayment,
   paymentNotification,
   canUsePaymentAccount,
+  paymentCreationIsEnabled,
 } = await import('../src/index.js');
+
+test('payment creation defaults closed independently from receipt processing', () => {
+  for (const control of [undefined, {}, { protocolVersion: 2 }, { protocolVersion: 1, paymentCreationEnabled: true }, { protocolVersion: 2, paymentCreationEnabled: 'true' }]) {
+    assert.equal(paymentCreationIsEnabled(control), false);
+  }
+  assert.equal(paymentCreationIsEnabled({ protocolVersion: 2, paymentCreationEnabled: true }), true);
+});
 
 test('requires verified email for newly registered payment accounts', () => {
   assert.equal(canUsePaymentAccount(
@@ -35,6 +43,8 @@ test('auto-confirms a booking only after a successful VNPAY payment', () => {
   assert.equal(bookingStatusAfterPayment('pending', 'failed'), 'pending');
   assert.equal(bookingStatusAfterPayment('pending', 'pending'), 'pending');
   assert.equal(bookingStatusAfterPayment('confirmed', 'paid'), 'confirmed');
+  assert.equal(bookingStatusAfterPayment('cancelled', 'paid'), 'cancelled');
+  assert.equal(bookingStatusAfterPayment('completed', 'paid'), 'completed');
 });
 
 test('creates a personal notification only for a successful payment', () => {

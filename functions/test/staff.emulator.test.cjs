@@ -28,6 +28,16 @@ const ctx = (uid, emailVerified = true) => env.authenticatedContext(uid, { email
 const request = (uid, data) => ({ auth: uid ? { uid } : null, data });
 const rejectsCode = (promise, code) => assert.rejects(promise, (error) => error.code === code);
 
+test('staff link write control rejects even an admin while preserving the existing account', async () => {
+  const control = db.doc('app_settings/scheduling_v2');
+  const account = db.doc('staff_accounts/staff-a');
+  const before = (await account.get()).data();
+  await control.set({ protocolVersion: 2, bookingWritesEnabled: true, rosterWritesEnabled: true, staffWritesEnabled: false });
+  await rejectsCode(handlers.setStaffAccountActive(request('admin', { uid: 'staff-a', active: true })), 'failed-precondition');
+  assert.deepEqual((await account.get()).data(), before);
+  await control.update({ staffWritesEnabled: true });
+});
+
 before(async () => {
   env = await initializeTestEnvironment({ projectId, firestore: {
     host: '127.0.0.1', port: 8180,

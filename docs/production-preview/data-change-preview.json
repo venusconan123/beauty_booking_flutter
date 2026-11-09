@@ -1,0 +1,143 @@
+{
+  "project": "men-hair-booking",
+  "sourceCommit": "f7cb96ed359ea100793cd5f7d9816bd07f1dc804",
+  "approved": false,
+  "executed": false,
+  "purpose": "Review only. No executable migration is included.",
+  "services": {
+    "mode": "create-if-absent; re-read and abort on drift before apply",
+    "preserveExisting": [
+      "service_combo_10"
+    ],
+    "proposedCreates": [
+      {
+        "id": "service_hair_cut",
+        "name": "Cắt tóc nam",
+        "price": 80000,
+        "durationMinutes": 30,
+        "isActive": true,
+        "order": 1
+      },
+      {
+        "id": "service_hair_wash",
+        "name": "Gội đầu",
+        "price": 30000,
+        "durationMinutes": 20,
+        "isActive": true,
+        "order": 2
+      },
+      {
+        "id": "service_styling",
+        "name": "Tạo kiểu",
+        "price": 50000,
+        "durationMinutes": 30,
+        "isActive": true,
+        "order": 3
+      },
+      {
+        "id": "service_perm",
+        "name": "Uốn tóc",
+        "price": 250000,
+        "durationMinutes": 120,
+        "isActive": true,
+        "order": 4
+      },
+      {
+        "id": "service_dye",
+        "name": "Nhuộm tóc",
+        "price": 300000,
+        "durationMinutes": 150,
+        "isActive": true,
+        "order": 5
+      },
+      {
+        "id": "service_skin_care",
+        "name": "Chăm sóc da",
+        "price": 100000,
+        "durationMinutes": 45,
+        "isActive": true,
+        "order": 6
+      }
+    ],
+    "timestampsOnApprovedApply": [
+      "createdAt=serverTimestamp",
+      "updatedAt=serverTimestamp"
+    ],
+    "priceApprovalRequired": true
+  },
+  "staffLinks": {
+    "selectionRequired": true,
+    "approvedMappings": [],
+    "authAccountsToCreate": [],
+    "existingEmployeesToCreateOrReplace": [],
+    "perApprovedMapping": {
+      "staff_accounts/{approvedAuthUid}": {
+        "employeeId": "<approvedExistingEmployeeId>",
+        "active": true
+      },
+      "employee_accounts/{approvedExistingEmployeeId}": {
+        "uid": "<approvedAuthUid>"
+      },
+      "audit": "staff.link; actorUid and server timestamps are backend-generated"
+    },
+    "preconditions": [
+      "Auth exists, enabled, email verified",
+      "employee active, valid primary salon",
+      "both link directions absent or already identical",
+      "human confirms identity; never infer from display name",
+      "admin Auth UID is not selected as a staff login"
+    ]
+  },
+  "workShifts": {
+    "approvedAssignments": [],
+    "scheduleApprovalRequired": true,
+    "autoFillEntireMonth": false,
+    "offIsExplicit": true,
+    "operation": "admin saveRoster with preview, expected revisions and stable requestId",
+    "validation": [
+      "all-branch overlap",
+      "active booking coverage",
+      "four employee/day checks on swaps",
+      "atomic guards and audit"
+    ]
+  },
+  "existingBookings": {
+    "automaticUpdates": [],
+    "keepIdsAndStoredServicePrices": true,
+    "historicalSchemaUpgradeRequired": false,
+    "manualReview": "One confirmed/pay_later/unpaid booking remains on 2026-11-02 09:30-10:30 Asia/Ho_Chi_Minh at salon_01. Decide its real outcome; do not auto-complete/cancel."
+  },
+  "backendGeneratedCollections": [
+    "employee_days",
+    "schedule_operations",
+    "audit_events",
+    "booking_slots for newly created/changed bookings"
+  ],
+  "deletes": [],
+  "emulatorDataToImport": [],
+  "changesToExistingPasswordsOrUids": [],
+  "sourceDescription": "f7cb96e plus current uncommitted production-preparation changes",
+  "writeControl": {
+    "path": "app_settings/scheduling_v2",
+    "mode": "create-if-absent after approval, re-read before apply",
+    "initial": {
+      "staffWritesEnabled": false,
+      "paymentCreationEnabled": false,
+      "rosterWritesEnabled": false,
+      "protocolVersion": 2,
+      "bookingWritesEnabled": false
+    },
+    "openSequence": [
+      "Approve roster/staff preparation while booking/payment stay closed",
+      "Cut over Rules/client/Worker and verify backups/staging",
+      "Open booking for approved canary",
+      "Open payment creation separately after IPN reconciliation"
+    ],
+    "requiresApproval": true
+  },
+  "futureOperationFields": {
+    "completion": "Existing admin completion creates legacy loyalty vouchers and notifications atomically, no historical backfill",
+    "payment": "Verified callback may set payment.requiresReview/payment.refundRequired and audit_events/payment_<orderId>; never resurrect cancelled/completed bookings",
+    "cancellation": "Cancelling a paid booking preserves paid and sets payment.refundRequired; does not execute refund"
+  }
+}

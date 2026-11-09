@@ -95,22 +95,24 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
           _pending = null;
           _busy = false;
         });
-        if (name == 'swapShifts') {
-          await showDialog<void>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Không thể đổi ca'),
-              content: SingleChildScrollView(child: Text(error.message)),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Đóng'),
-                ),
-              ],
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              name == 'swapShifts'
+                  ? 'Không thể đổi ca'
+                  : 'Không thể lưu lịch làm',
             ),
-          );
-          return;
-        }
+            content: SingleChildScrollView(child: Text(error.message)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
       _message('$error');
     } finally {

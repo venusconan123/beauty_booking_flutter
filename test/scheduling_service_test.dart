@@ -6,6 +6,49 @@ import 'package:men_hair_booking/services/scheduling_service.dart';
 
 void main() {
   test(
+    'production callable uses initialized project HTTPS and retains request ID',
+    () async {
+      final seen = <Uri>[];
+      final client = _Client((request) async {
+        seen.add(request.url);
+        expect(request.headers['Authorization'], 'Bearer local-test');
+        final body =
+            jsonDecode(await request.finalize().bytesToString()) as Map;
+        expect(body['data']['requestId'], 'stable-production-request');
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('{"result":{"ok":true}}')),
+          200,
+        );
+      });
+      final service = SchedulingService.testing(
+        emulatorEnabled: false,
+        projectId: 'men-hair-booking',
+        tokenProvider: () async => 'local-test',
+        clientFactory: () => client,
+      );
+      for (final name in ['createBooking', 'saveRoster', 'linkStaffAccount']) {
+        expect(
+          await service.call(name, {'requestId': 'stable-production-request'}),
+          {'ok': true},
+        );
+        expect(
+          seen.last.toString(),
+          'https://asia-southeast1-men-hair-booking.cloudfunctions.net/$name',
+        );
+      }
+      expect(client.closed, isTrue);
+    },
+  );
+
+  test('unknown callable cannot become an injected endpoint', () async {
+    final service = SchedulingService.testing(
+      clientFactory: () => throw StateError('must not open transport'),
+      tokenProvider: () async => 'local-test',
+    );
+    await expectLater(service.call('../other', {}), throwsArgumentError);
+  });
+
+  test(
     'lost response closes client; retry keeps payload/id and recovers one committed shift',
     () async {
       final mutation = SchedulingMutation('saveShifts', {

@@ -58,13 +58,9 @@ class _AdminStaffAccountsScreenState extends State<AdminStaffAccountsScreen> {
           'Liên kết UID của tài khoản Auth đã tồn tại và xác minh email với hồ sơ nhân viên. '
           'Không tạo tài khoản mới. Mỗi UID và nhân viên chỉ được liên kết một lần.',
         ),
-        if (!StaffAccountService.emulatorEnabled)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'Bản cục bộ: thao tác liên kết chỉ được bật khi chạy với Emulator.',
-            ),
-          ),
+        const Text(
+          'Chỉ quản trị viên được liên kết hoặc thay đổi trạng thái tài khoản nhân viên.',
+        ),
         TextField(
           controller: _uid,
           decoration: const InputDecoration(labelText: 'Firebase Auth UID'),
@@ -107,7 +103,7 @@ class _AdminStaffAccountsScreenState extends State<AdminStaffAccountsScreen> {
         ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _saving || !StaffAccountService.emulatorEnabled
+          onPressed: _saving
               ? null
               : () {
                   if (_employeeId == null || _uid.text.trim().isEmpty) {
@@ -140,7 +136,7 @@ class _AdminStaffAccountsScreenState extends State<AdminStaffAccountsScreen> {
                       title: Text('${doc.data()['employeeId']}'),
                       subtitle: SelectableText(doc.id),
                       value: doc.data()['active'] == true,
-                      onChanged: _saving || !StaffAccountService.emulatorEnabled
+                      onChanged: _saving
                           ? null
                           : (active) => _perform(
                               () => _service.setActive(doc.id, active),

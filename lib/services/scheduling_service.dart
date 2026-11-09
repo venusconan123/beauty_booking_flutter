@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 import 'staff_account_service.dart';
 
@@ -42,16 +43,21 @@ class SchedulingService {
     this.requestTimeout = const Duration(seconds: 45),
   }) : _clientFactory = clientFactory ?? http.Client.new,
        _tokenProvider = tokenProvider ?? _currentToken,
-       _emulatorEnabled = StaffAccountService.emulatorEnabled;
+       _emulatorEnabled = StaffAccountService.emulatorEnabled,
+       _projectId = null;
   @visibleForTesting
   SchedulingService.testing({
     required http.Client Function() clientFactory,
     required Future<String?> Function() tokenProvider,
     this.requestTimeout = const Duration(seconds: 45),
+    bool emulatorEnabled = true,
+    String projectId = 'demo-men-hair-booking',
   }) : _clientFactory = clientFactory,
        _tokenProvider = tokenProvider,
-       _emulatorEnabled = true;
+       _emulatorEnabled = emulatorEnabled,
+       _projectId = projectId;
   final bool _emulatorEnabled;
+  final String? _projectId;
   final http.Client Function() _clientFactory;
   final Future<String?> Function() _tokenProvider;
   final Duration requestTimeout;
@@ -64,8 +70,21 @@ class SchedulingService {
     String name,
     Map<String, dynamic> data,
   ) async {
-    if (!_emulatorEnabled) {
-      throw StateError('Bản xem trước lịch làm chỉ chạy với Emulator.');
+    if (!const {
+      'linkStaffAccount',
+      'setStaffAccountActive',
+      'saveRoster',
+      'saveShifts',
+      'cancelShift',
+      'swapShifts',
+      'createBooking',
+      'updateBookingServices',
+      'changeBookingStatus',
+      'getAvailability',
+      'listBookableStaff',
+      'releaseStaleSlots',
+    }.contains(name)) {
+      throw ArgumentError.value(name, 'name', 'Callable không hợp lệ.');
     }
     final client = _clientFactory();
     final watch = Stopwatch()..start();
@@ -95,10 +114,19 @@ class SchedulingService {
         'FUNCTIONS_EMULATOR_PORT',
         defaultValue: 5001,
       );
+      final project = _projectId ?? Firebase.app().options.projectId;
+      if (!_emulatorEnabled &&
+          (project.startsWith('demo-') ||
+              !RegExp(r'^[a-z][a-z0-9-]{4,28}[a-z0-9]$').hasMatch(project))) {
+        throw StateError('Firebase project không hợp lệ cho HTTPS production.');
+      }
+      final endpoint = _emulatorEnabled
+          ? Uri.parse(
+              'http://${StaffAccountService.emulatorHost}:$port/demo-men-hair-booking/asia-southeast1/$name',
+            )
+          : Uri.https('asia-southeast1-$project.cloudfunctions.net', '/$name');
       final response = await client.post(
-        Uri.parse(
-          'http://${StaffAccountService.emulatorHost}:$port/demo-men-hair-booking/asia-southeast1/$name',
-        ),
+        endpoint,
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -112,7 +140,7 @@ class SchedulingService {
         final message = error is Map
             ? '${error['message']}'
             : 'Không thể cập nhật lịch.';
-        if ([400, 401, 403, 404, 409].contains(response.statusCode)) {
+        if ([400, 401, 403, 404, 409, 412].contains(response.statusCode)) {
           throw SchedulingRejectedException(message);
         }
         throw StateError(message);
