@@ -143,16 +143,24 @@ void main() {
       otherAtA = s.activeShifts('staff-2', aDay).single;
   final bShift = s.activeShifts('staff-2', bDay).single,
       otherAtB = s.activeShifts('staff-1', bDay).single;
-  rejects(
-    () => s.swapShifts(a['id'] as String, bShift['id'] as String),
-    'swap fails if destination already has a shift',
-  );
-  s.cancelShift(otherAtA['id'] as String);
-  s.cancelShift(otherAtB['id'] as String);
+  final companions = jsonEncode([otherAtA, otherAtB]);
+  a['code'] = 'S';
+  a['start'] = 420;
+  a['end'] = 900;
+  bShift['code'] = 'C';
+  bShift['start'] = 840;
+  bShift['end'] = 1320;
   s.swapShifts(a['id'] as String, bShift['id'] as String);
   check(
-    a['employeeId'] == 'staff-2' && bShift['employeeId'] == 'staff-1',
-    'valid A/B swap updates both shifts',
+    companions == jsonEncode([otherAtA, otherAtB]),
+    'swap preserves both unselected companion cells',
+  );
+  check(
+    a['employeeId'] == 'staff-1' &&
+        bShift['employeeId'] == 'staff-2' &&
+        a['code'] == 'C' &&
+        bShift['code'] == 'S',
+    'two-cell swap changes hours/codes and keeps employee/date positions',
   );
   s.savePerson({...s.person('staff-1'), 'active': false});
   s.switchRole(WorkspaceRole.staff, employee: 'staff-1');

@@ -23,43 +23,91 @@ WorkspaceStore fresh() {
   return s;
 }
 
-String shiftId(WorkspaceStore s, String employee, String day) =>
-    s.activeShifts(employee, day).first['id'] as String;
+RowData shift(WorkspaceStore s, String employee, String day) =>
+    s.activeShifts(employee, day).single;
+String unselected(WorkspaceStore s, String a, String b) =>
+    jsonEncode(s.shifts.where((r) => r['id'] != a && r['id'] != b).toList());
 void main() {
-  // The screenshot: Nam HC on 10 Jan and Bao C on 8 Jan; both other cells occupied.
   final s = fresh();
-  final a = shiftId(s, 'staff-1', '2027-01-10');
-  final b = shiftId(s, 'staff-2', '2027-01-08');
-  rejects(
-    () => s.previewSwap(a, b),
-    'screenshot: strict two-shift exchange still rejects existing F shift',
+  final a = shift(s, 'staff-2', '2026-12-04'),
+      b = shift(s, 'staff-1', '2026-12-04');
+  check(
+    a['code'] == 'C' && b['code'] == 'S',
+    'reproduce screenshot C/S on same 04 December',
   );
+  final untouched = unselected(s, a['id'] as String, b['id'] as String);
   final before = s.exportJson();
-  final plan = s.previewSwap(a, b, wholeDays: true);
+  final plan = s.previewSwap(a['id'] as String, b['id'] as String);
   check(
-    plan.length == 4 && before == s.exportJson(),
-    'four-cell preview is read-only and includes the two unselected cells',
+    plan.length == 2 && before == s.exportJson(),
+    'preview is read-only and contains exactly selected cells',
   );
-  s.swapEmployeeDays(a, b, expected: jsonEncode(plan));
+  s.swapShifts(
+    a['id'] as String,
+    b['id'] as String,
+    expected: jsonEncode(plan),
+  );
   check(
-    s.activeShifts('staff-1', '2027-01-10').single['code'] == 'F' &&
-        s.activeShifts('staff-2', '2027-01-10').single['code'] == 'HC' &&
-        s.activeShifts('staff-1', '2027-01-08').single['code'] == 'C' &&
-        s.activeShifts('staff-2', '2027-01-08').single['code'] == 'S',
-    'screenshot: four schedules exchanged without retaining conflicting assignments',
+    a['code'] == 'S' &&
+        a['start'] == 420 &&
+        a['end'] == 900 &&
+        b['code'] == 'C' &&
+        b['start'] == 840 &&
+        b['end'] == 1320,
+    'same-day C and S exchange successfully',
   );
-  check(s.audit.length == 1, 'whole exchange writes one audit event');
+  check(
+    a['employeeId'] == 'staff-2' &&
+        b['employeeId'] == 'staff-1' &&
+        a['day'] == '2026-12-04' &&
+        b['day'] == '2026-12-04' &&
+        a['salonId'] == 'salon_01' &&
+        b['salonId'] == 'salon_01',
+    'employee, date and branch unchanged',
+  );
+  check(
+    untouched == unselected(s, a['id'] as String, b['id'] as String),
+    'all unselected records are byte-for-byte unchanged',
+  );
   final restored = WorkspaceStore(today: s.today, snapshot: s.exportJson());
   check(
-    restored.activeShifts('staff-2', '2027-01-10').single['code'] == 'HC',
-    'four-cell result survives serialization/reload',
+    shift(restored, 'staff-2', '2026-12-04')['code'] == 'S',
+    'same-day result survives reload',
+  );
+
+  final same = fresh();
+  final x = shift(same, 'staff-1', '2026-12-14'),
+      y = shift(same, 'staff-2', '2026-12-13');
+  final off = jsonEncode(shift(same, 'staff-1', '2026-12-13'));
+  final c = jsonEncode(shift(same, 'staff-2', '2026-12-14'));
+  same.swapShifts(x['id'] as String, y['id'] as String);
+  check(
+    x['code'] == 'S' && y['code'] == 'S',
+    'two selected S shifts remain S, with no unexpected C or OFF',
+  );
+  check(
+    off == jsonEncode(shift(same, 'staff-1', '2026-12-13')) &&
+        c == jsonEncode(shift(same, 'staff-2', '2026-12-14')),
+    'companion C and OFF cells remain unchanged',
+  );
+
+  final different = fresh();
+  final dA = shift(different, 'staff-1', '2027-01-10'),
+      dB = shift(different, 'staff-2', '2027-01-08');
+  final others = unselected(different, dA['id'] as String, dB['id'] as String);
+  different.swapShifts(dA['id'] as String, dB['id'] as String);
+  check(
+    dA['code'] == 'C' &&
+        dB['code'] == 'HC' &&
+        others == unselected(different, dA['id'] as String, dB['id'] as String),
+    'different-day swap changes exactly the two cells',
   );
 
   for (final employee in ['staff-1', 'staff-2']) {
     for (final day in ['2027-01-08', '2027-01-10']) {
       final blocked = fresh();
-      final x = shiftId(blocked, 'staff-1', '2027-01-10'),
-          y = shiftId(blocked, 'staff-2', '2027-01-08');
+      final ba = shift(blocked, 'staff-1', '2027-01-10'),
+          bb = shift(blocked, 'staff-2', '2027-01-08');
       blocked.bookings.add({
         'id': 'blocking',
         'employeeId': employee,
@@ -69,79 +117,70 @@ void main() {
         'end': 600,
         'status': 'confirmed',
       });
-      final original = blocked.exportJson();
+      final state = blocked.exportJson();
       rejects(
-        () => blocked.swapEmployeeDays(x, y, expected: 'old-plan'),
-        'booking check: $employee on $day, including another branch',
+        () => blocked.swapShifts(ba['id'] as String, bb['id'] as String),
+        'booking blocked: $employee on $day at another branch',
       );
-      check(
-        blocked.exportJson() == original,
-        'rejected exchange leaves all four cells and audit unchanged',
-      );
+      check(state == blocked.exportJson(), 'booking rejection is atomic');
     }
   }
-  final off = fresh();
-  final x = shiftId(off, 'staff-1', '2027-01-10'),
-      y = shiftId(off, 'staff-2', '2027-01-12');
-  final offPlan = off.previewSwap(x, y, wholeDays: true);
-  check(
-    offPlan.any((r) => r['status'] == 'off'),
-    'whole-day preview explicitly includes a companion OFF',
-  );
-  off.swapEmployeeDays(x, y, expected: jsonEncode(offPlan));
-  check(
-    off.activeShifts('staff-2', '2027-01-12').single['status'] == 'off',
-    'OFF follows the exchanged daily schedule',
-  );
-
-  final multiple = fresh();
-  final mA = shiftId(multiple, 'staff-1', '2027-01-10'),
-      mB = shiftId(multiple, 'staff-2', '2027-01-08');
-  multiple.shifts.add({
+  final overlap = fresh();
+  final oa = shift(overlap, 'staff-1', '2026-12-04'),
+      ob = shift(overlap, 'staff-2', '2026-12-04');
+  // Nam has S until 15:00 plus a nonoverlapping evening shift at another branch.
+  overlap.shifts.add({
     'id': 'extra',
     'employeeId': 'staff-1',
-    'day': '2027-01-08',
+    'day': '2026-12-04',
     'salonId': 'salon_02',
     'code': 'T',
     'start': 1020,
     'end': 1200,
     'status': 'scheduled',
   });
-  final multiPlan = multiple.previewSwap(mA, mB, wholeDays: true);
-  check(
-    multiPlan.length == 5 && multiPlan.any((r) => r['salonId'] == 'salon_02'),
-    'preview includes all extra shifts across branches',
+  final original = overlap.exportJson();
+  rejects(
+    () => overlap.swapShifts(oa['id'] as String, ob['id'] as String),
+    'new C shift is blocked by another branch evening shift',
   );
-  multiple.swapEmployeeDays(mA, mB, expected: jsonEncode(multiPlan));
   check(
-    multiple.activeShifts('staff-2', '2027-01-08').length == 2,
-    'cross-branch nonoverlapping schedule exchanged together',
+    original == overlap.exportJson(),
+    'overlap rejection changes no rows or audit',
   );
 
   final stale = fresh();
-  final stA = shiftId(stale, 'staff-1', '2027-01-10'),
-      stB = shiftId(stale, 'staff-2', '2027-01-08');
-  final old = jsonEncode(stale.previewSwap(stA, stB, wholeDays: true));
-  stale.shifts.firstWhere((r) => r['id'] == stA)['start'] = 600;
-  final state = stale.exportJson();
-  rejects(
-    () => stale.swapEmployeeDays(stA, stB, expected: old),
-    'stale preview cannot apply silently',
+  final sa = shift(stale, 'staff-1', '2026-12-04'),
+      sb = shift(stale, 'staff-2', '2026-12-04');
+  final expected = jsonEncode(
+    stale.previewSwap(sa['id'] as String, sb['id'] as String),
   );
-  check(state == stale.exportJson(), 'stale-preview rejection is atomic');
-  final disabled = fresh();
-  final dA = shiftId(disabled, 'staff-1', '2027-01-10'),
-      dB = shiftId(disabled, 'staff-2', '2027-01-08');
-  final expected = jsonEncode(disabled.previewSwap(dA, dB, wholeDays: true));
-  disabled.person('staff-2')['active'] = false;
+  sa['start'] = 450;
   rejects(
-    () => disabled.swapEmployeeDays(dA, dB, expected: expected),
-    'deactivated employee blocked between preview and save',
+    () => stale.swapShifts(
+      sa['id'] as String,
+      sb['id'] as String,
+      expected: expected,
+    ),
+    'stale preview must be reviewed again',
   );
-  disabled.switchRole(WorkspaceRole.staff, employee: 'staff-1');
+  stale.person('staff-2')['active'] = false;
   rejects(
-    () => disabled.previewSwap(dA, dB, wholeDays: true),
-    'staff cannot request admin swap preview',
+    () => stale.previewSwap(sa['id'] as String, sb['id'] as String),
+    'inactive employee blocked',
   );
-  print('All two-day roster exchange checks passed.');
+  stale.switchRole(WorkspaceRole.staff, employee: 'staff-1');
+  rejects(
+    () => stale.previewSwap(sa['id'] as String, sb['id'] as String),
+    'staff cannot swap schedules',
+  );
+  final invalid = fresh();
+  rejects(
+    () => invalid.previewSwap(
+      shift(invalid, 'staff-1', '2026-12-13')['id'] as String,
+      shift(invalid, 'staff-2', '2026-12-14')['id'] as String,
+    ),
+    'OFF cannot be selected as a work shift',
+  );
+  print('All two-cell swap checks passed.');
 }

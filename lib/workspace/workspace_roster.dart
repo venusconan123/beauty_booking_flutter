@@ -496,7 +496,7 @@ class _RosterPageState extends State<_RosterPage> {
                                 } else {
                                   _toast(
                                     context,
-                                    'Đã giữ ca A. Chọn ca B ở ngày khác, có thể đổi bộ lọc chi nhánh.',
+                                    'Đã giữ ca A. Chọn ca B của nhân viên khác; có thể cùng ngày hoặc khác ngày.',
                                   );
                                 }
                               },
@@ -556,179 +556,111 @@ class _RosterPageState extends State<_RosterPage> {
   }
 
   Future<void> _performSwap(String aId, String bId) async {
-    final a = s.shifts.firstWhere((r) => r['id'] == aId),
-        b = s.shifts.firstWhere((r) => r['id'] == bId);
-    var wholeDays = false;
-    final result = await showDialog<(bool, String)>(
+    final preview = await showDialog<String>(
       context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, update) {
-          List<RowData>? plan;
-          String? error;
-          try {
-            plan = s.previewSwap(aId, bId, wholeDays: wholeDays);
-          } catch (e) {
-            error = e.toString().replaceFirst('Bad state: ', '');
-          }
-          final selectedPeople = [
-            a['employeeId'] as String,
-            b['employeeId'] as String,
-          ];
-          final days = [a['day'] as String, b['day'] as String]..sort();
-          String label(RowData row) =>
-              '${row['code']} ${clockText(row['start'] as int)}–${clockText(row['end'] as int)} • ${s.branchName(row['salonId'] as String)}';
-          return AlertDialog(
-            insetPadding: const EdgeInsets.all(16),
-            title: const Text('Chọn cách đổi lịch A/B'),
-            content: SizedBox(
-              width: 660,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ChoiceChip(
-                          label: const Text('Chỉ đổi 2 ca đã chọn'),
-                          selected: !wholeDays,
-                          onSelected: (_) => update(() => wholeDays = false),
-                        ),
-                        ChoiceChip(
-                          label: const Text('Hoán đổi lịch cả 2 ngày'),
-                          selected: wholeDays,
-                          onSelected: (_) => update(() => wholeDays = true),
-                        ),
-                      ],
-                    ),
-                    _gap(),
-                    Text(
-                      wholeDays
-                          ? 'Đổi người phụ trách của toàn bộ ca/OFF giữa hai nhân viên trong hai ngày, trên mọi chi nhánh. Ngày, giờ và địa điểm từng ca giữ nguyên. Các ô còn lại trong hai ngày cũng sẽ thay đổi.'
-                          : 'Chỉ chuyển hai ca đã chọn cho nhau. Ca/OFF còn lại của cả hai người giữ nguyên, vì vậy có thể bị trùng. Nếu muốn đổi cả bốn ô, chọn hoán đổi lịch cả 2 ngày.',
-                      style: const TextStyle(color: _muted),
-                    ),
-                    _gap(),
-                    for (final day in days) ...[
+      builder: (c) {
+        List<RowData>? plan;
+        String? error;
+        try {
+          plan = s.previewSwap(aId, bId);
+        } catch (e) {
+          error = e.toString().replaceFirst('Bad state: ', '');
+        }
+        return AlertDialog(
+          insetPadding: const EdgeInsets.all(16),
+          title: const Text('Đổi 2 ca đã chọn'),
+          content: SizedBox(
+            width: 580,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Chỉ hoán đổi loại ca và giờ làm của hai ô đã chọn. Nhân viên, ngày, chi nhánh và tất cả ô khác giữ nguyên. Có thể đổi hai ca cùng ngày.',
+                    style: TextStyle(color: _muted),
+                  ),
+                  _gap(),
+                  if (plan != null)
+                    for (final change in plan) ...[
                       Text(
-                        shortDate(day),
+                        '${s.person(change['employeeId'] as String)['name']} • ${shortDate(change['day'] as String)}',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      for (final person in selectedPeople)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${s.person(person)['name']}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                'Hiện tại: ${s.activeShifts(person, day).map(label).join('; ').isEmpty ? 'Chưa xếp' : s.activeShifts(person, day).map(label).join('; ')}',
-                              ),
-                              if (plan != null)
-                                Builder(
-                                  builder: (_) {
-                                    final updates = {
-                                      for (final change in plan!)
-                                        change['id']: change,
-                                    };
-                                    final after = s.shifts
-                                        .where(
-                                          (row) =>
-                                              row['day'] == day &&
-                                              row['status'] != 'cancelled' &&
-                                              (updates[row['id']]?['nextEmployeeId'] ??
-                                                      row['employeeId']) ==
-                                                  person,
-                                        )
-                                        .map(label)
-                                        .join('; ');
-                                    return Text(
-                                      'Sau đổi: ${after.isEmpty ? 'Chưa xếp' : after}',
-                                      style: const TextStyle(
-                                        color: Color(0xff1a7d68),
-                                      ),
-                                    );
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                      const Divider(),
+                      Text(
+                        s.branchName(change['salonId'] as String),
+                        style: const TextStyle(color: _muted),
+                      ),
+                      _gap(8),
+                      Text(
+                        'Hiện tại: ${change['code']} ${clockText(change['start'] as int)}–${clockText(change['end'] as int)}',
+                      ),
+                      Text(
+                        'Sau đổi: ${change['nextCode']} ${clockText(change['nextStart'] as int)}–${clockText(change['nextEnd'] as int)}',
+                        style: const TextStyle(color: Color(0xff1a7d68)),
+                      ),
+                      const Divider(height: 28),
                     ],
-                    if (error != null)
-                      Text(
-                        error,
-                        style: const TextStyle(
-                          color: Color(0xffb3261e),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    if (plan != null)
-                      Text(
-                        '${plan.length} ca/OFF sẽ đổi người phụ trách.',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    _gap(),
-                    const Text(
-                      'Cả hai nhân viên phải không có lịch khách còn hiệu lực trong cả hai ngày ở mọi chi nhánh. Hệ thống kiểm tra lại trước khi lưu.',
-                      style: TextStyle(fontSize: 12, color: _muted),
+                  if (error != null)
+                    Text(
+                      error,
+                      style: const TextStyle(color: Color(0xffb3261e)),
                     ),
-                  ],
-                ),
+                  if (plan != null &&
+                      plan.every(
+                        (r) =>
+                            r['code'] == r['nextCode'] &&
+                            r['start'] == r['nextStart'] &&
+                            r['end'] == r['nextEnd'],
+                      ))
+                    const Text(
+                      'Hai ca giống nhau nên kết quả không thay đổi; các ô C/OFF khác giữ nguyên.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  _gap(),
+                  const Text(
+                    'Vẫn kiểm tra lịch khách của cả hai nhân viên trong những ngày liên quan và trùng giờ tại mọi chi nhánh trước khi lưu.',
+                    style: TextStyle(fontSize: 12, color: _muted),
+                  ),
+                ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Quay lại'),
-              ),
-              FilledButton(
-                onPressed: plan == null
-                    ? null
-                    : () => Navigator.pop(c, (wholeDays, jsonEncode(plan))),
-                child: const Text('Xác nhận đổi lịch'),
-              ),
-            ],
-          );
-        },
-      ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Quay lại'),
+            ),
+            FilledButton(
+              onPressed: plan == null
+                  ? null
+                  : () => Navigator.pop(c, jsonEncode(plan)),
+              child: const Text('Xác nhận đổi 2 ca'),
+            ),
+          ],
+        );
+      },
     );
     if (!mounted) return;
-    if (result == null) {
+    if (preview == null) {
       setState(swap.clear);
       return;
     }
     try {
-      if (result.$1) {
-        s.swapEmployeeDays(aId, bId, expected: result.$2);
-      } else {
-        s.swapShifts(aId, bId, expected: result.$2);
-      }
+      s.swapShifts(aId, bId, expected: preview);
       setState(() {
         selected.clear();
         swap.clear();
       });
-      _toast(
-        context,
-        result.$1
-            ? 'Đã hoán đổi lịch của hai nhân viên trong cả hai ngày.'
-            : 'Đã đổi ca A/B.',
-      );
+      _toast(context, 'Đã đổi đúng 2 ca được chọn. Các ô khác giữ nguyên.');
     } catch (e) {
       setState(swap.clear);
       _info(
         context,
-        'Không thể đổi lịch',
+        'Không thể đổi ca',
         e.toString().replaceFirst('Bad state: ', ''),
       );
     }

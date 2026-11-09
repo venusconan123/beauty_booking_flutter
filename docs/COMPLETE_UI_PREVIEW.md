@@ -61,8 +61,10 @@ lịch hôm nay, lịch hoàn thành trước đó và các ca minh họa S/C/HC
   trong kỳ, đối soát ở thời điểm xem; không gọi đó là dòng tiền thu trong kỳ.
 - Phân ca nhiều ô kiểm tra toàn bộ trước khi thay đổi; giữ ca cũ ở trạng thái hủy.
   Chặn OFF khi có khách, ca không bao phủ lịch khách, trùng giờ/OFF xuyên chi nhánh.
-- Đổi A/B kiểm tra cả hai nhân viên ở cả hai ngày trên mọi chi nhánh, sau đổi
-  không được trùng ca. Có thông báo chỉ rõ người/ngày/giờ/chi nhánh xung đột.
+- Đổi A/B chỉ hoán đổi loại ca và giờ làm của đúng hai ô đã chọn, cho phép cùng
+  ngày. Giữ nguyên nhân viên, ngày, chi nhánh và các ô khác. Kiểm tra lịch khách
+  ở cả hai nhân viên trong các ngày liên quan và trùng giờ xuyên chi nhánh.
+  Chi tiết quy tắc hiện hành ở `ROSTER_SWAP_REVIEW.md`.
 
 ## Chưa được coi là tích hợp dịch vụ thật
 
