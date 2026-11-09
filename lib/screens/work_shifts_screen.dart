@@ -91,7 +91,26 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
       _message('Đã lưu bảng phân ca.');
     } catch (error) {
       if (mounted && error is SchedulingRejectedException) {
-        setState(() => _pending = null);
+        setState(() {
+          _pending = null;
+          _busy = false;
+        });
+        if (name == 'swapShifts') {
+          await showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Không thể đổi ca'),
+              content: SingleChildScrollView(child: Text(error.message)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
       }
       _message('$error');
     } finally {
@@ -351,7 +370,11 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
                         : null,
                   ),
                 if (!editable)
-                  const Text('Chỉ xem. Lịch sử ngày đã qua không được sửa.'),
+                  Text(
+                    widget.isAdmin
+                        ? 'Lịch sử ngày đã qua không được sửa.'
+                        : 'Chỉ xem. Liên hệ admin khi cần điều chỉnh lịch.',
+                  ),
               ],
             ),
           ),
@@ -416,8 +439,8 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
         ),
       ) ??
       false;
-  Future<void> _swap() async {
-    final rows = _swapRows.values.toList();
+  Future<void> _swap([List<RosterEntry>? selectedRows]) async {
+    final rows = selectedRows ?? _swapRows.values.toList();
     if (rows.length != 2 || _locked) return;
     final a = rows[0], b = rows[1];
     if (await _confirm(
@@ -431,6 +454,25 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
         'revisionB': b.revision,
       });
     }
+  }
+
+  Future<void> _swapSelected() async {
+    final rows = <RosterEntry>[];
+    for (final key in _selected) {
+      final cell = _entries
+          .where(
+            (e) => e.active && rosterCellKey(e.employeeId, e.dateKey) == key,
+          )
+          .toList();
+      if (cell.length != 1 || cell.single.status != 'scheduled') {
+        _message(
+          'Mỗi ô đổi phải có đúng một ca làm; không đổi ô trống, OFF hoặc ô nhiều ca.',
+        );
+        return;
+      }
+      rows.add(cell.single);
+    }
+    await _swap(rows);
   }
 
   Widget _filters() => Padding(
@@ -515,9 +557,8 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
     appBar: widget.isAdmin
         ? AppBar(title: const Text('Bảng phân ca tháng'))
         : null,
-    body: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    body: RosterViewport(
+      controls: [
         if (_busy) const LinearProgressIndicator(),
         if (!_busy && _pending != null)
           MaterialBanner(
@@ -581,9 +622,16 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
                     onPressed: _locked ? null : () => setState(_selected.clear),
                     child: const Text('Bỏ chọn'),
                   ),
+                if (_selected.length == 2)
+                  OutlinedButton(
+                    onPressed: _locked ? null : _swapSelected,
+                    child: const Text('Đổi hai ca đã chọn'),
+                  ),
                 if (_swapRows.isNotEmpty)
                   OutlinedButton(
-                    onPressed: _swapRows.length == 2 && !_locked ? _swap : null,
+                    onPressed: _swapRows.length == 2 && !_locked
+                        ? () => _swap()
+                        : null,
                     child: Text('Đổi A/B (${_swapRows.length}/2)'),
                   ),
                 if (_swapRows.isNotEmpty)
@@ -609,78 +657,74 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
             style: TextStyle(fontSize: 11),
           ),
         ),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _employees,
-            builder: (context, employees) {
-              if (employees.hasError) {
-                return const Center(child: Text('Không thể tải nhân viên.'));
+      ],
+      grid: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _employees,
+        builder: (context, employees) {
+          if (employees.hasError) {
+            return const Center(child: Text('Không thể tải nhân viên.'));
+          }
+          if (!employees.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          _people = {
+            for (final doc in employees.data!.docs.where(
+              (d) => d.id != '_catalog',
+            ))
+              doc.id: RosterEmployee(
+                doc.id,
+                doc.data()['name']?.toString() ?? doc.id,
+                doc.data()['salonId']?.toString() ?? '',
+                active: doc.data()['isActive'] != false,
+              ),
+          };
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            key: ValueKey('$_salonId-$_month'),
+            stream: _shifts,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Không thể tải bảng tháng.\n${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
+                );
               }
-              if (!employees.hasData) {
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
-              _people = {
-                for (final doc in employees.data!.docs.where(
-                  (d) => d.id != '_catalog',
-                ))
-                  doc.id: RosterEmployee(
-                    doc.id,
-                    doc.data()['name']?.toString() ?? doc.id,
-                    doc.data()['salonId']?.toString() ?? '',
-                    active: doc.data()['isActive'] != false,
-                  ),
-              };
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                key: ValueKey('$_salonId-$_month'),
-                stream: _shifts,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Không thể tải bảng tháng.\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  _entries = snapshot.data!.docs
-                      .map((d) => RosterEntry(d.id, d.data()))
-                      .where((e) => e.active)
-                      .toList();
-                  final assigned = _entries.map((e) => e.employeeId).toSet();
-                  final people =
-                      _people.values
-                          .where(
-                            (p) =>
-                                p.salonId == _salonId ||
-                                assigned.contains(p.id),
-                          )
-                          .toList()
-                        ..sort((a, b) => a.name.compareTo(b.name));
-                  return MonthlyRosterGrid(
-                    month: _month,
-                    employees: people,
-                    entries: _entries,
-                    selected: _selected,
-                    readOnly: !widget.isAdmin,
-                    selecting: _selecting,
-                    enabled: !_locked,
-                    today: _today,
-                    onSelect: (key) => setState(() {
-                      _selected.contains(key)
-                          ? _selected.remove(key)
-                          : _selected.add(key);
-                    }),
-                    onDetails: _details,
-                  );
-                },
+              _entries = snapshot.data!.docs
+                  .map((d) => RosterEntry(d.id, d.data()))
+                  .where((e) => e.active)
+                  .toList();
+              final assigned = _entries.map((e) => e.employeeId).toSet();
+              final people =
+                  _people.values
+                      .where(
+                        (p) => p.salonId == _salonId || assigned.contains(p.id),
+                      )
+                      .toList()
+                    ..sort((a, b) => a.name.compareTo(b.name));
+              return MonthlyRosterGrid(
+                month: _month,
+                employees: people,
+                entries: _entries,
+                selected: _selected,
+                readOnly: !widget.isAdmin,
+                selecting: _selecting,
+                enabled: !_locked,
+                today: _today,
+                onSelect: (key) => setState(() {
+                  _selected.contains(key)
+                      ? _selected.remove(key)
+                      : _selected.add(key);
+                }),
+                onDetails: _details,
               );
             },
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     ),
   );
 }

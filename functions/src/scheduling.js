@@ -107,7 +107,16 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
   }
   function ensureSchedule(day, shifts) {
     for (let a = 0; a < shifts.length; a++) for (let b = a + 1; b < shifts.length; b++) {
-      if (overlaps(shiftInterval(shifts[a]), shiftInterval(shifts[b]))) fail('already-exists', 'Nhân viên đã có ca trùng giờ, kể cả tại chi nhánh khác.');
+      if (overlaps(shiftInterval(shifts[a]), shiftInterval(shifts[b]))) {
+        const clockText = (minute) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+        const describe = (shift) => {
+          const hours = shift.status === 'off' ? 'OFF · nghỉ cả ngày 00:00–24:00' :
+            `${shift.shiftCode || 'Ca làm'} · ${clockText(shift.startMinute)}–${clockText(shift.endMinute)}`;
+          return `${hours} · ${SALONS[shift.salonId]?.name || shift.salonId}`;
+        };
+        const date = shifts[a].dateKey.split('-').reverse().join('/');
+        fail('already-exists', `Xung đột lịch làm.\nNhân viên: ${day.profile.name || shifts[a].employeeId}\nNgày: ${date}\n• ${describe(shifts[a])}\n• ${describe(shifts[b])}\nCa làm không được trùng giờ hoặc nằm trong ngày OFF, kể cả khác chi nhánh. Các ca đã lưu được giữ nguyên.`);
+      }
     }
     for (const booking of day.bookings) {
       if (!available(shifts, [], booking.salonId, interval(booking)[0], duration(booking))) {
@@ -131,13 +140,19 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     }
     const unique = new Set();
     for (const cell of data.cells) {
+      if (!cell || typeof cell !== 'object' || Array.isArray(cell) ||
+          Object.keys(cell).some((key) => !['employeeId', 'dateKey', 'expected'].includes(key))) {
+        fail('invalid-argument', 'Ô phân ca không hợp lệ.');
+      }
       id(cell.employeeId); dayStart(cell.dateKey);
       if (cell.dateKey < dateKey(clock())) fail('failed-precondition', 'Không sửa ngày đã qua.');
       const key = `${cell.employeeId}_${cell.dateKey}`;
       if (unique.has(key)) fail('invalid-argument', 'Không chọn trùng ô.'); unique.add(key);
-      if (!Array.isArray(cell.expected) || cell.expected.some((s) => !s || !Number.isInteger(s.revision))) fail('invalid-argument', 'Thiếu phiên bản phân công.');
+      if (!Array.isArray(cell.expected) || cell.expected.length > 48 ||
+          cell.expected.some((s) => !s || !Number.isSafeInteger(s.revision) || s.revision < 1) ||
+          new Set(cell.expected.map((s) => s.id)).size !== cell.expected.length) fail('invalid-argument', 'Thiếu phiên bản phân công hợp lệ.');
       for (const row of cell.expected) id(row.id);
-      if (shape.kind === 'work') validateShift({ ...shape, ...cell, salonId: data.salonId });
+      if (shape.kind === 'work') validateShift({ ...shape, employeeId: cell.employeeId, dateKey: cell.dateKey, salonId: data.salonId });
     }
     return db.runTransaction(async (tx) => {
       await adminCheck(tx, user.uid);

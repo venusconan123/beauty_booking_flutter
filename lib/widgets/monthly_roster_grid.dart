@@ -2,6 +2,33 @@ import 'package:flutter/material.dart';
 import '../models/monthly_roster.dart';
 import '../services/scheduling_service.dart';
 
+/// Controls scroll separately in short windows, preserving the frozen grid.
+class RosterViewport extends StatelessWidget {
+  const RosterViewport({super.key, required this.controls, required this.grid});
+  final List<Widget> controls;
+  final Widget grid;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: constraints.maxHeight * .55),
+          child: SingleChildScrollView(
+            key: const ValueKey('roster-controls-scroll'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: controls,
+            ),
+          ),
+        ),
+        Expanded(child: grid),
+      ],
+    ),
+  );
+}
+
 /// Two synchronized vertical panes keep names frozen; only the day pane scrolls
 /// horizontally. Header rows are outside both vertical lists.
 class MonthlyRosterGrid extends StatefulWidget {

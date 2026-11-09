@@ -1,5 +1,8 @@
 # Monthly roster — paused development handoff
 
+Historical snapshot at commit `3598f5c`. For subsequent implementation and
+verification status, see [MONTHLY_ROSTER_REVIEW.md](MONTHLY_ROSTER_REVIEW.md).
+
 Development was paused at the user's request so the current source can be
 continued on GitHub. This is a development snapshot, not a release-ready build.
 

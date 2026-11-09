@@ -8,7 +8,7 @@ rules_version = '2';
 // startMinute/endMinute (30-minute grid), status, revision, seriesId and audit
 // timestamps. Critical reservation/shift writes are backend-only. Internal
 // employee_days and schedule_operations coordinate concurrent mutations.
-// Staff read own shifts or shifts at their primary branch; no staff writes.
+// Staff read shifts only at their primary branch; no staff writes.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -291,8 +291,7 @@ service cloud.firestore {
     }
     match /work_shifts/{shiftId} {
       allow read: if admin() || (activeStaff() &&
-        (resource.data.employeeId == get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId ||
-         resource.data.salonId == get(/databases/$(database)/documents/employees/$(get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId)).data.salonId));
+        resource.data.salonId == get(/databases/$(database)/documents/employees/$(get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId)).data.salonId);
       allow write: if false;
     }
     match /employee_days/{dayId} { allow read, write: if false; }

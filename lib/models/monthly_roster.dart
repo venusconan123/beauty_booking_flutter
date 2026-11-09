@@ -24,6 +24,8 @@ class RosterEntry {
   bool get active => status == 'scheduled' || status == 'off';
   String get code => status == 'off'
       ? 'OFF'
+      : savedCode == 'T'
+      ? 'T'
       : rosterShifts
                 .where(
                   (s) => s.start == start && s.end == end && s.code != 'OFF',
@@ -33,6 +35,8 @@ class RosterEntry {
             'T';
   String get hours => status == 'off'
       ? 'Đã xếp nghỉ'
+      : start == null || end == null
+      ? 'Thiếu giờ ca'
       : '${rosterClock(start!)}–${rosterClock(end!)}';
   Map<String, dynamic> get version => {'id': id, 'revision': revision};
 }

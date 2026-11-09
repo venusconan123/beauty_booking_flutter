@@ -48,6 +48,103 @@ before(async () => {
 });
 after(async () => { if (env) await env.cleanup(); await deleteApp(app); });
 
+const cell = (employeeId, dateKey = d1, expected = []) => ({ employeeId, dateKey, expected });
+const work = { kind: 'work', code: 'HC', startMinute: 540, endMinute: 1020 };
+const roster = (cells, shift = { kind: 'off' }, extra = {}) => handlers.saveRoster(admin({ salonId: 'salon_01', cells, shift, ...extra }));
+
+test('roster: admin authorization, strict cells, dates, revisions and code/hours', async () => {
+  const e = await employee(); const data = { salonId: 'salon_01', cells: [cell(e)], shift: work };
+  await denied(handlers.saveRoster(request(null, data)), 'unauthenticated');
+  for (const uid of ['s2-staff', 's2-customer']) await denied(handlers.saveRoster(request(uid, data)), 'permission-denied');
+  for (const cells of [[null], [cell(e), cell(e)], [cell(e, '2030-02-30')], [{ ...cell(e), startMinute: 540 }],
+    [cell(e, d1, [{ id: 'x', revision: -1 }])], [cell(e, d1, [{ id: 'x', revision: 1 }, { id: 'x', revision: 1 }])]]) {
+    await denied(roster(cells, work), 'invalid-argument');
+  }
+  await denied(roster([cell(e)], { ...work, code: 'S' }), 'invalid-argument');
+  await denied(roster([cell(e)], { ...work, code: 'T', startMinute: 540.5 }), 'invalid-argument');
+});
+
+test('roster: multiple people/days persist OFF, replay returns same rows and booking is denied', async () => {
+  const a = await employee(), b = await employee();
+  const cells = [cell(a), cell(a, d2), cell(b), cell(b, d2)];
+  const requestId = `roster-replay-${++n}`;
+  const result = await roster(cells, { kind: 'off' }, { requestId });
+  assert.equal(result.shiftIds.length, 4);
+  assert.deepEqual(await roster(cells, { kind: 'off' }, { requestId }), result);
+  const saved = await db.getAll(...result.shiftIds.map((id) => db.doc(`work_shifts/${id}`)));
+  assert.ok(saved.every((row) => row.data().status === 'off' && row.data().shiftCode === 'OFF' && row.data().startMinute === undefined));
+  assert.equal((await db.collection('work_shifts').where('employeeId', '==', a).get()).size, 2);
+  await denied(handlers.createBooking(customer(booking(a))), 'failed-precondition');
+});
+
+test('roster: replace and clear OFF retain history and reject stale previews', async () => {
+  const e = await employee(); const old = await shift(e);
+  const off = await roster([cell(e, d1, [{ id: old.id, revision: 1 }])]);
+  assert.equal((await readShift(old.id)).data().status, 'cancelled');
+  assert.equal((await readShift(old.id)).data().revision, 2);
+  assert.deepEqual((await readShift(off.shiftIds[0])).data().supersedes, [old.id]);
+  await denied(roster([cell(e, d1, [{ id: old.id, revision: 1 }])], work), 'aborted');
+  await handlers.cancelShift(admin({ shiftId: off.shiftIds[0], expectedRevision: 1 }));
+  assert.equal((await readShift(off.shiftIds[0])).data().status, 'cancelled');
+  const restored = await roster([cell(e)], work);
+  assert.equal((await readShift(restored.shiftIds[0])).data().status, 'scheduled');
+});
+
+test('roster: OFF and overlapping hours conflict across ALL branches; disjoint hours remain allowed', async () => {
+  const e = await employee();
+  const foreign = await shift(e, d1, { salonId: 'salon_02', endMinute: 600 });
+  await denied(roster([cell(e)]), 'already-exists');
+  await denied(roster([cell(e)], work), 'already-exists');
+  const later = await roster([cell(e)], { kind: 'work', code: 'C', startMinute: 840, endMinute: 1320 });
+  await denied(roster([cell(e, d1, [{ id: later.shiftIds[0], revision: 1 }])]), 'already-exists');
+  assert.equal((await readShift(foreign.id)).data().revision, 1);
+});
+
+test('roster: occupied cell blocks OFF/shortening and rolls back every cell in the batch', async () => {
+  const a = await employee(), b = await employee(); const s = await shift(a);
+  await handlers.createBooking(customer(booking(a)));
+  await denied(roster([cell(b), cell(a, d1, [{ id: s.id, revision: 1 }])]), 'failed-precondition');
+  assert.equal((await db.collection('work_shifts').where('employeeId', '==', b).get()).size, 0);
+  assert.equal((await readShift(s.id)).data().revision, 1);
+  await denied(roster([cell(a, d1, [{ id: s.id, revision: 1 }])], { kind: 'work', code: 'C', startMinute: 840, endMinute: 1320 }), 'failed-precondition');
+});
+
+test('roster: concurrent booking versus OFF cannot commit inconsistent results', async () => {
+  const e = await employee(); const s = await shift(e);
+  const results = await Promise.allSettled([
+    handlers.createBooking(customer(booking(e))), roster([cell(e, d1, [{ id: s.id, revision: 1 }])]),
+  ]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+});
+
+test('roster: concurrent cross-branch assignments and A/B target OFF are protected', async () => {
+  const e = await employee();
+  const results = await Promise.allSettled([roster([cell(e)]), roster([cell(e)], work, { salonId: 'salon_02' })]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const aId = await employee(), bId = await employee();
+  const a = await shift(aId), b = await shift(bId, d2);
+  await roster([cell(aId, d2)]);
+  await assert.rejects(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), (error) => {
+    assert.equal(error.code, 'already-exists');
+    for (const text of [aId, '03/01/2030', 'OFF', '00:00–24:00', '09:00–17:00', '30Shine 345 Nguyễn Văn Linh']) {
+      assert.ok(error.message.includes(text), text);
+    }
+    return true;
+  });
+  assert.equal((await readShift(a.id)).data().employeeId, aId);
+  assert.equal((await readShift(b.id)).data().employeeId, bId);
+});
+
+test('roster Rules: anonymous/foreign reads and all direct mutations fail closed', async () => {
+  const e = await employee(); const result = await roster([cell(e)]); const ref = `work_shifts/${result.shiftIds[0]}`;
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), ref)));
+  for (const uid of ['s2-admin', 's2-staff', 's2-customer']) {
+    const client = env.authenticatedContext(uid, { email_verified: true }).firestore();
+    await assertFails(updateDoc(doc(client, ref), { employeeId: 'forged', extra: 'x'.repeat(10000), createdAt: 'forged' }));
+    await assertFails(deleteDoc(doc(client, ref)));
+  }
+});
+
 test('admin-only shift writes and strict input validation', async () => {
   const e = await employee(); const data = { employeeId: e, salonId: 'salon_01', dates: [d1], startMinute: 540, endMinute: 1020 };
   await denied(handlers.saveShifts(request(null, data)), 'unauthenticated');
@@ -147,7 +244,13 @@ test('A/B rejects EACH of A/day1, A/day2, B/day1, B/day2, even at another branch
 test('A/B swaps both shifts atomically, rejects overlapping target shifts and stale versions', async () => {
   const aId = await employee(); const bId = await employee(); const a = await shift(aId); const b = await shift(bId, d2);
   const clash = await shift(aId, d2, { startMinute: 900, endMinute: 1080, salonId: 'salon_03' });
-  await denied(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), 'already-exists');
+  await assert.rejects(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), (error) => {
+    assert.equal(error.code, 'already-exists');
+    for (const text of [aId, '03/01/2030', '15:00–18:00', '09:00–17:00', '30Shine Sơn Trà (mô phỏng)', '30Shine 345 Nguyễn Văn Linh']) {
+      assert.ok(error.message.includes(text), text);
+    }
+    return true;
+  });
   assert.equal((await readShift(a.id)).data().employeeId, aId);
   await handlers.cancelShift(admin({ shiftId: clash.id, expectedRevision: 1 }));
   await handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 }));
@@ -175,15 +278,16 @@ test('two simultaneous bookings for the same employee/time yield exactly one boo
   assert.equal(result.filter((r) => r.status === 'fulfilled').length, 1);
 });
 
-test('Rules: staff views own and home-branch shifts only; clients cannot bypass guards', async () => {
+test('Rules: staff views only home-branch shifts, including monthly queries; clients cannot bypass guards', async () => {
   const own = await employee(); const peer = await employee(); const elsewhere = await employee('salon_02');
   const a = await shift(own, d1, { salonId: 'salon_03' }); const b = await shift(peer); const c = await shift(elsewhere, d1, { salonId: 'salon_02' });
   await db.doc('staff_accounts/s2-staff').set({ employeeId: own, active: true });
   await db.doc(`employee_accounts/${own}`).set({ uid: 's2-staff' });
   const staff = env.authenticatedContext('s2-staff', { email_verified: true }).firestore();
-  await assertSucceeds(getDoc(doc(staff, `work_shifts/${a.id}`)));
+  await assertFails(getDoc(doc(staff, `work_shifts/${a.id}`)));
   await assertSucceeds(getDoc(doc(staff, `work_shifts/${b.id}`)));
-  await assertSucceeds(getDocs(query(collection(staff, 'work_shifts'), where('employeeId', '==', own))));
+  await assertFails(getDocs(query(collection(staff, 'work_shifts'), where('employeeId', '==', own))));
+  await assertSucceeds(getDocs(query(collection(staff, 'work_shifts'), where('salonId', '==', 'salon_01'), where('dateKey', '>=', '2030-01-01'), where('dateKey', '<', '2030-02-01'))));
   await assertSucceeds(getDocs(query(collection(staff, 'work_shifts'), where('salonId', '==', 'salon_01'))));
   await assertFails(getDoc(doc(staff, `work_shifts/${c.id}`)));
   for (const uid of ['s2-staff', 's2-customer', 's2-admin']) {

@@ -6,24 +6,33 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
 import 'services/staff_account_service.dart';
+import 'services/auth_emulator_bootstrap_stub.dart'
+    if (dart.library.js_interop) 'services/auth_emulator_bootstrap_web.dart';
 
 Future<void> main() async {
   debugPrint('[startup] dart-main');
   WidgetsFlutterBinding.ensureInitialized();
 
   if (StaffAccountService.emulatorEnabled) {
-    // A demo project is deliberate: emulator tests cannot address production.
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'demo-key',
-        appId: '1:123:web:demo',
-        messagingSenderId: '123',
-        projectId: 'demo-men-hair-booking',
-      ),
-    );
-    debugPrint('[startup] firebase-ready (demo)');
     const host = StaffAccountService.emulatorHost;
-    await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+    // A demo project is deliberate: emulator tests cannot address production.
+    const demoOptions = FirebaseOptions(
+      apiKey: 'demo-key',
+      appId: '1:123:web:demo',
+      messagingSenderId: '123',
+      projectId: 'demo-men-hair-booking',
+    );
+    final authPrepared = await prepareAuthEmulator(
+      host,
+      9099,
+      demoOptions.asMap,
+    );
+    await Firebase.initializeApp(options: demoOptions);
+    debugPrint('[startup] firebase-ready (demo)');
+    if (!authPrepared) {
+      await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+    }
+    verifyAuthEmulator(host, 9099);
     debugPrint('[startup] auth-emulator-ready');
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: false,
