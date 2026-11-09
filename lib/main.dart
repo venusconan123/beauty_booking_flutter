@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'workspace/workspace_app.dart';
+import 'workspace/workspace_store.dart';
 import 'screens/auth_gate.dart';
 import 'services/staff_account_service.dart';
 import 'services/auth_emulator_bootstrap_stub.dart'
@@ -12,6 +14,11 @@ import 'services/auth_emulator_bootstrap_stub.dart'
 Future<void> main() async {
   debugPrint('[startup] dart-main');
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (const bool.fromEnvironment('UI_PREVIEW')) {
+    runApp(WorkspaceApp(store: WorkspaceStore()));
+    return;
+  }
 
   if (StaffAccountService.emulatorEnabled) {
     const host = StaffAccountService.emulatorHost;
