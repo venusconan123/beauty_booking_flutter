@@ -3,5 +3,10 @@
   "name": "men-hair-booking-vnpay",
   "main": "src/index.js",
   "compatibility_date": "2026-09-13",
-  "workers_dev": true
+  "workers_dev": true,
+  "compatibility_flags": ["nodejs_compat"],
+  "alias": {
+    "firebase-admin/firestore": "./src/firebase-primitives.cjs",
+    "firebase-functions/v2/https": "./src/firebase-primitives.cjs"
+  }
 }

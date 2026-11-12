@@ -36,6 +36,187 @@ function booking(employeeId, date = d1, minute = 540, extra = {}) {
 }
 const readShift = (id) => db.doc(`work_shifts/${id}`).get();
 
+test('admin receipt: completed/unpaid only, exact amount, atomic receipt and no duplicated collection', async () => {
+  const employeeId = await employee();
+  const bookingId = `payment-test-${++n}`;
+  const ref = db.doc(`bookings/${bookingId}`);
+  const initial = { userId: 's2-customer', barberId: employeeId, salonId: 'salon_01',
+    status: 'completed', totalPrice: 125000, originalPrice: 150000, discountAmount: 25000,
+    payment: { choice: 'pay_later', status: 'unpaid', provider: 'vnpay', environment: 'sandbox', amount: 125000 } };
+  await ref.set(initial);
+  const data = { bookingId, method: 'cash', expectedAmount: 125000, requestId: `receipt-${bookingId}` };
+  await denied(handlers.recordBookingPayment(request('s2-customer', data)), 'permission-denied');
+  const staffUid = `receipt-staff-${++n}`;
+  await auth.createUser({ uid: staffUid, email: `${staffUid}@example.test`, emailVerified: true });
+  await db.doc(`staff_accounts/${staffUid}`).set({ employeeId, active: true });
+  await denied(handlers.recordBookingPayment(request(staffUid, data)), 'permission-denied');
+  await denied(handlers.recordBookingPayment(admin({ ...data, expectedAmount: 1 })), 'failed-precondition');
+  await denied(handlers.recordBookingPayment(admin({ ...data, method: 'card' })), 'invalid-argument');
+  for (const status of ['confirmed', 'in_service', 'cancelled']) {
+    await ref.update({ status });
+    await denied(handlers.recordBookingPayment(admin(data)), 'failed-precondition');
+  }
+  await ref.update({ status: 'completed', 'payment.choice': 'pay_now' });
+  await denied(handlers.recordBookingPayment(admin(data)), 'failed-precondition');
+  await ref.update({ 'payment.choice': 'pay_later' });
+  const result = await handlers.recordBookingPayment(admin(data));
+  assert.equal(result.amount, 125000);
+  assert.equal(result.alreadyPaid, false);
+  assert.deepEqual(await handlers.recordBookingPayment(admin(data)), result);
+  const retry = await handlers.recordBookingPayment(admin({ ...data, requestId: `another-${bookingId}`, method: 'bank_transfer' }));
+  assert.equal(retry.alreadyPaid, true);
+  const saved = (await ref.get()).data();
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.totalPrice, initial.totalPrice);
+  assert.equal(saved.discountAmount, initial.discountAmount);
+  assert.equal(saved.payment.status, 'paid');
+  assert.equal(saved.payment.method, 'cash');
+  assert.equal(saved.payment.provider, 'salon');
+  assert.equal(saved.payment.receipt.recordedBy, 's2-admin');
+  assert.equal(saved.payment.receipt.amount, 125000);
+  assert.ok(saved.payment.receipt.recordedAt.toMillis());
+  assert.equal((await db.collection('audit_events').where('after.receiptId', '==', result.receiptId).get()).size, 1);
+  assert.equal((await db.doc(`users/s2-customer/notifications/${result.receiptId}`).get()).exists, true);
+});
+
+test('admin receipt: concurrent admins create one receipt and preserve verified online payments', async () => {
+  const bookingId = `receipt-race-${++n}`;
+  const ref = db.doc(`bookings/${bookingId}`);
+  await ref.set({ status: 'completed', userId: 's2-customer', barberId: 'receipt-employee', salonId: 'salon_01',
+    totalPrice: 80000, payment: { choice: 'pay_later', status: 'unpaid' } });
+  const results = await Promise.all(['cash', 'bank_transfer'].map(method => handlers.recordBookingPayment(admin({
+    bookingId, method, expectedAmount: 80000,
+  }))));
+  assert.equal(results.filter(r => r.alreadyPaid === false).length, 1);
+  assert.equal(results.filter(r => r.alreadyPaid === true).length, 1);
+  const saved = (await ref.get()).data();
+  const onlineId = `online-paid-${++n}`;
+  const online = { status: 'completed', totalPrice: 80000,
+    payment: { status: 'paid', choice: 'pay_now', provider: 'vnpay', transactionId: 'online-original' } };
+  await db.doc(`bookings/${onlineId}`).set(online);
+  assert.equal((await handlers.recordBookingPayment(admin({ bookingId: onlineId, method: 'cash', expectedAmount: 80000 }))).alreadyPaid, true);
+  assert.deepEqual((await db.doc(`bookings/${onlineId}`).get()).data(), online);
+  assert.ok(['cash', 'bank_transfer'].includes(saved.payment.receipt.method));
+});
+
+async function staffFixture(employeeId) {
+  const uid = `s2-staff-flow-${++n}`;
+  await auth.createUser({ uid, email: `${uid}@example.test`, password: 'Local-test-123!', emailVerified: true });
+  await db.doc(`staff_accounts/${uid}`).set({ employeeId, active: true });
+  await db.doc(`employee_accounts/${employeeId}`).set({ uid });
+  return uid;
+}
+
+for (const method of ['cash', 'bank_transfer']) {
+  test(`demo E2E ${method}: customer booking -> assigned staff -> admin receipt -> statistics snapshot`, async () => {
+    let now = Date.UTC(2030, 0, 1);
+    const flow = createSchedulingHandlers(db, auth, { clock: () => now });
+    const e = await employee(); const staff = await staffFixture(e);
+    await flow.saveShifts(admin({ employeeId: e, salonId: 'salon_01', dates: [d1], startMinute: 540, endMinute: 1020 }));
+    const voucherId = `demo-discount-${e}`;
+    await db.doc(`users/s2-customer/vouchers/${voucherId}`).set({ isActive: true, isUsed: false, discountPercent: 10, rewardType: 'visit_count' });
+    const availability = await flow.getAvailability(customer({ salonId: 'salon_01', dateKey: d1, barberId: e, serviceIds: ['s2-cut', 's2-wash'] }));
+    assert.ok(availability.slots.some(s => s.time === '09:00' && s.employeeIds.includes(e)));
+    const order = customer(booking(e, d1, 540, { serviceIds: ['s2-cut', 's2-wash'], expectedPrice: 110000,
+      expectedDuration: 50, vouchers: [{ id: voucherId, isPersonal: true }] }));
+    const created = await flow.createBooking(order);
+    assert.deepEqual(await flow.createBooking(order), created);
+    const ref = db.doc(`bookings/${created.bookingId}`);
+    const snapshot = async () => ({ id: ref.id, ...(await ref.get()).data() });
+    const booked = await snapshot();
+    assert.equal(booked.status, 'confirmed'); assert.equal(booked.barberId, e);
+    assert.equal(booked.originalPrice, 110000); assert.equal(booked.discountAmount, 11000); assert.equal(booked.totalPrice, 99000);
+    const staffDb = env.authenticatedContext(staff, { email_verified: true }).firestore();
+    const assigned = await assertSucceeds(getDocs(query(collection(staffDb, 'bookings'), where('barberId', '==', e))));
+    assert.deepEqual(assigned.docs.map(doc => doc.id), [ref.id]);
+    await assertSucceeds(getDoc(doc(env.authenticatedContext('s2-customer', { email_verified: true }).firestore(), `bookings/${ref.id}`)));
+    await assertFails(getDoc(doc(env.authenticatedContext('s2-staff', { email_verified: true }).firestore(), `bookings/${ref.id}`)));
+    const receipt = admin({ bookingId: ref.id, method, expectedAmount: 99000 });
+    await denied(flow.recordBookingPayment(receipt), 'failed-precondition');
+    await denied(flow.changeBookingStatus(request(staff, { bookingId: ref.id, status: 'in_service' })), 'failed-precondition');
+    now = dayStart(d1) + 540 * 60000;
+    const start = request(staff, { bookingId: ref.id, status: 'in_service' });
+    await flow.changeBookingStatus(start); await flow.changeBookingStatus(start);
+    assert.equal((await snapshot()).status, 'in_service');
+    const finish = request(staff, { bookingId: ref.id, status: 'completed' });
+    await flow.changeBookingStatus(finish); await flow.changeBookingStatus(finish);
+    const completed = await snapshot();
+    assert.equal(completed.status, 'completed'); assert.equal(completed.payment.status, 'unpaid');
+    await denied(flow.recordBookingPayment(request(staff, receipt.data)), 'permission-denied');
+    const paid = await flow.recordBookingPayment(receipt);
+    assert.deepEqual(await flow.recordBookingPayment(receipt), paid);
+    assert.equal((await flow.recordBookingPayment(admin({ ...receipt.data, requestId: `new-${receipt.data.requestId}` }))).alreadyPaid, true);
+    const collected = await snapshot();
+    assert.equal(collected.status, 'completed'); assert.equal(collected.payment.status, 'paid');
+    assert.equal(collected.payment.receipt.amount, 99000); assert.equal(collected.payment.receipt.method, method);
+    assert.equal(collected.completedBy, staff); assert.equal(collected.payment.receipt.recordedBy, 's2-admin');
+    for (const slotId of collected.slotIds) assert.equal((await db.doc(`booking_slots/${slotId}`).get()).data().state, 'released');
+    assert.equal((await db.collection('audit_events').where('after.receiptId', '==', paid.receiptId).get()).size, 1);
+    assert.equal((await db.doc(`users/s2-customer/vouchers/${voucherId}`).get()).data().isUsed, true);
+    const plain = value => value?.toDate ? value.toDate().toISOString() : Array.isArray(value) ? value.map(plain)
+      : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k,v]) => [k, plain(v)])) : value;
+    const reportFolder = path.join(__dirname, '../../build/demo-validation');
+    fs.mkdirSync(reportFolder, { recursive: true });
+    fs.writeFileSync(path.join(reportFolder, `${method}.json`), JSON.stringify(plain({ project: 'demo-men-hair-booking', booked, completed, collected }), null, 2));
+  });
+}
+
+test('staff lifecycle: assigned verified employee starts/completes atomically without collecting money', async () => {
+  const e = await employee(); await shift(e);
+  const uid = await staffFixture(e);
+  const { bookingId } = await handlers.createBooking(customer(booking(e)));
+  const current = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 540 * 60000 });
+  const change = (actor, status, requestId) => current.changeBookingStatus(request(actor, { bookingId, status, requestId }));
+  await denied(change('s2-customer', 'in_service'), 'permission-denied');
+  await denied(change(uid, 'completed'), 'failed-precondition');
+  await db.doc(`staff_accounts/${uid}`).update({ active: false });
+  await denied(change(uid, 'in_service'), 'permission-denied');
+  await db.doc(`staff_accounts/${uid}`).update({ active: true });
+  await db.doc(`employee_accounts/${e}`).update({ uid: 'someone-else' });
+  await denied(change(uid, 'in_service'), 'permission-denied');
+  await db.doc(`employee_accounts/${e}`).update({ uid });
+  await auth.updateUser(uid, { emailVerified: false });
+  await denied(change(uid, 'in_service'), 'permission-denied');
+  await auth.updateUser(uid, { emailVerified: true });
+  await denied(handlers.changeBookingStatus(request(uid, { bookingId, status: 'in_service' })), 'failed-precondition');
+  const before = (await db.doc(`bookings/${bookingId}`).get()).data();
+  await change(uid, 'in_service', `staff-start-${e}`);
+  const started = (await db.doc(`bookings/${bookingId}`).get()).data();
+  assert.equal(started.status, 'in_service');
+  assert.equal(started.startedBy, uid);
+  assert.ok(started.startedAt.toMillis());
+  assert.deepEqual(started.payment, before.payment);
+  await denied(change('s2-customer', 'cancelled'), 'failed-precondition');
+  await change(uid, 'completed', `staff-finish-${e}`);
+  await change(uid, 'completed', `staff-finish-${e}`);
+  const completed = (await db.doc(`bookings/${bookingId}`).get()).data();
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.completedBy, uid);
+  assert.ok(completed.completedAt.toMillis());
+  assert.equal(completed.totalPrice, before.totalPrice);
+  assert.deepEqual(completed.payment, before.payment);
+  for (const slotId of completed.slotIds) assert.equal((await db.doc(`booking_slots/${slotId}`).get()).data().state, 'released');
+  const audits = await db.collection('audit_events').where('actorUid', '==', uid).get();
+  assert.equal(audits.size, 2);
+  await denied(change(uid, 'in_service'), 'failed-precondition');
+});
+
+test('staff lifecycle: foreign assignment and unpaid pay-now cannot start; concurrent starts allow one', async () => {
+  const e = await employee(); await shift(e);
+  const uid = await staffFixture(e);
+  const otherUid = await staffFixture(await employee());
+  const a = await handlers.createBooking(customer(booking(e)));
+  const b = await handlers.createBooking(customer(booking(e, d1, 600)));
+  const unpaid = await handlers.createBooking(customer(booking(e, d1, 660, { paymentChoice: 'pay_now' })));
+  const current = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 720 * 60000 });
+  await denied(current.changeBookingStatus(request(otherUid, { bookingId: a.bookingId, status: 'in_service' })), 'permission-denied');
+  await denied(current.changeBookingStatus(request(uid, { bookingId: unpaid.bookingId, status: 'in_service' })), 'failed-precondition');
+  const results = await Promise.allSettled([a, b].map(row => current.changeBookingStatus(request(uid,
+    { bookingId: row.bookingId, status: 'in_service' }))));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(results.find(r => r.status === 'rejected').reason.code, 'failed-precondition');
+});
+
 // Count the documents actually returned by real Emulator queries, rather than
 // checking query text or treating duration as a reliable performance assertion.
 function measuredDatabase(reads) {
@@ -323,9 +504,79 @@ test('A/B swaps both shifts atomically, rejects overlapping target shifts and st
   await denied(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), 'aborted');
 });
 
+test('same-day A/B exchanges morning/evening shifts atomically within or across branches; replay is stable', async () => {
+  for (const salonId of ['salon_01', 'salon_02']) {
+    const aId = await employee(), bId = await employee(salonId);
+    const a = await shift(aId, d1, { startMinute: 420, endMinute: 900 });
+    const b = await shift(bId, d1, { salonId, startMinute: 840, endMinute: 1320 });
+    const guards = [aId, bId].map(e => db.doc(`employee_days/${e}_${d1}`));
+    const versions = await Promise.all(guards.map(async ref => (await ref.get()).data().version));
+    const data = { shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1, requestId: `same-day-${++n}` };
+    const result = await handlers.swapShifts(admin(data));
+    for (const [row, owner, old] of [[a, bId, a], [b, aId, b]]) {
+      const saved = (await readShift(row.id)).data();
+      assert.equal(saved.employeeId, owner);
+      assert.equal(saved.dateKey, d1);
+      assert.equal(saved.startMinute, old.startMinute);
+      assert.equal(saved.endMinute, old.endMinute);
+      assert.equal(saved.salonId, old.salonId);
+      assert.equal(saved.revision, 2);
+    }
+    assert.deepEqual(await handlers.swapShifts(admin(data)), result);
+    assert.deepEqual(await Promise.all(guards.map(async ref => (await ref.get()).data().version)), versions.map(v => v + 1));
+    await denied(handlers.swapShifts(admin({ ...data, requestId: `stale-same-day-${++n}` })), 'aborted');
+  }
+});
+
+test('same-day A/B blocks live appointments for either employee at every branch without partial writes', async () => {
+  for (const status of ['pending', 'confirmed', 'in_service']) for (const which of [0, 1]) {
+    const workers = [await employee(), await employee()];
+    const a = await shift(workers[0], d1, { startMinute: 420, endMinute: 900 });
+    const b = await shift(workers[1], d1, { startMinute: 840, endMinute: 1320 });
+    await db.collection('bookings').doc().set({ barberId: workers[which], salonId: 'salon_03',
+      userId: 's2-customer', status, appointmentAt: Timestamp.fromMillis(dayStart(d1) + 720 * 60000), totalDurationMinutes: 30 });
+    await denied(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), 'failed-precondition');
+    assert.deepEqual((await readShift(a.id)).data(), (({ id, ...row }) => row)(a));
+    assert.deepEqual((await readShift(b.id)).data(), (({ id, ...row }) => row)(b));
+  }
+});
+
+test('same-day A/B permits completed/cancelled history but rejects another overlapping shift or legacy OFF', async () => {
+  for (const conflict of ['overlap', 'off']) {
+    const aId = await employee(), bId = await employee();
+    const a = await shift(aId, d1, { startMinute: 420, endMinute: 900 });
+    const b = await shift(bId, d1, { startMinute: 840, endMinute: 1320 });
+    for (const status of ['completed', 'cancelled']) await db.collection('bookings').doc().set({
+      barberId: aId, salonId: 'salon_01', userId: 's2-customer', status,
+      appointmentAt: Timestamp.fromMillis(dayStart(d1) + 540 * 60000), totalDurationMinutes: 30 });
+    // OFF here represents legacy/conflicting data, which a swap must not ignore.
+    const clash = conflict === 'overlap'
+      ? await shift(aId, d1, { salonId: 'salon_03', startMinute: 1020, endMinute: 1140 })
+      : { id: `legacy-off-${++n}` };
+    if (conflict === 'off') await db.doc(`work_shifts/${clash.id}`).set({
+      employeeId: aId, salonId: 'salon_03', dateKey: d1, status: 'off', shiftCode: 'OFF', revision: 1 });
+    const data = { shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 };
+    await denied(handlers.swapShifts(admin(data)), 'already-exists');
+    assert.equal((await readShift(a.id)).data().employeeId, aId);
+    assert.equal((await readShift(b.id)).data().employeeId, bId);
+    await handlers.cancelShift(admin({ shiftId: clash.id, expectedRevision: 1 }));
+    await handlers.swapShifts(admin(data));
+    assert.equal((await readShift(a.id)).data().employeeId, bId);
+    assert.equal((await readShift(b.id)).data().employeeId, aId);
+  }
+});
+
+test('A/B still rejects two shifts belonging to one employee', async () => {
+  const e = await employee(), a = await shift(e), b = await shift(e, d2);
+  await denied(handlers.swapShifts(admin({ shiftAId: a.id, shiftBId: b.id, revisionA: 1, revisionB: 1 })), 'invalid-argument');
+  assert.equal((await readShift(a.id)).data().revision, 1);
+  assert.equal((await readShift(b.id)).data().revision, 1);
+});
+
 test('concurrent booking vs cancel/edit/swap cannot both commit an inconsistent schedule', async () => {
-  for (const mode of ['cancel', 'edit', 'swap']) {
-    const e = await employee(); const s = await shift(e); const other = await employee(); const b = await shift(other, d2);
+  for (const mode of ['cancel', 'edit', 'swap', 'swapSameDay']) {
+    const e = await employee(); const s = await shift(e); const other = await employee();
+    const b = await shift(other, mode === 'swapSameDay' ? d1 : d2, mode === 'swapSameDay' ? { startMinute: 720, endMinute: 1200 } : {});
     const mutation = () => mode === 'cancel' ? handlers.cancelShift(admin({ shiftId: s.id, expectedRevision: 1 })) :
       mode === 'edit' ? handlers.saveShifts(admin({ shiftId: s.id, expectedRevision: 1, employeeId: e,
         salonId: 'salon_01', dates: [d1], startMinute: 600, endMinute: 1020 })) :

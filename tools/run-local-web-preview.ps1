@@ -13,12 +13,13 @@ foreach ($previewPort in @(9099, 8080, 5001)) {
 # A listening port is not proof that Functions workers loaded successfully.
 # OPTIONS exercises worker/CORS readiness without invoking scheduling handlers
 # or writing data. Fail visibly rather than opening a misleading ready preview.
-foreach ($previewFunction in @('saveRoster', 'swapShifts', 'cancelShift')) {
+foreach ($previewFunction in @('listBookableStaff', 'getAvailability', 'createBooking', 'changeBookingStatus', 'recordBookingPayment', 'createStaffAccount', 'saveRoster', 'swapShifts', 'cancelShift')) {
   $functionReady = $false
-  for ($attempt = 1; $attempt -le 6; $attempt++) {
-    Write-Host "Checking Emulator worker $previewFunction ($attempt/6)..."
+  for ($attempt = 1; $attempt -le 2; $attempt++) {
+    Write-Host "Checking Emulator worker $previewFunction ($attempt/2)..."
     try {
-      $preflight = Invoke-WebRequest -UseBasicParsing -Method Options -TimeoutSec 25 `
+      # Exceed the worker discovery limit so retries cannot pile up cold workers.
+      $preflight = Invoke-WebRequest -UseBasicParsing -Method Options -TimeoutSec 185 `
         -Uri "http://127.0.0.1:5001/demo-men-hair-booking/asia-southeast1/$previewFunction" `
         -Headers @{ Origin = 'http://127.0.0.1:7359'; 'Access-Control-Request-Method' = 'POST'; 'Access-Control-Request-Headers' = 'authorization,content-type' }
       if ($preflight.StatusCode -eq 204) { $functionReady = $true; break }
@@ -28,6 +29,7 @@ foreach ($previewFunction in @('saveRoster', 'swapShifts', 'cancelShift')) {
     throw "Functions worker $previewFunction is not ready. Inspect Emulator logs; no demo data was changed."
   }
 }
+Write-Host 'All booking, staff, payment and roster workers are ready.'
 if (-not $CheckOnly) {
   flutter run -d web-server --release --web-hostname 127.0.0.1 --web-port 7359 --no-web-resources-cdn --dart-define=FIREBASE_EMULATORS=true --no-pub
 }

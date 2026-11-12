@@ -5,6 +5,7 @@ const { getAuth } = require('firebase-admin/auth');
 const { onCall } = require('firebase-functions/v2/https');
 const { createStaffHandlers } = require('./staff');
 const { createSchedulingHandlers } = require('./scheduling');
+const { createReviewRatingHandlers } = require('./review_ratings');
 initializeApp();
 const handlers = createStaffHandlers(getFirestore(), getAuth());
 // Small dissertation workload: scale to zero and bound each callable separately.
@@ -14,7 +15,9 @@ const runtime = { region: 'asia-southeast1', minInstances: 0, maxInstances: 2,
   memory: '256MiB', cpu: 'gcf_gen1', concurrency: 1 };
 // No provisioning, migrations, triggers, or writes occur on module load.
 exports.linkStaffAccount = onCall(runtime, handlers.linkStaffAccount);
+exports.createStaffAccount = onCall(runtime, handlers.createStaffAccount);
 exports.setStaffAccountActive = onCall(runtime, handlers.setStaffAccountActive);
+exports.getBarberRatings = onCall(runtime, createReviewRatingHandlers(getFirestore(), getAuth()).getBarberRatings);
 const scheduling = createSchedulingHandlers(getFirestore(), getAuth());
 for (const [name, handler] of Object.entries(scheduling)) {
   exports[name] = onCall(runtime, async (request) => {

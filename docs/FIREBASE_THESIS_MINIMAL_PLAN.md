@@ -1,11 +1,19 @@
 # Phương án tối thiểu, tiết kiệm cho khóa luận
 
-Cập nhật 09/11/2026, dựa trên 5084af0 và gói tối ưu trên nhánh `codex/staff-phase-one`.
+Cập nhật 09/11/2026 theo commit **`fab7765f7ab90e321754445ecb43ef76b005b3c3`**,
+nhánh `codex/staff-phase-one`. Trạng thái **bản duyệt, chưa thực thi**.
 Kiểm thử Web trực tiếp trước commit: [OPTIMIZED_WEB_EMULATOR_VERIFICATION.md](OPTIMIZED_WEB_EMULATOR_VERIFICATION.md).
 Đích duy nhất: project hiện có `men-hair-booking`, Firestore Standard `(default)`,
 `asia-southeast1`. Không tạo project staging theo yêu cầu mới. Giữ các bản báo
 cáo trước để đối chiếu; dự toán pilot 50–80 USD ở đó không phải phí tối thiểu
 Firebase hoặc ước tính phù hợp cho ít người dùng của khóa luận.
+
+Lần cập nhật này chỉ đối chiếu phần thay đổi 5084af0→fab7765 và hash các tệp
+đã rà soát. Rules, indexes và cấu hình preview không đổi giữa hai commit;
+không chạy lại suite hay kiểm kê cloud khi mã runtime không đổi từ lần kiểm
+thử cuối. Kế thừa Emulator 43/43, Flutter 22/22, analyze/build sạch và Web hai
+tab đã đạt. Inventory/billing/IAM/dữ liệu cloud trong manifest vẫn là quan sát
+trước đó, **không được coi là đã kiểm tra lại hôm nay**.
 
 ## 1. Phương án đề nghị
 
@@ -130,46 +138,167 @@ làm công tắc ngắt khẩn cấp khi còn thanh toán/IPN.
   thay đổi báo cáo đang có và helper kiểm tra quyền có trước. Gói commit chỉ gồm
   mã nguồn, cấu hình, kiểm thử và tài liệu, không phải triển khai cloud.
 
-## 6. Bạn cần làm gì tiếp trên Console?
+## 6. Các bước bạn làm trên Console
 
-**Bây giờ chỉ xem và chốt phương án, chưa bật gì:**
+### A. Có thể làm ngay: chỉ xem, không Save/Enable/Publish
 
-1. Mở [Firebase Console](https://console.firebase.google.com/), chọn đúng
-   `men-hair-booking`. Xem Usage and billing: Spark/Blaze hiện tại và Usage của
-   Firestore/Hosting/Storage, chụp số liệu để đối chiếu; không tạo project/DB mới.
-2. Authentication → Sign-in method: xem Email/Password và authorized domains;
-   Authentication → Users: đối chiếu UID/email verified hiện có với danh sách
-   nhân viên định liên kết. Không gửi password/token/key, không tự tạo demo thật.
-3. Firestore → Data/Indexes: xem catalog, ca/link đã có và index salonId/dateKey;
-   không sửa bằng tay. Chốt 6 giá/thời lượng dịch vụ, UID mapping và ca tương lai.
-   Lịch 02/11 giữ nguyên chờ bạn đối chiếu.
-4. Chọn demo Web local hoặc cần Hosting URL; chọn thanh toán sau. Chốt dự trù
-   0–5 USD/tháng và đồng ý hay không việc gắn billing để deploy Functions.
+| Bước | Đường đi trên Console | Ghi nhận để duyệt |
+| --- | --- | --- |
+| A1 | Firebase Console → chọn `men-hair-booking` → bánh răng Project settings → General | Xác nhận **Project ID**, Web/Android app hiện có và vùng DB; không tạo app/project mới, không gửi secret |
+| A2 | Bánh răng → Usage and billing → Details & settings; xem tab Usage nếu có | Plan đang dùng, có billing account hay chưa; dừng nếu thấy Upgrade, không bấm xác nhận nâng gói |
+| A3 | Authentication → Sign-in method; Users | Xem Email/Password đang bật hay không; đối chiếu UID/email/email verified của tài khoản hiện có. Chốt bảng UID→employeeId→chi nhánh; không tạo tài khoản hoặc đổi mật khẩu để thử |
+| A4 | Authentication → **Settings → Authorized domains** | Ghi domain Web định dùng có sẵn hay chưa. Đây không phải mục Sign-in method. Chưa Add domain; nếu chạy local với Firebase thật thì hostname local cũng cần được xem xét riêng |
+| A5 | Firestore Database → chọn `(default)` → Data | Xem services, employees, staff_accounts/employee_accounts/work_shifts/app_settings có thay đổi so baseline hay không. Chốt bảng dữ liệu ở mục 8, không nhập thử document; lịch 02/11 giữ nguyên |
+| A6 | Firestore Database → Rules và Indexes → Composite | Lưu bản Rules đang published, ghi các index hiện có/trạng thái. Không bấm Publish hoặc Add index trong lượt chuẩn bị. Cần giữ index ngoài phạm vi nếu đã có người thêm |
+| A7 | Functions trong menu Firebase (Build/Run tùy giao diện) | Nếu thấy Get started/Upgrade/API disabled thì ghi nhận rồi dừng; không suy rằng project không có Functions. Nếu có danh sách, ghi tên/region/codebase, không xóa hoặc redeploy |
+| A8 | Hosting/Storage → Usage nếu đang có dịch vụ | Chọn Web local hay cần URL Hosting, ghi nhận dung lượng/traffic/ảnh hiện có. Không chạy wizard tạo site/bucket; không dọn dữ liệu/release |
 
-**Sau khi bạn duyệt một đợt triển khai riêng, mới làm các bước sau:**
+Tên nhóm menu có thể được Firebase đổi; tên trang đích ở bảng là nơi cần mở.
+Nguồn: [Auth settings](https://firebase.google.com/docs/auth/faq-and-troubleshooting),
+[authorized domains](https://firebase.google.com/docs/auth/web/email-link-auth),
+[index management](https://firebase.google.com/docs/firestore/query-data/indexing).
 
-5. Usage and billing → Details & settings/Modify plan → Blaze: owner tự gắn
-   billing account/phương thức thanh toán nếu chọn deploy. Không nâng quyền cho
-   agent; nếu account thiếu quyền gắn billing thì nhờ billing admin. Đặt budget
-   5 USD và alerts 1/3/5 USD trong Google Cloud Billing, người nhận là bạn.
-6. Trong Google Cloud Console **cùng project**, APIs & Services: kiểm tra và bật
-   phần còn thiếu của Cloud Functions, Cloud Run, Cloud Build, Artifact Registry.
-   Firestore/Auth/Rules/Logging/Storage APIs kiểm tra theo nhu cầu thực tế; không
-   bật App Hosting, SQL, Vertex AI, Scheduler hoặc dịch vụ ngoài phạm vi. Đọc lại
-   Functions inventory và service-account permissions; thiếu quyền phải báo bạn.
-7. Duyệt backup một lần và tạo bản sao đã kiểm tra trước apply; snapshot Rules/
-   indexes/config/version hiện hành. Giữ các gate đóng. Chưa gõ control/link/
-   ca vào Data cho tới khi danh sách thay đổi và runbook được duyệt.
-8. Trình lại bản code/hash/tests, danh sách dữ liệu và cutover cho bạn duyệt.
-   Mới deploy Functions/index/Rules/client tương thích trong cửa sổ demo bảo trì;
-   không để client cũ ghi bypass backend, không mở gate booking trước có ca.
-   Nếu cần Hosting, phát hành riêng build tĩnh sau duyệt, thêm authorized domain
-   đúng URL. Không dùng `.dart_tool` hoặc bản Emulator làm build Firebase thật.
-9. Thử có giám sát bằng danh tính/dữ liệu đã duyệt trên project hiện có, không
-   chạm lịch sử; theo dõi Usage, role, CORS, trùng ca/booking và lỗi gate. Vì không
-   có staging riêng, cloud smoke test vẫn là một thao tác thật cần duyệt, không
-   tự thử ghi chỉ để xác nhận kết nối. Nếu lỗi, đóng ghi và rollback theo runbook,
-   không xóa dữ liệu/import đè hoặc merge main tự động.
+### B. Chỉ sau khi bạn duyệt riêng billing/API/backup và gói ở mục 7–8
 
-Phương án này giảm hạ tầng và kiểm thử cloud riêng theo quy mô khóa luận, không
-bỏ backend validation, sao lưu trước apply hoặc quyền duyệt dữ liệu thật.
+1. **Bật billing nếu chọn đưa Functions lên cloud:** Firebase → bánh răng →
+   Usage and billing → Details & settings → Modify plan/Upgrade → chọn Blaze,
+   owner chọn billing account và xác nhận. Nếu thiếu quyền billing account,
+   nhờ billing admin; không tự cấp Owner hoặc quyền rộng cho agent. Không làm
+   bước này trong lượt cập nhật báo cáo hiện tại.
+2. **Cảnh báo chi phí:** từ billing account mở Google Cloud Billing → Budgets
+   & alerts → Create budget → chọn phạm vi project `men-hair-booking` → monthly
+   budget 5 USD **nếu account tính USD** (nếu tiền tệ khác, bạn chốt mức tương
+   ứng) → alerts 20%, 60%, 100% = 1/3/5 USD → kiểm tra email người nhận rồi lưu.
+   Chọn alerts-only; không tự bật spend cap. Budget không phải trần hóa đơn.
+   [Billing plan](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans),
+   [budget guidance](https://firebase.google.com/docs/projects/billing/avoid-surprise-bills).
+3. **API:** Google Cloud Console → chọn đúng cùng project → APIs & Services →
+   Enabled APIs & services; vào Library chỉ khi cần bật phần thiếu:
+   `cloudfunctions.googleapis.com`, `run.googleapis.com`, `cloudbuild.googleapis.com`,
+   `artifactregistry.googleapis.com`. Kiểm tra Firestore/Auth/Rules/Logging và
+   Storage API cho backup theo inventory; không bật App Hosting/SQL/Vertex AI/
+   Scheduler. Đợi API có hiệu lực, kiểm kê Functions đang có và runtime/build
+   identity trước deploy; mọi quyền thiếu phải báo bạn, không tự nâng quyền.
+4. **Backup T0:** chốt bucket/đường dẫn, người giữ bản sao, retention và chi phí.
+   Dừng/drain writer cũ và request đang chạy trong cửa sổ bảo trì trước chụp T0.
+   Google Cloud Console → Firestore → Import/Export → Export toàn bộ collections
+   và subcollections vào nơi đã duyệt; nếu chưa có bucket phù hợp thì dừng để
+   duyệt tài nguyên đó, không dùng wizard tạo ngẫu nhiên. Kiểm tra operation
+   hoàn tất và bản sao khôi phục được; lưu Rules/index/config/app/Worker version
+   riêng. Firestore backup không thay Auth/Storage/secret backup. Không bật
+   scheduled backups/PITR trong gói tối thiểu nếu chưa có duyệt riêng.
+5. **Cửa sổ triển khai:** dùng gói đã chốt ở mục 7, không dán/publish Rules trước
+   khi có client/Functions tương thích và backup. Sau Functions/index READY và
+   chặn writer cũ, apply control/các dữ liệu được duyệt; mở staff/roster để chuẩn
+   bị link/ca, booking/payment còn đóng. Hai chiều link và ca phải tạo bằng UI
+   admin/backend, không gõ tay vào collection nội bộ.
+6. **Mở demo trả sau:** chỉ mở bookingWritesEnabled sau kiểm tra ca/quyền/config,
+   với nhóm test/dữ liệu được duyệt. Giữ paymentCreationEnabled=false. Chọn
+   “Thanh toán sau”; fab7765 chưa ẩn nút pay-now nên không hứa giao diện đã tắt
+   hoàn toàn lựa chọn ấy. Nếu cần ẩn phải duyệt bản sửa riêng. Xem Functions
+   logs và Firestore Usage; kiểm tra CORS/cold start/quyền/đặt trùng trên cloud
+   có giám sát, không tự tạo booking thật làm health check.
+7. **Hosting tùy chọn:** nếu cần URL công khai, duyệt bổ sung cấu hình Hosting
+   và build production không có FIREBASE_EMULATORS=true. Gói preview hiện chưa
+   có Hosting, không bấm Get started để thay cho cấu hình đã rà soát. Khi có URL,
+   xem A4, thêm đúng bare hostname nếu cần rồi Save; không xóa domain hiện có.
+
+## 7. Gói Functions / Rules / indexes cần duyệt
+
+Nguồn cố định **fab7765**, `firebase.production.preview.json` là cấu hình đề xuất;
+`firebase.json` hiện không chứa Functions và có Storage Rules nên **không dùng
+deploy toàn project**. Workspace không có `.firebaserc`: khi thực thi sau duyệt
+phải chỉ định rõ project `men-hair-booking` và config preview, không dựa alias
+mặc định. Báo cáo này không chạy lệnh deploy hoặc tạo tài nguyên.
+
+| Gói | Tệp/giá trị được đưa ra duyệt | Phạm vi và điều kiện |
+| --- | --- | --- |
+| Functions | `functions/package.json`, `package-lock.json`, 5 module `src/index.js`, `staff.js`, `scheduling.js`, `write_control.js`, `loyalty.js` | Gen 2, Node 22, codebase staff, asia-southeast1; minInstances=0/maxInstances=2 **mỗi callable**, 256MiB, cpu=gcf_gen1, concurrency=1. Không có trigger/schedule/seed/migration khi load |
+| 12 exports | linkStaffAccount, setStaffAccountActive; saveRoster, saveShifts, cancelShift, swapShifts; createBooking, updateBookingServices, changeBookingStatus; getAvailability, listBookableStaff; releaseStaleSlots | Kiểm kê tên online trước apply, không xóa export/codebase cũ ngoài phạm vi; gate đóng mặc định, releaseStaleSlots không tự chạy |
+| Rules | Toàn bộ `firestore.rules`, SHA trong manifest; diff cloud-baseline ở `production-preview/live-to-candidate.rules.patch` | Không đổi so 5084af0. Backend-only bookings/slots/shifts/guards/receipts/link/audit writes; staff active xem đúng lịch được giao/ca chi nhánh; customer không tự sửa quota/redemption. Giữ quyền admin hiện có; reports/support còn giới hạn schema cần chấp thuận phạm vi. Không bật legacy bypass |
+| Composite index | `firestore.indexes.json`: work_shifts, queryScope COLLECTION, salonId ASC + dateKey ASC | Một index đã khai báo, không đổi so 5084af0. Chỉ thêm nếu chưa có bản tương đương, không xóa index online khác. Đợi READY/Enabled. Equality employeeId/dateKey và userId/status dùng index merging; nếu cloud báo thiếu index thì đưa index cụ thể ra duyệt, không tự thêm đoán |
+| Flutter client | Mã cùng fab7765: FirebaseOptions project thật, transport HTTPS, giao diện staff/roster/booking và bỏ polling | Phải phát hành cùng đợt Rules/Functions; không phục vụ build Emulator cho Firebase thật. Hosting/Android distribution là lựa chọn phát hành riêng |
+| Loại trừ | Hosting/Storage Rules/Worker, node_modules, test/tools/logs, .env/key/build/Emulator export | Không triển khai bằng config preview, không tạo Auth user hoặc import dữ liệu demo |
+
+**Điều kiện Worker dù gói tối thiểu trả sau:** Worker online chưa được kiểm kê
+lại. Gate paymentCreation chỉ có hiệu lực ở Worker có hỗ trợ cờ; nó không dừng
+Worker cũ hoặc IPN đang bay. Trước mở guarded booking phải xác nhận không còn
+payment writer cũ tranh chấp, drain/đối soát giao dịch, hoặc duyệt Worker tương
+thích thành gói riêng. Nếu chưa xác nhận được thì giữ ghi mới đóng; không tự
+deploy Worker, ngắt IPN hoặc bỏ qua ràng buộc vì số người dùng ít.
+
+So với 5084af0, chỉ ba module backend index/scheduling/loyalty đổi (runtime/query/
+cache trong transaction), các màn hình tải dữ liệu và test đổi. Rules/index/
+package dependencies/preview config không đổi. Các kết quả 43/43, 22/22 và Web
+77s/71s không polling được kế thừa; chưa có bằng chứng index/runtime cloud.
+
+## 8. Gói dữ liệu cần duyệt trước khi ghi
+
+Chi tiết máy đọc: [data-change-preview.json](production-preview/data-change-preview.json),
+`approved=false`, `executed=false`. **Chưa có migration executable**.
+
+| Document service đề nghị tạo nếu còn thiếu | Giá VND | Phút |
+| --- | ---: | ---: |
+| services/service_hair_cut | 80.000 | 30 |
+| services/service_hair_wash | 30.000 | 20 |
+| services/service_styling | 50.000 | 30 |
+| services/service_perm | 250.000 | 120 |
+| services/service_dye | 300.000 | 150 |
+| services/service_skin_care | 100.000 | 45 |
+
+Giá/thời lượng đều chờ bạn duyệt; các trường name/isActive/order/timestamps
+trong preview phải được áp dụng đúng kiểu dữ liệu. Giữ `service_combo_10` và
+mọi document hiện có; create-if-absent có re-read/precondition, gặp drift thì
+dừng, không ghi đè. Không nhập từng service thủ công lúc chưa duyệt gói.
+
+Control đề nghị tạo `app_settings/scheduling_v2` (nếu đã có phải so before-image):
+
+```json
+{
+  "protocolVersion": 2,
+  "bookingWritesEnabled": false,
+  "rosterWritesEnabled": false,
+  "staffWritesEnabled": false,
+  "paymentCreationEnabled": false
+}
+```
+
+Đổi cờ sau đó là thao tác ghi thật riêng cần duyệt; cờ không khóa profile/chat/
+catalog ngoài protocol và không thay cửa sổ bảo trì. Không nhập control ngay.
+
+- **Staff:** approvedMappings hiện trống. Bạn cần điền UID Auth đã tồn tại,
+  verified/enabled → employeeId hiện có → salon chính; không chọn admin làm
+  staff hoặc suy UID theo tên. Backend tạo staff_accounts/employee_accounts
+  và audit đồng thời, không tạo Auth/đổi mật khẩu/UID/xóa tài khoản.
+- **Ca:** approvedAssignments hiện trống. Cần chi nhánh, employee, ngày tương
+  lai, mã ca/giờ hoặc OFF và expected revision. Dùng admin preview + saveRoster;
+  đổi A/B kiểm tra bốn tổ hợp và trùng xuyên chi nhánh, không tự lấp cả tháng.
+- **Sinh khi vận hành, không seed trước:** booking mới/slots/day guards/
+  schedule_operations/audit và notifications; voucher quota/redemption trong
+  transaction. Checkout có thể sửa users.phone/updatedAt dù gate booking đóng.
+  Hủy không hoàn lại lượt voucher trong bản này; cần duyệt chính sách ấy.
+- **Giữ nguyên:** 48 booking baseline, snapshot giá/ID, Auth, employees/admin;
+  không thêm schemaVersion/workShiftId hồi tố, không tự tính lại tiền/thưởng.
+  Baseline count chưa đọc lại. Lịch 02/11/2026 09:30–10:30 salon_01 giữ nguyên
+  chờ bạn đối chiếu. Không xóa dữ liệu, nhập Emulator hoặc cấp role bằng tay.
+- **Thông tin còn cần chốt:** tên/giờ ba chi nhánh (salon_03 còn “mô phỏng”),
+  UID mapping, ca, bucket backup, cửa sổ ép cập nhật client cũ, danh tính test
+  thật được phép và có/không cần Hosting. Các mục trống chưa đủ để apply.
+
+## 9. Điểm dừng và khôi phục tối thiểu
+
+Trước T0 lưu Rules thực sự online, index/config/phiên bản app/Functions/Worker
+và backup toàn DB dùng được. Lỗi role, overbooking, index chưa READY, login/
+mutation thất bại hoặc chi phí bất thường: đóng ghi mới/payment creation,
+giữ đọc và IPN đối soát, không bật lại legacy writer khi writer v2 còn chạy.
+Rollback version chỉ khi tương thích schema/guards; nếu không, giữ bảo trì
+để sửa tiến tới. Restore vào nơi cô lập trước rồi lập patch chọn lọc có
+precondition cho bạn duyệt; không import đè production như Undo, không mất
+giao dịch sau T0, không hạ paid→unpaid hoặc phục hồi booking đã hủy. Không xóa
+project/database/tài khoản/guard/receipt/ca để rollback, không tắt billing.
+
+**Cần duyệt riêng trước thực thi:** (1) Blaze/budget/API/quyền và backup một lần;
+(2) source fab7765 + 12 Functions + toàn bộ Rules + một index + client tương
+thích; (3) control/6 service/UID mapping/ca/policy voucher cụ thể; (4) lịch
+cutover, xử lý Worker/in-flight và cloud smoke test có giám sát. Duyệt báo cáo
+không tự có nghĩa cho phép bật billing, publish Rules, ghi dữ liệu hoặc deploy.

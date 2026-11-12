@@ -65,8 +65,48 @@ class MenHairBookingApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Men Hair Booking',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1E3A5F)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xffd9ad60),
+          primary: const Color(0xff0b1623),
+          secondary: const Color(0xffd9ad60),
+          surface: Colors.white,
+        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xfff6f7f9),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xff0b1623),
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          elevation: 0,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xffe8ebef)),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 17),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: Color(0xfff3e6cf),
+        ),
       ),
       home: const AuthGate(),
       builder: (context, child) => StaffAccountService.emulatorEnabled

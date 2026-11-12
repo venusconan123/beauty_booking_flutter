@@ -1,4 +1,5 @@
 import '../services/scheduling_service.dart';
+import '../widgets/admin_payment_button.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,7 +12,8 @@ import '../models/salon.dart';
 enum _BookingFilter { active, cancelled, completed }
 
 class AdminBookingScreen extends StatefulWidget {
-  const AdminBookingScreen({super.key});
+  const AdminBookingScreen({super.key, this.watchBookings});
+  final Stream<QuerySnapshot<Map<String, dynamic>>> Function()? watchBookings;
 
   @override
   State<AdminBookingScreen> createState() => _AdminBookingScreenState();
@@ -29,6 +31,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
   late String _selectedSalonId;
   _BookingFilter _selectedFilter = _BookingFilter.active;
   Timer? _relativeTimeTicker;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _bookingStream =
+      widget.watchBookings?.call() ??
+      FirebaseFirestore.instance.collection('bookings').snapshots();
 
   Future<void> _callCustomer(String phone) async {
     final normalizedPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -123,6 +128,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     return switch (status) {
       'pending' => 'Chờ thanh toán VNPAY',
       'confirmed' => 'Đã xác nhận tự động',
+      'in_service' => 'Đang phục vụ',
       'completed' => 'Đã hoàn thành',
       'cancelled' => 'Đã hủy',
       _ => 'Không xác định',
@@ -144,6 +150,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     return switch (status) {
       'pending' => const Color(0xFFFFB648),
       'confirmed' => const Color(0xFF63B3FF),
+      'in_service' => const Color(0xFFE6A23C),
       'completed' => const Color(0xFF59D38C),
       'cancelled' => const Color(0xFFFF6B6B),
       _ => _muted,
@@ -171,7 +178,10 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     ) {
       final status = _effectiveStatus(booking.data());
       return switch (_selectedFilter) {
-        _BookingFilter.active => status == 'pending' || status == 'confirmed',
+        _BookingFilter.active =>
+          status == 'pending' ||
+              status == 'confirmed' ||
+              status == 'in_service',
         _BookingFilter.cancelled => status == 'cancelled',
         _BookingFilter.completed => status == 'completed',
       };
@@ -285,9 +295,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookingStream = FirebaseFirestore.instance
-        .collection('bookings')
-        .snapshots();
+    final bookingStream = _bookingStream;
     return Scaffold(
       backgroundColor: _ink,
       body: Stack(
@@ -505,7 +513,9 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     final branchBookings = _bookingsForBranch(bookings, salon.id);
     final activeCount = branchBookings.where((booking) {
       final status = _effectiveStatus(booking.data());
-      return status == 'pending' || status == 'confirmed';
+      return status == 'pending' ||
+          status == 'confirmed' ||
+          status == 'in_service';
     }).length;
 
     return Material(
@@ -685,7 +695,10 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       return branchBookings.where((booking) {
         final status = _effectiveStatus(booking.data());
         return switch (filter) {
-          _BookingFilter.active => status == 'pending' || status == 'confirmed',
+          _BookingFilter.active =>
+            status == 'pending' ||
+                status == 'confirmed' ||
+                status == 'in_service',
           _BookingFilter.cancelled => status == 'cancelled',
           _BookingFilter.completed => status == 'completed',
         };
@@ -858,7 +871,11 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     late final Color paymentColor;
     late final IconData paymentIcon;
     if (isPaid) {
-      paymentLabel = 'Đã thanh toán qua VNPAY Sandbox';
+      paymentLabel = payment['provider'] == 'salon'
+          ? 'Đã thu tại salon • ${payment['method'] == 'bank_transfer' ? 'Chuyển khoản' : 'Tiền mặt'}'
+          : payment['provider'] == 'vnpay'
+          ? 'Đã thanh toán qua VNPAY Sandbox'
+          : 'Đã thanh toán';
       paymentColor = const Color(0xFF59D38C);
       paymentIcon = Icons.verified_rounded;
     } else if (paymentStatus == 'pending') {
@@ -1032,6 +1049,26 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                   ),
                   const SizedBox(height: 13),
                   _paymentBanner(paymentIcon, paymentLabel, paymentColor),
+                  if (isPaid && payment['receipt'] is Map) ...[
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      'Biên nhận: ${(payment['receipt'] as Map)['id']}\n'
+                      'Người ghi nhận: ${(payment['receipt'] as Map)['recordedBy']}\n'
+                      'Thời điểm: ${payment['paidAt'] is Timestamp ? _formatDateTime((payment['paidAt'] as Timestamp).toDate()) : '—'}',
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                  if (effectiveStatus == 'completed' &&
+                      !isPaid &&
+                      paymentChoice == 'pay_later' &&
+                      paymentStatus == 'unpaid') ...[
+                    const SizedBox(height: 14),
+                    AdminPaymentButton(
+                      key: ValueKey('payment-$bookingId'),
+                      bookingId: bookingId,
+                      amount: totalPrice,
+                    ),
+                  ],
                   if (voucherSummary.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     _paymentBanner(
@@ -1043,7 +1080,8 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
                   ],
                   if (!isUpdating &&
                       (effectiveStatus == 'pending' ||
-                          effectiveStatus == 'confirmed')) ...[
+                          effectiveStatus == 'confirmed' ||
+                          effectiveStatus == 'in_service')) ...[
                     const SizedBox(height: 14),
                     _actionButtons(
                       bookingId: bookingId,
@@ -1085,7 +1123,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       spacing: 9,
       runSpacing: 9,
       children: [
-        if (status == 'confirmed')
+        if (status == 'confirmed' || status == 'in_service')
           FilledButton.icon(
             onPressed: () => _requestStatusChange(
               bookingId: bookingId,

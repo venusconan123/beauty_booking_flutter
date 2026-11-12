@@ -19,6 +19,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
   static const _muted = Color(0xFFABB8C9);
 
   final BarberService _service = BarberService();
+  late Stream<List<Barber>> _employeesStream;
   String _selectedSalonId = sampleSalons.first.id;
   bool _initializing = true;
   String? _initializationError;
@@ -26,6 +27,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
   @override
   void initState() {
     super.initState();
+    _employeesStream = _service.watchAll();
     _initialize();
   }
 
@@ -44,10 +46,6 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
     final age = TextEditingController(text: '${barber?.age ?? 25}');
     final experience = TextEditingController(
       text: '${barber?.experienceYears ?? 1}',
-    );
-    final rating = TextEditingController(text: '${barber?.rating ?? 5}');
-    final reviewCount = TextEditingController(
-      text: '${barber?.reviewCount ?? 0}',
     );
     final imageUrl = TextEditingController(text: barber?.imageUrl ?? '');
     final skills = TextEditingController(
@@ -139,35 +137,16 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _input(
-                          experience,
-                          'Năm kinh nghiệm',
-                          Icons.workspace_premium_outlined,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _input(
-                          rating,
-                          'Điểm đánh giá',
-                          Icons.star_outline_rounded,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                      ),
-                    ],
+                  _input(
+                    experience,
+                    'Năm kinh nghiệm',
+                    Icons.workspace_premium_outlined,
+                    keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 12),
-                  _input(
-                    reviewCount,
-                    'Số lượt đánh giá',
-                    Icons.reviews_outlined,
-                    keyboardType: TextInputType.number,
+                  const Text(
+                    'Điểm và số lượt đánh giá được tính tự động từ đánh giá của khách có lịch đã hoàn thành.',
+                    style: TextStyle(color: _muted, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
                   _input(
@@ -233,8 +212,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                         age: int.tryParse(age.text) ?? 25,
                         gender: gender,
                         experienceYears: int.tryParse(experience.text) ?? 0,
-                        rating: double.tryParse(rating.text) ?? 5,
-                        reviewCount: int.tryParse(reviewCount.text) ?? 0,
+                        rating: 0,
                         imageUrl: imageUrl.text.trim().isEmpty
                             ? null
                             : imageUrl.text.trim(),
@@ -279,16 +257,7 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
       ),
     );
 
-    for (final controller in [
-      name,
-      age,
-      experience,
-      rating,
-      reviewCount,
-      imageUrl,
-      skills,
-      bio,
-    ]) {
+    for (final controller in [name, age, experience, imageUrl, skills, bio]) {
       controller.dispose();
     }
   }
@@ -424,8 +393,27 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
           else
             Expanded(
               child: StreamBuilder<List<Barber>>(
-                stream: _service.watchAll(),
+                stream: _employeesStream,
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Không thể tải nhân viên và đánh giá. Vui lòng thử lại.',
+                            style: TextStyle(color: _muted),
+                          ),
+                          TextButton(
+                            onPressed: () => setState(
+                              () => _employeesStream = _service.watchAll(),
+                            ),
+                            child: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                   final employees = (snapshot.data ?? const <Barber>[])
                       .where((barber) => barber.salonId == _selectedSalonId)
                       .toList();
@@ -518,9 +506,13 @@ class _AdminBarberScreenState extends State<AdminBarberScreen> {
                 Row(
                   children: [
                     const Icon(Icons.star_rounded, color: _gold, size: 18),
-                    Text(
-                      ' ${barber.rating}',
-                      style: const TextStyle(color: Colors.white),
+                    Flexible(
+                      child: Text(
+                        ' ${barber.reviewSummary}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
                     ),
                     const Spacer(),
                     Icon(

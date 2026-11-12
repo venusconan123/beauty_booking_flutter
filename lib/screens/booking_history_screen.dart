@@ -43,7 +43,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   bool _belongsToSelectedSection(String status) {
     return switch (_selectedSection) {
       _BookingSection.registered =>
-        status == 'pending' || status == 'confirmed' || status == 'cancelled',
+        status == 'pending' ||
+            status == 'confirmed' ||
+            status == 'in_service' ||
+            status == 'cancelled',
       _BookingSection.completed => status == 'completed',
     };
   }
@@ -67,6 +70,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         return 'Chờ thanh toán VNPAY';
       case 'confirmed':
         return 'Đã xác nhận tự động';
+      case 'in_service':
+        return 'Đang phục vụ';
       case 'completed':
         return 'Đã hoàn thành';
       case 'cancelled':
@@ -82,6 +87,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         return const Color(0xFFFFB648);
       case 'confirmed':
         return const Color(0xFF63B3FF);
+      case 'in_service':
+        return const Color(0xFFE6A23C);
       case 'completed':
         return const Color(0xFF59D38C);
       case 'cancelled':

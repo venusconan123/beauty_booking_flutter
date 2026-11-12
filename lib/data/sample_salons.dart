@@ -92,10 +92,9 @@ const List<Salon> sampleSalons = [
   ),
   Salon(
     id: 'salon_03',
-    name: '30Shine Sơn Trà (mô phỏng)',
-    address:
-        '120 Ngô Quyền, Sơn Trà, Đà Nẵng '
-        '(địa điểm mô phỏng)',
+    name: '30Shine Sơn Trà',
+    address: '120 Ngô Quyền, Sơn Trà, Đà Nẵng',
+    mapsDestination: '120 Ngô Quyền, Sơn Trà, Đà Nẵng, Việt Nam',
     latitude: 16.070200,
     longitude: 108.235000,
     distance: 3.5,

@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../data/sample_salons.dart';
 import '../models/salon.dart';
+import '../widgets/salon_map_information.dart';
 import 'salon_detail_screen.dart';
 
 class SalonMapScreen extends StatefulWidget {
@@ -148,112 +149,22 @@ class _SalonMapScreenState extends State<SalonMapScreen> {
     _mapController.move(_daNangCenter, 13);
   }
 
-  String _distanceFromUser(Salon salon) {
-    final LatLng? currentLocation = _currentLocation;
-
-    if (currentLocation == null) {
-      return '${salon.distance} km ước tính';
-    }
-
-    final double distanceInMeters = Geolocator.distanceBetween(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      salon.latitude,
-      salon.longitude,
-    );
-
-    final double distanceInKilometers = distanceInMeters / 1000;
-
-    if (distanceInKilometers < 1) {
-      return '${distanceInMeters.round()} m';
-    }
-
-    return '${distanceInKilometers.toStringAsFixed(1)} km';
-  }
-
   void _showSalonInformation(BuildContext context, Salon salon) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 25,
-                      backgroundColor: Color(0xFFE1ECFF),
-                      child: Icon(Icons.content_cut, color: Color(0xFF1E3A5F)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        salon.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: Color(0xFF1E3A5F),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(salon.address)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Colors.amber),
-                    const SizedBox(width: 6),
-                    Text('${salon.rating}'),
-                    const SizedBox(width: 20),
-                    const Icon(
-                      Icons.near_me_outlined,
-                      color: Color(0xFF1E3A5F),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(_distanceFromUser(salon)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(bottomSheetContext).pop();
-
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (context) {
-                            return SalonDetailScreen(salon: salon);
-                          },
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Xem chi tiết salon'),
-                  ),
-                ),
-              ],
+      isScrollControlled: true,
+      builder: (bottomSheetContext) => SalonMapInformation(
+        salon: salon,
+        onDetails: () {
+          Navigator.of(bottomSheetContext).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => SalonDetailScreen(salon: salon),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

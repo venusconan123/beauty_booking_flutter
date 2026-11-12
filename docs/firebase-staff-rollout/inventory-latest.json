@@ -1,0 +1,41 @@
+{
+  "project": "men-hair-booking",
+  "rulesetName": "projects/men-hair-booking/rulesets/c84aa7df-03e6-438d-b6fa-43ce8d60c092",
+  "hasStaffAccounts": true,
+  "hasWorkShifts": true,
+  "billingEnabled": false,
+  "adminsCountFirstPage": 1,
+  "staff_accountsCountFirstPage": 0,
+  "employee_accountsCountFirstPage": 0,
+  "work_shiftsCountFirstPage": 0,
+  "control": {
+    "paymentCreationEnabled": {
+      "booleanValue": true
+    },
+    "protocolVersion": {
+      "integerValue": "2"
+    },
+    "rosterWritesEnabled": {
+      "booleanValue": true
+    },
+    "bookingWritesEnabled": {
+      "booleanValue": true
+    },
+    "staffWritesEnabled": {
+      "booleanValue": true
+    },
+    "backend": {
+      "stringValue": "cloudflare"
+    }
+  },
+  "shiftIndexes": [
+    {
+      "name": "projects/men-hair-booking/databases/(default)/collectionGroups/work_shifts/indexes/CICAgOjXh4EK",
+      "state": "READY"
+    },
+    {
+      "name": "projects/men-hair-booking/databases/(default)/collectionGroups/work_shifts/indexes/CICAgJiUpoMK",
+      "state": "READY"
+    }
+  ]
+}

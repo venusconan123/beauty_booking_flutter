@@ -1,6 +1,6 @@
 {
   "project": "men-hair-booking",
-  "sourceCommit": "5084af0caeeb38c726592576273f7f40f53f397f",
+  "sourceCommit": "fab7765f7ab90e321754445ecb43ef76b005b3c3",
   "approved": false,
   "executed": false,
   "purpose": "Review only. No executable migration is included.",
@@ -105,7 +105,7 @@
     "automaticUpdates": [],
     "keepIdsAndStoredServicePrices": true,
     "historicalSchemaUpgradeRequired": false,
-    "manualReview": "One confirmed/pay_later/unpaid booking remains on 2026-11-02 09:30-10:30 Asia/Ho_Chi_Minh at salon_01. Decide its real outcome; do not auto-complete/cancel."
+    "manualReview": "Prior read-only baseline reported one confirmed/pay_later/unpaid booking on 2026-11-02 09:30-10:30 Asia/Ho_Chi_Minh at salon_01; not re-read in this documentation update. Owner decides its actual outcome; no automatic complete/cancel."
   },
   "backendGeneratedCollections": [
     "employee_days",
@@ -116,7 +116,7 @@
   "deletes": [],
   "emulatorDataToImport": [],
   "changesToExistingPasswordsOrUids": [],
-  "sourceDescription": "5084af0 baseline plus local low-cost query/polling/runtime optimizations; these optimizations add no migration, data writes or Rules changes",
+  "sourceDescription": "Exact fab7765 implementation; low-cost query/runtime optimizations require no historical migration. Data below remains an unapproved future apply preview.",
   "writeControl": {
     "path": "app_settings/scheduling_v2",
     "mode": "create-if-absent after approval, re-read before apply",
@@ -128,11 +128,11 @@
       "bookingWritesEnabled": false
     },
     "openSequence": [
-      "Close/drain old writers and in-flight payment creation during approved maintenance; take verified T0 backup",
-      "Deploy compatible index/Functions/Rules/client/Worker with booking and payment gates closed",
-      "After legacy writes are blocked, open approved roster/staff preparation and verify links/schedules",
-      "Open booking only after staging, approved data and controlled pilot readiness",
-      "Open payment creation separately after sandbox IPN/reconciliation approval"
+      "After separate approval, stop/drain old writers and in-flight payment creation during maintenance and verify a T0 backup",
+      "Deploy only approved fab7765 Functions/Rules/index/client; verify compatible payment writer or no outstanding old payment writes before opening booking; Worker deployment requires separate approval",
+      "After legacy writes are blocked, open approved roster/staff preparation and verify links/schedules while booking/payment remain closed",
+      "Open booking only after reviewed Emulator evidence, cloud readiness checks, explicit data approval and an approved controlled smoke test on the existing project; no new staging project",
+      "Keep payment creation closed in the minimal pay-later release; opening it needs separate IPN/reconciliation approval"
     ],
     "requiresApproval": true
   },
@@ -143,5 +143,12 @@
   },
   "reviewReport": "docs/FIREBASE_THESIS_MINIMAL_PLAN.md",
   "voucherCancellationPolicy": "Cancellation preserves consumed promo quota/personal-voucher usage; no automatic voucher restoration in this implementation; business approval required",
-  "profileWrite": "Checkout updates users/{uid}.phone and updatedAt before gated booking creation; scheduling gate is not a global database write freeze"
+  "profileWrite": "Checkout updates users/{uid}.phone and updatedAt before gated booking creation; scheduling gate is not a global database write freeze",
+  "pendingOwnerSelections": [
+    "Approve six catalog values and branch names/hours",
+    "Fill approvedMappings with existing verified/enabled Auth UIDs and employee IDs",
+    "Fill approvedAssignments with future dates, branch/employee/shift/OFF and revisions",
+    "Choose backup location, maintenance window and approved real smoke-test identities/data",
+    "Accept voucher usage not restored on cancellation; choose local Web or optional Hosting"
+  ]
 }

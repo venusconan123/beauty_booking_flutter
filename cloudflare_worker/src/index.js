@@ -1,5 +1,6 @@
+import { handleScheduling } from './staff-scheduling.js';
 const VNPAY_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
-const FIREBASE_SCOPE = 'https://www.googleapis.com/auth/datastore';
+const FIREBASE_SCOPE = 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/cloud-platform';
 
 let cachedGoogleToken;
 
@@ -11,7 +12,9 @@ export default {
       const url = new URL(request.url);
       let response;
 
-      if (request.method === 'GET' && url.pathname === '/') {
+      if (url.pathname.startsWith('/api/scheduling/')) {
+        response = await handleScheduling(request, env, { tokenProvider: googleAccessToken, verifyUser: verifyFirebaseUser });
+      } else if (request.method === 'GET' && url.pathname === '/') {
         response = json({ service: 'men-hair-booking-vnpay', status: 'ok' });
       } else if (request.method === 'POST' && url.pathname === '/api/payments/create') {
         response = await createPayment(request, env);
@@ -266,7 +269,7 @@ async function verifyFirebaseUser(request, env) {
   if (!response.ok) return null;
   const data = await response.json();
   const user = data.users?.[0];
-  if (!user?.localId) return null;
+  if (!user?.localId || user.disabled === true) return null;
   return {
     userId: user.localId,
     emailVerified: user.emailVerified === true,
@@ -305,7 +308,12 @@ async function googleAccessToken(env) {
       assertion,
     }),
   });
-  if (!response.ok) throw new Error(`Google OAuth failed: ${await response.text()}`);
+  if (!response.ok) {
+    const value = await response.json().catch(() => ({}));
+    const error = new Error('Google OAuth failed');
+    error.code = `oauth/${String(value.error || response.status).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64)}`;
+    throw error;
+  }
   const data = await response.json();
   cachedGoogleToken = {
     value: data.access_token,

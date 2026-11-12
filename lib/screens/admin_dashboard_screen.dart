@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/dashboard_stats.dart';
+import '../widgets/salon_page_intro.dart';
 
 enum _DashboardPeriod { sevenDays, thirtyDays, all }
 
@@ -21,8 +22,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   _DashboardPeriod _period = _DashboardPeriod.thirtyDays;
 
   DateTime? get _startDate => switch (_period) {
-    _DashboardPeriod.sevenDays => DateTime.now().subtract(const Duration(days: 7)),
-    _DashboardPeriod.thirtyDays => DateTime.now().subtract(const Duration(days: 30)),
+    _DashboardPeriod.sevenDays => DateTime.now().subtract(
+      const Duration(days: 7),
+    ),
+    _DashboardPeriod.thirtyDays => DateTime.now().subtract(
+      const Duration(days: 30),
+    ),
     _DashboardPeriod.all => null,
   };
 
@@ -60,11 +65,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return const Center(child: CircularProgressIndicator(color: _gold));
           }
           final start = _startDate;
-          final bookings = snapshot.data!.docs.where((doc) {
-            if (start == null) return true;
-            final createdAt = (doc.data()['createdAt'] as Timestamp?)?.toDate();
-            return createdAt != null && !createdAt.isBefore(start);
-          }).map((doc) => doc.data()).toList();
+          final bookings = snapshot.data!.docs
+              .where((doc) {
+                if (start == null) return true;
+                final createdAt = (doc.data()['createdAt'] as Timestamp?)
+                    ?.toDate();
+                return createdAt != null && !createdAt.isBefore(start);
+              })
+              .map((doc) => doc.data())
+              .toList();
           final stats = DashboardStats.fromBookings(bookings);
           return _content(bookings, stats);
         },
@@ -84,6 +93,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            const SalonPageIntro(
+              label: 'KHÔNG GIAN QUẢN TRỊ',
+              title: 'Mọi lịch hẹn. Một góc nhìn.',
+              description:
+                  'Theo dõi hoạt động chi nhánh và chất lượng phục vụ mỗi ngày.',
+              icon: Icons.space_dashboard_outlined,
+            ),
+            const SizedBox(height: 24),
             Row(
               children: [
                 const Expanded(
@@ -135,31 +152,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 final width = constraints.maxWidth >= 900
                     ? (constraints.maxWidth - 36) / 4
                     : constraints.maxWidth >= 540
-                        ? (constraints.maxWidth - 12) / 2
-                        : constraints.maxWidth;
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
                 return Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
                     SizedBox(
                       width: width,
-                      child: _metric('Tổng lịch', '${stats.total}', Icons.event_note_rounded),
+                      child: _metric(
+                        'Tổng lịch',
+                        '${stats.total}',
+                        Icons.event_note_rounded,
+                      ),
                     ),
                     SizedBox(
                       width: width,
-                      child: _metric('Chờ thanh toán', '${stats.pending}', Icons.schedule_rounded),
+                      child: _metric(
+                        'Chờ thanh toán',
+                        '${stats.pending}',
+                        Icons.schedule_rounded,
+                      ),
                     ),
                     SizedBox(
                       width: width,
-                      child: _metric('Đã hoàn thành', '${stats.completed}', Icons.task_alt_rounded),
+                      child: _metric(
+                        'Đã hoàn thành',
+                        '${stats.completed}',
+                        Icons.task_alt_rounded,
+                      ),
                     ),
                     SizedBox(
                       width: width,
-                      child: _metric('Doanh thu', _money(stats.revenue), Icons.payments_rounded),
+                      child: _metric(
+                        'Đã thu • Lịch hoàn thành',
+                        _money(stats.revenue),
+                        Icons.payments_rounded,
+                      ),
                     ),
                   ],
                 );
               },
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 14,
+              runSpacing: 12,
+              children: [
+                Text(
+                  'Giá trị dịch vụ hoàn thành: ${_money(stats.completedValue)}',
+                  style: const TextStyle(color: _muted),
+                ),
+                Text(
+                  'Còn chưa thu: ${_money(stats.outstanding)}',
+                  style: const TextStyle(
+                    color: _gold,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Số tiền tính trên các lịch hoàn thành trong bộ lọc hiện tại (theo ngày tạo lịch).',
+              style: TextStyle(color: _muted, fontSize: 12),
             ),
             const SizedBox(height: 18),
             LayoutBuilder(
@@ -233,7 +289,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           const Text(
             'Lịch hẹn theo chi nhánh',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 20),
           for (final salon in sampleSalons) ...[
@@ -247,7 +307,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
-                Text('${bySalon[salon.id]} lịch', style: const TextStyle(color: _gold)),
+                Text(
+                  '${bySalon[salon.id]} lịch',
+                  style: const TextStyle(color: _gold),
+                ),
               ],
             ),
             const SizedBox(height: 7),
@@ -275,14 +338,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           const Text(
             'Chất lượng vận hành',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 18),
           _qualityRow('Đã xác nhận', stats.confirmed, Icons.verified_rounded),
-          _qualityRow('Đã thanh toán', stats.paid, Icons.account_balance_wallet_rounded),
+          _qualityRow(
+            'Đã thanh toán',
+            stats.paid,
+            Icons.account_balance_wallet_rounded,
+          ),
           _qualityRow('Đã hủy', stats.cancelled, Icons.event_busy_rounded),
           const Divider(color: Color(0x334D6380)),
-          Text('Tỷ lệ hủy: $cancellation%', style: const TextStyle(color: _gold, fontWeight: FontWeight.w800)),
+          Text(
+            'Tỷ lệ hủy: $cancellation%',
+            style: const TextStyle(color: _gold, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
@@ -295,8 +369,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Icon(icon, color: _gold, size: 20),
           const SizedBox(width: 9),
-          Expanded(child: Text(label, style: const TextStyle(color: _muted))),
-          Text('$value', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          Expanded(
+            child: Text(label, style: const TextStyle(color: _muted)),
+          ),
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );

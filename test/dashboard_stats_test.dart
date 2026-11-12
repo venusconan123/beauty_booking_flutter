@@ -3,6 +3,32 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DashboardStats', () {
+    test(
+      'completed service value is distinct from paid receipts and unpaid balance',
+      () {
+        final stats = DashboardStats.fromBookings([
+          {
+            'status': 'completed',
+            'totalPrice': 80000,
+            'payment': {'status': 'unpaid'},
+          },
+          {
+            'status': 'completed',
+            'totalPrice': 125000,
+            'payment': {'status': 'paid', 'provider': 'salon'},
+          },
+          {
+            'status': 'cancelled',
+            'totalPrice': 90000,
+            'payment': {'status': 'paid'},
+          },
+        ]);
+        expect(stats.completedValue, 205000);
+        expect(stats.revenue, 125000);
+        expect(stats.outstanding, 80000);
+        expect(stats.paid, 1);
+      },
+    );
     test('tổng hợp trạng thái, thanh toán và doanh thu hoàn thành', () {
       final stats = DashboardStats.fromBookings([
         {

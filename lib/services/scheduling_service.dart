@@ -44,7 +44,12 @@ class SchedulingService {
   }) : _clientFactory = clientFactory ?? http.Client.new,
        _tokenProvider = tokenProvider ?? _currentToken,
        _emulatorEnabled = StaffAccountService.emulatorEnabled,
-       _projectId = null;
+       _projectId = null,
+       _apiBase = const String.fromEnvironment(
+         'SCHEDULING_API_BASE',
+         defaultValue:
+             'https://men-hair-booking-vnpay.venusconan23.workers.dev/api/scheduling',
+       );
   @visibleForTesting
   SchedulingService.testing({
     required http.Client Function() clientFactory,
@@ -52,12 +57,16 @@ class SchedulingService {
     this.requestTimeout = const Duration(seconds: 45),
     bool emulatorEnabled = true,
     String projectId = 'demo-men-hair-booking',
+    String apiBase =
+        'https://men-hair-booking-vnpay.venusconan23.workers.dev/api/scheduling',
   }) : _clientFactory = clientFactory,
        _tokenProvider = tokenProvider,
        _emulatorEnabled = emulatorEnabled,
-       _projectId = projectId;
+       _projectId = projectId,
+       _apiBase = apiBase;
   final bool _emulatorEnabled;
   final String? _projectId;
+  final String _apiBase;
   final http.Client Function() _clientFactory;
   final Future<String?> Function() _tokenProvider;
   final Duration requestTimeout;
@@ -72,6 +81,7 @@ class SchedulingService {
   ) async {
     if (!const {
       'linkStaffAccount',
+      'createStaffAccount',
       'setStaffAccountActive',
       'saveRoster',
       'saveShifts',
@@ -80,8 +90,10 @@ class SchedulingService {
       'createBooking',
       'updateBookingServices',
       'changeBookingStatus',
+      'recordBookingPayment',
       'getAvailability',
       'listBookableStaff',
+      'getBarberRatings',
       'releaseStaleSlots',
     }.contains(name)) {
       throw ArgumentError.value(name, 'name', 'Callable không hợp lệ.');
@@ -120,11 +132,20 @@ class SchedulingService {
               !RegExp(r'^[a-z][a-z0-9-]{4,28}[a-z0-9]$').hasMatch(project))) {
         throw StateError('Firebase project không hợp lệ cho HTTPS production.');
       }
+      final base = Uri.parse(_apiBase);
+      if (!_emulatorEnabled &&
+          (base.scheme != 'https' ||
+              base.host.isEmpty ||
+              base.userInfo.isNotEmpty ||
+              base.hasQuery ||
+              base.hasFragment)) {
+        throw StateError('Backend online phải sử dụng địa chỉ HTTPS hợp lệ.');
+      }
       final endpoint = _emulatorEnabled
           ? Uri.parse(
               'http://${StaffAccountService.emulatorHost}:$port/demo-men-hair-booking/asia-southeast1/$name',
             )
-          : Uri.https('asia-southeast1-$project.cloudfunctions.net', '/$name');
+          : Uri.parse('${_apiBase.replaceFirst(RegExp(r'/+$'), '')}/$name');
       final response = await client.post(
         endpoint,
         headers: {
@@ -155,6 +176,10 @@ class SchedulingService {
           trace('timeout.$stage');
           throw SchedulingTimeoutException('$requestId', stage);
         },
+      );
+    } on http.ClientException {
+      throw StateError(
+        'Chưa kết nối được máy chủ xử lý. Kiểm tra Internet và thử lại cùng yêu cầu.',
       );
     } finally {
       // Future.timeout alone does not cancel fetch/XHR, even during preflight.

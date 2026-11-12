@@ -7,9 +7,8 @@ import 'package:men_hair_booking/models/staff_access.dart';
 
 void main() {
   testWidgets(
-    'staff starts with assigned appointments and can visit all four tabs',
+    'staff opens the supplied work schedule immediately after login',
     (tester) async {
-      var signedOut = false;
       await tester.pumpWidget(
         MaterialApp(
           home: StaffWorkspace(
@@ -20,33 +19,57 @@ void main() {
               active: true,
             ),
             email: 'staff@example.test',
-            onSignOut: () => signedOut = true,
-            bookings: const Text('Lịch được giao cho A'),
+            onSignOut: () {},
+            shifts: const Text('Bảng ca từ Firebase'),
+            bookings: const Text('Lịch hẹn được giao'),
           ),
         ),
       );
-      expect(find.text('Lịch được giao cho A'), findsOneWidget);
-      expect(find.byType(NavigationDestination), findsNWidgets(4));
-      await tester.tap(find.text('Lịch làm'));
-      await tester.pumpAndSettle();
+      expect(find.text('Bảng ca từ Firebase'), findsOneWidget);
+      expect(find.text('Lịch hẹn được giao'), findsNothing);
       expect(
-        find.text('Lịch làm sẽ có trong phiên bản tiếp theo.'),
-        findsOneWidget,
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        1,
       );
-      await tester.tap(find.text('Thống kê'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Thống kê sẽ có trong phiên bản tiếp theo.'),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Tài khoản'));
-      await tester.pumpAndSettle();
-      expect(find.text('staff@example.test'), findsOneWidget);
-      expect(find.text('employee-a'), findsOneWidget);
-      await tester.tap(find.text('Đăng xuất'));
-      expect(signedOut, isTrue);
     },
   );
+  testWidgets('staff starts with work schedule and can visit all four tabs', (
+    tester,
+  ) async {
+    var signedOut = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffWorkspace(
+          access: const StaffAccess(
+            employeeId: 'employee-a',
+            salonId: 'salon_01',
+            name: 'Nhân viên A',
+            active: true,
+          ),
+          email: 'staff@example.test',
+          onSignOut: () => signedOut = true,
+          bookings: const Text('Lịch được giao cho A'),
+        ),
+      ),
+    );
+    expect(
+      find.text('Lịch làm sẽ có trong phiên bản tiếp theo.'),
+      findsOneWidget,
+    );
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
+    await tester.tap(find.text('Lịch hẹn'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lịch được giao cho A'), findsOneWidget);
+    await tester.tap(find.text('Thống kê'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thống kê cá nhân'), findsOneWidget);
+    await tester.tap(find.text('Tài khoản'));
+    await tester.pumpAndSettle();
+    expect(find.text('staff@example.test'), findsOneWidget);
+    expect(find.text('employee-a'), findsOneWidget);
+    await tester.tap(find.text('Đăng xuất'));
+    expect(signedOut, isTrue);
+  });
   testWidgets('assigned booking renders service names and Vietnam time', (
     tester,
   ) async {
@@ -75,7 +98,7 @@ void main() {
     expect(find.text('Khách A'), findsOneWidget);
     expect(find.text('05/11/2026 09:00 (giờ Việt Nam)'), findsOneWidget);
     expect(find.text('Cắt tóc, Gội đầu'), findsOneWidget);
-    expect(find.text('Đã xác nhận'), findsOneWidget);
+    expect(find.text('Đã xác nhận'), findsWidgets);
     expect(find.text('Bắt đầu phục vụ'), findsNothing);
   });
   testWidgets('blocked access offers logout and no booking controls', (

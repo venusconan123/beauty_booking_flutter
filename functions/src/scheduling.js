@@ -1,6 +1,7 @@
 'use strict';
 const { requireWrites } = require('./write_control');
 const { prepareLoyalty } = require('./loyalty');
+const { employeeRatings } = require('./review_ratings');
 const crypto = require('node:crypto');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { Timestamp, FieldValue } = require('firebase-admin/firestore');
@@ -104,6 +105,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
         const times = interval(b); const start = dayStart(date);
         return overlaps(times, [start, start + DAY]);
       }),
+      inService: live.filter(b => b.status === 'in_service'),
     };
     cache.set(key, result);
     return result;
@@ -287,13 +289,13 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       if (snapshots.some((s) => !s.exists)) fail('not-found', 'Ca không còn tồn tại.');
       const [a, b] = snapshots.map((s) => ({ ...s.data(), id: s.id }));
       if (a.status !== 'scheduled' || b.status !== 'scheduled' || a.revision !== data.revisionA || b.revision !== data.revisionB) fail('aborted', 'Ca đã thay đổi; hãy tải lại.');
-      if (a.employeeId === b.employeeId || a.dateKey === b.dateKey) fail('invalid-argument', 'Đổi A/B cần hai nhân viên và hai ngày khác nhau.');
+      if (a.employeeId === b.employeeId) fail('invalid-argument', 'Đổi A/B cần hai nhân viên khác nhau; hai ca có thể cùng ngày.');
       if ([a.dateKey, b.dateKey].some((date) => date < dateKey(clock()))) fail('failed-precondition', 'Không đổi ca của ngày đã qua.');
       const cache = new Map();
-      for (const employee of [a.employeeId, b.employeeId]) for (const date of [a.dateKey, b.dateKey]) {
+      for (const employee of [a.employeeId, b.employeeId]) for (const date of new Set([a.dateKey, b.dateKey])) {
         const day = await loadDay(tx, employee, date, cache);
         if (!day.active) fail('failed-precondition', 'Nhân viên không còn hoạt động.');
-        if (day.bookings.length) fail('failed-precondition', 'A và B phải không có lịch hẹn còn hiệu lực trong cả hai ngày, tại mọi chi nhánh.');
+        if (day.bookings.length) fail('failed-precondition', 'Cả hai nhân viên phải không có lịch hẹn còn hiệu lực trong các ngày được chọn, tại mọi chi nhánh.');
       }
       const nextA = { ...a, employeeId: b.employeeId, revision: a.revision + 1 };
       const nextB = { ...b, employeeId: a.employeeId, revision: b.revision + 1 };
@@ -465,7 +467,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
   }
   async function changeBookingStatus(request) {
     const user = await identity(request); const data = request.data ?? {};
-    if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(data.status)) fail('invalid-argument', 'Trạng thái không hợp lệ.');
+    if (!['pending', 'confirmed', 'in_service', 'cancelled', 'completed'].includes(data.status)) fail('invalid-argument', 'Trạng thái không hợp lệ.');
     return db.runTransaction(async (tx) => {
       await requireWrites(tx, db, 'bookingWritesEnabled');
       const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
@@ -473,18 +475,40 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       const admin = await tx.get(db.doc(`admins/${user.uid}`));
       if (!snap.exists) fail('not-found', 'Không tìm thấy lịch hẹn.');
       const old = snap.data();
-      if (!admin.exists && (old.userId !== user.uid || data.status !== 'cancelled')) fail('permission-denied', 'Không được đổi trạng thái lịch này.');
+      const staffAction = !admin.exists && ['in_service', 'completed'].includes(data.status);
+      if (staffAction) {
+        const account = await tx.get(db.doc(`staff_accounts/${user.uid}`));
+        if (!user.emailVerified || account.data()?.active !== true || account.data()?.employeeId !== old.barberId) {
+          fail('permission-denied', 'Chỉ nhân viên đang hoạt động được giao lịch này mới được phục vụ.');
+        }
+        const [employee, link] = await tx.getAll(db.doc(`employees/${old.barberId}`), db.doc(`employee_accounts/${old.barberId}`));
+        if (!employee.exists || ('isActive' in employee.data() && employee.data().isActive !== true) || !SALONS[employee.data().salonId] || link.data()?.uid !== user.uid) {
+          fail('permission-denied', 'Hồ sơ nhân viên hoặc liên kết tài khoản không còn hợp lệ.');
+        }
+      } else if (!admin.exists && (old.userId !== user.uid || data.status !== 'cancelled')) {
+        fail('permission-denied', 'Không được đổi trạng thái lịch này.');
+      }
       if (old.status === data.status) return finishOperation(tx, op, { bookingId: ref.id });
       if (['completed', 'cancelled'].includes(old.status)) fail('failed-precondition', 'Không khôi phục lịch đã kết thúc.');
-      if (!admin.exists && !(old.status === 'pending' || (old.status === 'confirmed' && old.payment?.choice === 'pay_later' && old.payment?.status === 'unpaid'))) fail('failed-precondition', 'Lịch không còn được hủy.');
+      if (!admin.exists && !staffAction && !(old.status === 'pending' || (old.status === 'confirmed' && old.payment?.choice === 'pay_later' && old.payment?.status === 'unpaid'))) fail('failed-precondition', 'Lịch không còn được hủy.');
       const effectiveStatus = old.status === 'pending' && (old.payment?.choice === 'pay_later' || old.payment?.status === 'paid') ? 'confirmed' : old.status;
-      if (data.status === 'completed' && effectiveStatus !== 'confirmed') fail('failed-precondition', 'Lịch phải được xác nhận.');
+      if (data.status === 'in_service' && effectiveStatus !== 'confirmed') fail('failed-precondition', 'Lịch phải được xác nhận trước khi bắt đầu.');
+      if (data.status === 'completed' && !(staffAction ? old.status === 'in_service' : ['confirmed', 'in_service'].includes(effectiveStatus))) fail('failed-precondition', 'Cần bắt đầu phục vụ trước khi hoàn thành lịch.');
       const start = milliseconds(old.appointmentAt); if (start === null) fail('failed-precondition', 'Lịch cũ thiếu thời gian.');
+      if (data.status === 'in_service' && (start > clock() || dateKey(start) !== dateKey(clock()))) {
+        fail('failed-precondition', 'Chỉ bắt đầu phục vụ lịch trong ngày và đã đến giờ hẹn.');
+      }
       const cache = new Map(); const day = await loadDay(tx, old.barberId, dateKey(start), cache);
+      if (staffAction && !day.active) fail('permission-denied', 'Nhân viên đã ngừng hoạt động.');
+      if (data.status === 'in_service' && day.inService.some(b => b.id !== ref.id)) {
+        fail('failed-precondition', 'Hãy hoàn thành lịch đang phục vụ trước khi bắt đầu lịch khác.');
+      }
       const slots = await tx.get(db.collection('booking_slots').where('bookingId', '==', ref.id));
       if (['pending', 'confirmed'].includes(data.status) && (!day.active || !available(day.shifts, day.bookings, old.salonId, start, duration(old), ref.id))) fail('failed-precondition', 'Không còn ca/giờ trống phù hợp.');
       const award = data.status === 'completed' ? await prepareLoyalty(tx, db, ref.id, old) : () => {};
       tx.update(ref, { status: data.status, updatedAt: FieldValue.serverTimestamp(),
+        ...(data.status === 'in_service' ? { startedAt: FieldValue.serverTimestamp(), startedBy: user.uid } : {}),
+        ...(data.status === 'completed' ? { completedAt: FieldValue.serverTimestamp(), completedBy: user.uid } : {}),
         ...(data.status === 'cancelled' && old.payment?.status === 'paid' ? { 'payment.refundRequired': true } : {}) });
       award();
       if (['cancelled', 'completed'].includes(data.status)) for (const slot of slots.docs) tx.update(slot.ref, { state: 'released', releasedAt: FieldValue.serverTimestamp() });
@@ -495,6 +519,46 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
         salonId: old.salonId, createdAt: FieldValue.serverTimestamp(),
       });
       return finishOperation(tx, op, { bookingId: ref.id });
+    });
+  }
+  async function recordBookingPayment(request) {
+    const user = await identity(request, true); const data = request.data ?? {};
+    const bookingId = id(data.bookingId);
+    if (!['cash', 'bank_transfer'].includes(data.method)) fail('invalid-argument', 'Chọn tiền mặt hoặc chuyển khoản.');
+    return db.runTransaction(async (tx) => {
+      await requireWrites(tx, db, 'bookingWritesEnabled');
+      await adminCheck(tx, user.uid);
+      const op = await operation(tx, user.uid, data.requestId, data); if (op.result) return op.result;
+      const ref = db.doc(`bookings/${bookingId}`); const snap = await tx.get(ref);
+      if (!snap.exists) fail('not-found', 'Không tìm thấy lịch hẹn.');
+      const booking = snap.data(); const amount = booking.totalPrice;
+      if (booking.status !== 'completed') fail('failed-precondition', 'Chỉ ghi nhận thu tiền cho lịch đã hoàn thành.');
+      if (!Number.isSafeInteger(amount) || amount <= 0 || data.expectedAmount !== amount) {
+        fail('failed-precondition', 'Số tiền không hợp lệ hoặc đã thay đổi. Tải lại lịch trước khi ghi nhận.');
+      }
+      // The booking itself is the per-booking guard: different requests/admins
+      // racing to collect can create only one immutable receipt, even on retry.
+      if (booking.payment?.status === 'paid') return finishOperation(tx, op, {
+        bookingId, amount, alreadyPaid: true, receiptId: booking.payment.receipt?.id ?? null,
+      });
+      if (booking.payment?.choice !== 'pay_later' || booking.payment?.status !== 'unpaid' || booking.payment?.receipt) {
+        fail('failed-precondition', 'Chỉ ghi nhận lịch thanh toán tại quầy chưa thu tiền; không thay kết quả VNPAY.');
+      }
+      const stamp = FieldValue.serverTimestamp();
+      const receiptId = `salon_${bookingId}`;
+      const receipt = { id: receiptId, amount, method: data.method, recordedBy: user.uid,
+        recordedAt: stamp, employeeId: booking.barberId, salonId: booking.salonId };
+      tx.update(ref, { 'payment.status': 'paid', 'payment.provider': 'salon', 'payment.environment': 'manual',
+        'payment.amount': amount, 'payment.method': data.method, 'payment.paidAt': stamp,
+        'payment.paidBy': user.uid, 'payment.receipt': receipt, updatedAt: stamp });
+      audit(tx, 'booking.payment.record', user.uid, { bookingId, paymentStatus: booking.payment.status },
+        { bookingId, receiptId, amount, method: data.method });
+      tx.create(db.doc(`users/${booking.userId}/notifications/${receiptId}`), {
+        type: 'payment_recorded', title: 'Đã ghi nhận thanh toán tại salon',
+        message: `Salon đã ghi nhận ${amount.toLocaleString('vi-VN')}đ cho lịch hẹn của bạn.`,
+        bookingId, receiptId, createdAt: stamp,
+      });
+      return finishOperation(tx, op, { bookingId, receiptId, amount, alreadyPaid: false });
     });
   }
   async function getAvailability(request) {
@@ -530,7 +594,9 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       .where('dateKey', '>=', today).where('dateKey', '<', end).get();
     const ids = [...new Set(shifts.docs.map((s) => s.data()).filter((s) => s.status === 'scheduled' && s.dateKey >= today && s.dateKey < end).map((s) => s.employeeId))];
     const profiles = ids.length ? await db.getAll(...ids.map((value) => db.doc(`employees/${value}`))) : [];
-    return { employees: profiles.filter((s) => s.exists && s.data().isActive !== false).map((s) => ({ ...s.data(), id: s.id })) };
+    const activeProfiles = profiles.filter((s) => s.exists && s.data().isActive !== false);
+    const ratings = new Map((await employeeRatings(db, activeProfiles.map(s => s.id))).map(r => [r.employeeId, r]));
+    return { employees: activeProfiles.map(s => ({ ...s.data(), ...ratings.get(s.id), id: s.id })) };
   }
   async function releaseStaleSlots(request) {
     const user = await identity(request, true); const salonId = request.data?.salonId;
@@ -549,6 +615,6 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       return { count: release.length };
     });
   }
-  return { saveRoster, saveShifts, cancelShift, swapShifts, createBooking, updateBookingServices, changeBookingStatus, getAvailability, listBookableStaff, releaseStaleSlots };
+  return { saveRoster, saveShifts, cancelShift, swapShifts, createBooking, updateBookingServices, changeBookingStatus, recordBookingPayment, getAvailability, listBookableStaff, releaseStaleSlots };
 }
 module.exports = { createSchedulingHandlers, dateKey, dayStart };

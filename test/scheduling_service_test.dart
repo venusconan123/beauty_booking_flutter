@@ -6,7 +6,7 @@ import 'package:men_hair_booking/services/scheduling_service.dart';
 
 void main() {
   test(
-    'production callable uses initialized project HTTPS and retains request ID',
+    'production Spark backend uses HTTPS and retains authentication and request ID',
     () async {
       final seen = <Uri>[];
       final client = _Client((request) async {
@@ -26,14 +26,21 @@ void main() {
         tokenProvider: () async => 'local-test',
         clientFactory: () => client,
       );
-      for (final name in ['createBooking', 'saveRoster', 'linkStaffAccount']) {
+      for (final name in [
+        'createBooking',
+        'saveRoster',
+        'linkStaffAccount',
+        'createStaffAccount',
+        'recordBookingPayment',
+        'getBarberRatings',
+      ]) {
         expect(
           await service.call(name, {'requestId': 'stable-production-request'}),
           {'ok': true},
         );
         expect(
           seen.last.toString(),
-          'https://asia-southeast1-men-hair-booking.cloudfunctions.net/$name',
+          'https://men-hair-booking-vnpay.venusconan23.workers.dev/api/scheduling/$name',
         );
       }
       expect(client.closed, isTrue);

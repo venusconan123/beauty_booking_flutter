@@ -445,9 +445,13 @@ class _WorkShiftsScreenState extends State<WorkShiftsScreen> {
     final rows = selectedRows ?? _swapRows.values.toList();
     if (rows.length != 2 || _locked) return;
     final a = rows[0], b = rows[1];
+    if (a.employeeId == b.employeeId) {
+      _message('Chọn ca của hai nhân viên khác nhau; hai ca có thể cùng ngày.');
+      return;
+    }
     if (await _confirm(
       'Đổi A/B',
-      '${_people[a.employeeId]?.name ?? a.employeeId} • ${a.dateKey} • ${a.salonId}\n↔ ${_people[b.employeeId]?.name ?? b.employeeId} • ${b.dateKey} • ${b.salonId}\n\nCả A và B phải không có lịch hẹn khách còn hiệu lực trong cả hai ngày tại mọi chi nhánh. Không được trùng ca hoặc OFF.',
+      '${_people[a.employeeId]?.name ?? a.employeeId} • ${a.dateKey} • ${a.salonId}\n↔ ${_people[b.employeeId]?.name ?? b.employeeId} • ${b.dateKey} • ${b.salonId}\n\nCó thể đổi ca cùng ngày hoặc khác ngày giữa hai nhân viên. Cả hai phải không có lịch hẹn khách còn hiệu lực trong các ngày được chọn tại mọi chi nhánh. Không được trùng ca hoặc OFF.',
     )) {
       await _run('swapShifts', {
         'shiftAId': a.id,

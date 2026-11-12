@@ -42,6 +42,17 @@ class _BookingPageState extends State<_BookingPage> {
                 ),
           );
     return _page([
+      if (staff) ...[
+        _WorkspaceBanner(
+          eyebrow: 'KHÔNG GIAN NHÂN VIÊN',
+          title:
+              'Chào ${s.employeeName.split(' ').last}, sẵn sàng cho hôm nay?',
+          subtitle:
+              '${s.branchName(s.staffBranch)} • Theo dõi lịch hẹn và chăm sóc từng khách hàng.',
+          icon: Icons.content_cut,
+        ),
+        _gap(24),
+      ],
       _Heading(
         staff
             ? 'Lịch hẹn được giao'
@@ -79,6 +90,7 @@ class _BookingPageState extends State<_BookingPage> {
               width: 190,
               child: DropdownButtonFormField<String>(
                 initialValue: status,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Trạng thái'),
                 items: [
                   const DropdownMenuItem(
@@ -86,7 +98,10 @@ class _BookingPageState extends State<_BookingPage> {
                     child: Text('Tất cả trạng thái'),
                   ),
                   for (final item in statusLabels.entries)
-                    DropdownMenuItem(value: item.key, child: Text(item.value)),
+                    DropdownMenuItem(
+                      value: item.key,
+                      child: Text(item.value, overflow: TextOverflow.ellipsis),
+                    ),
                 ],
                 onChanged: (v) => setState(() => status = v!),
               ),

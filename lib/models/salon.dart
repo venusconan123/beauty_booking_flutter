@@ -12,6 +12,7 @@ class Salon {
   final String openingTime;
   final String closingTime;
   final String hotline;
+  final String? mapsDestination;
 
   const Salon({
     required this.id,
@@ -23,6 +24,7 @@ class Salon {
     required this.rating,
     required this.services,
     required this.hotline,
+    this.mapsDestination,
     this.openingTime = '07:00',
     this.closingTime = '22:00',
   });
@@ -38,6 +40,7 @@ class Salon {
       rating: rating,
       services: services,
       hotline: hotline ?? this.hotline,
+      mapsDestination: mapsDestination,
       openingTime: openingTime,
       closingTime: closingTime,
     );

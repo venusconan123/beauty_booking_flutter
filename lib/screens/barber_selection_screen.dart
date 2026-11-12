@@ -297,12 +297,14 @@ class _BarberSelectionScreenState extends State<BarberSelectionScreen> {
               style: const TextStyle(color: _muted, fontSize: 12),
             ),
             const SizedBox(height: 7),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Icon(Icons.star_rounded, color: _gold, size: 18),
                 Text(
-                  ' ${barber.rating} (${barber.reviewCount})',
+                  ' ${barber.reviewSummary}',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                 ),
               ],

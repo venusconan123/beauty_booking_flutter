@@ -1,0 +1,12 @@
+{
+  "project": "men-hair-booking",
+  "rulesetName": "projects/men-hair-booking/rulesets/03742ce9-465a-4c50-95f7-16d8a2ce3bde",
+  "hasStaffAccounts": false,
+  "hasWorkShifts": false,
+  "billingEnabled": false,
+  "adminsCountFirstPage": 1,
+  "staff_accountsCountFirstPage": 0,
+  "employee_accountsCountFirstPage": 0,
+  "work_shiftsCountFirstPage": 0,
+  "controlError": "missing"
+}

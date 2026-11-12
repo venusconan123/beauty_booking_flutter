@@ -38,7 +38,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final PageController _pageController = PageController();
   final BarberService _barberService = BarberService();
-  Future<List<Barber>>? _employeesFuture;
+  Stream<List<Barber>>? _employeesStream;
   final HairServiceCatalog _serviceCatalog = HairServiceCatalog();
   final SalonContactService _contactService = SalonContactService();
   StreamSubscription<String>? _hotlineSubscription;
@@ -942,15 +942,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   }
 
   Widget _employeesPage() {
-    return FutureBuilder<List<Barber>>(
-      future: _employeesFuture ??= _barberService
-          .watchBySalon(widget.salon.id)
-          .first,
+    return StreamBuilder<List<Barber>>(
+      stream: _employeesStream ??= _barberService.watchBySalon(widget.salon.id),
       builder: (context, snapshot) {
         void refresh() => setState(
-          () => _employeesFuture = _barberService
-              .watchBySalon(widget.salon.id)
-              .first,
+          () => _employeesStream = _barberService.watchBySalon(widget.salon.id),
         );
         if (snapshot.hasError) {
           return Center(
@@ -1056,7 +1052,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   children: [
                     const Icon(Icons.star_rounded, color: _gold, size: 19),
                     Text(
-                      ' ${barber.rating}  (${barber.reviewCount} đánh giá)',
+                      ' ${barber.reviewSummary}',
                       style: const TextStyle(color: Colors.white),
                     ),
                   ],

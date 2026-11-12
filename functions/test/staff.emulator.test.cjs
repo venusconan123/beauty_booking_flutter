@@ -38,10 +38,112 @@ test('staff link write control rejects even an admin while preserving the existi
   await control.update({ staffWritesEnabled: true });
 });
 
+test('Provisioning: only admin can create by email; denied requests create no Auth user', async () => {
+  const data = { email: 'denied-provision@example.test', password: 'Initial-123!', employeeId: 'employee-a' };
+  for (const uid of [null, 'customer', 'staff-a']) {
+    await rejectsCode(handlers.createStaffAccount(request(uid, data)), uid ? 'permission-denied' : 'unauthenticated');
+  }
+  await assert.rejects(auth.getUserByEmail(data.email), e => e.code === 'auth/user-not-found');
+});
+
+test('Provisioning: pause and invalid employee prevent all Auth side effects', async () => {
+  const data = { email: 'paused-provision@example.test', password: 'Initial-123!', employeeId: 'employee-a' };
+  await db.doc('app_settings/scheduling_v2').update({ staffWritesEnabled: false });
+  await rejectsCode(handlers.createStaffAccount(request('admin', data)), 'failed-precondition');
+  await db.doc('app_settings/scheduling_v2').update({ staffWritesEnabled: true });
+  await rejectsCode(handlers.createStaffAccount(request('admin', { ...data, employeeId: 'employee-off' })), 'failed-precondition');
+  await rejectsCode(handlers.createStaffAccount(request('admin', { ...data, employeeId: 'missing' })), 'not-found');
+  await assert.rejects(auth.getUserByEmail(data.email), e => e.code === 'auth/user-not-found');
+});
+
+test('Provisioning: creates a new email; duplicate creation preserves password and audit', async () => {
+  await db.doc('employees/provision-worker').set({ name: 'New worker', salonId: 'salon_01', isActive: true });
+  const data = { email: 'New.Worker@example.test', password: 'Initial-123!', employeeId: 'provision-worker' };
+  const first = await handlers.createStaffAccount(request('admin', data));
+  assert.equal(first.created, true);
+  assert.equal(first.email, 'new.worker@example.test');
+  assert.equal(first.requiresEmailVerification, true);
+  const user = await auth.getUser(first.uid);
+  assert.equal(user.emailVerified, false);
+  assert.equal((await db.doc(`employee_accounts/${data.employeeId}`).get()).data().uid, first.uid);
+  assert.equal((await db.doc(`staff_accounts/${first.uid}`).get()).data().email, first.email);
+  assert.equal((await db.doc(`users/${first.uid}`).get()).exists, false);
+  await auth.updateUser(first.uid, { password: 'Changed-123!' });
+  await assert.rejects(handlers.createStaffAccount(request('admin', { ...data, password: 'Other-123!' })), error =>
+    error.code === 'already-exists' && error.message === 'Email này đã được sử dụng.');
+  assert.equal((await db.collection('audit_events').where('targetUid', '==', first.uid).get()).size, 1);
+  const login = await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: first.email, password: 'Changed-123!', returnSecureToken: true }),
+  });
+  assert.equal(login.status, 200);
+  for (const password of ['Changed-123!', 'Another-123!']) {
+    const signup = await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: first.email, password, returnSecureToken: true }),
+    });
+    assert.equal(signup.status, 400);
+    assert.equal((await signup.json()).error.message, 'EMAIL_EXISTS');
+  }
+  assert.equal((await db.doc(`users/${first.uid}`).get()).exists, false);
+  await db.doc('work_shifts/provision-shift').set({ employeeId: data.employeeId, salonId: 'salon_01', dateKey: '2026-12-01' });
+  await assertFails(getDocs(query(collection(ctx(first.uid, false), 'work_shifts'), where('salonId', '==', 'salon_01'))));
+  await auth.updateUser(first.uid, { emailVerified: true });
+  await assertSucceeds(getDocs(query(collection(ctx(first.uid), 'work_shifts'), where('salonId', '==', 'salon_01'))));
+  await assertFails(getDocs(query(collection(ctx(first.uid), 'work_shifts'), where('salonId', '==', 'salon_02'))));
+});
+
+test('Provisioning: rejects every existing email without converting customer, admin or unverified identities', async () => {
+  for (const id of ['existing-worker', 'admin-worker', 'conflict-worker']) {
+    await db.doc(`employees/${id}`).set({ name: id, salonId: 'salon_01', isActive: true });
+  }
+  for (const uid of ['customer', 'admin', 'unverified', 'auth-disabled', 'staff-a']) {
+    const old = (await db.doc(`staff_accounts/${uid}`).get()).data();
+    await assert.rejects(handlers.createStaffAccount(request('admin', { email: ` ${uid.toUpperCase()}@EXAMPLE.TEST `,
+      password: 'Other-123!', employeeId: 'existing-worker' })), error =>
+      error.code === 'already-exists' && error.message === 'Email này đã được sử dụng.');
+    assert.deepEqual((await db.doc(`staff_accounts/${uid}`).get()).data(), old);
+    assert.equal((await db.doc('employee_accounts/existing-worker').get()).exists, false);
+  }
+  await rejectsCode(handlers.createStaffAccount(request('admin', { email: 'different@example.test', password: 'Initial-123!', employeeId: 'employee-a' })), 'already-exists');
+  await assert.rejects(auth.getUserByEmail('different@example.test'), e => e.code === 'auth/user-not-found');
+});
+
+test('Provisioning: concurrent duplicate attempts yield one creation and one email-in-use error', async () => {
+  await db.doc('employees/race-provision').set({ salonId: 'salon_02', isActive: true });
+  const data = { email: 'race-provision@example.test', password: 'Initial-123!', employeeId: 'race-provision' };
+  const results = await Promise.allSettled([1, 2].map(() => handlers.createStaffAccount(request('admin', data))));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  const failure = results.find(r => r.status === 'rejected').reason;
+  assert.equal(failure.code, 'already-exists');
+  assert.equal(failure.message, 'Email này đã được sử dụng.');
+  const user = results.find(r => r.status === 'fulfilled').value;
+  assert.equal((await db.collection('audit_events').where('targetUid', '==', user.uid).get()).size, 1);
+});
+
+test('Provisioning: customer signup racing after email lookup is never linked as staff', async () => {
+  await db.doc('employees/signup-race-worker').set({ name: 'Race worker', salonId: 'salon_01', isActive: true });
+  const racing = createStaffHandlers(db, {
+    getUser: uid => auth.getUser(uid), getUserByEmail: email => auth.getUserByEmail(email),
+    createUser: async data => {
+      await auth.createUser({ uid: 'signup-race-customer', email: data.email, password: 'Customer-123!' });
+      await db.doc('users/signup-race-customer').set({ name: 'Original customer' });
+      return auth.createUser(data);
+    },
+  });
+  await assert.rejects(racing.createStaffAccount(request('admin', {
+    employeeId: 'signup-race-worker', email: 'signup-race@example.test', password: 'Employee-123!',
+  })), error => error.code === 'already-exists' && error.message === 'Email này đã được sử dụng.');
+  assert.equal((await auth.getUserByEmail('signup-race@example.test')).uid, 'signup-race-customer');
+  assert.equal((await db.doc('staff_accounts/signup-race-customer').get()).exists, false);
+  assert.equal((await db.doc('employee_accounts/signup-race-worker').get()).exists, false);
+  assert.deepEqual((await db.doc('users/signup-race-customer').get()).data(), { name: 'Original customer' });
+});
+
 before(async () => {
   env = await initializeTestEnvironment({ projectId, firestore: {
     host: '127.0.0.1', port: 8180,
-    rules: fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8'),
+    rules: fs.readFileSync(path.join(__dirname, '../../', process.env.STAFF_RULES_FILE || 'firestore.rules'), 'utf8'),
   }});
   for (const uid of ['admin', 'staff-a', 'staff-b', 'customer', 'target', 'target-2', 'target-off',
     'duplicate-1', 'duplicate-2', 'same-uid', 'unverified', 'auth-disabled']) {
@@ -208,6 +310,28 @@ test('Callable HTTP: verifies Auth token and applies admin authorization in Func
     body: JSON.stringify({ data: { uid: 'target-2', employeeId: 'http-employee' } }) });
   assert.equal(linked.status, 200);
   assert.equal((await linked.json()).result.employeeId, 'http-employee');
+  await db.doc('employees/http-new-staff').set({ name: 'HTTP staff', salonId: 'salon_01', isActive: true });
+  const provisionEndpoint = endpoint.replace('linkStaffAccount', 'createStaffAccount');
+  const data = { email: 'http-new-staff@example.test', password: 'Initial-123!', employeeId: 'http-new-staff' };
+  const forbidden = await fetch(provisionEndpoint, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ data }) });
+  assert.equal(forbidden.status, 403);
+  const provisioned = await fetch(provisionEndpoint, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ data }) });
+  assert.equal(provisioned.status, 200);
+  const result = (await provisioned.json()).result;
+  assert.equal(result.created, true);
+  assert.equal(result.email, data.email);
+  assert.equal((await db.doc(`staff_accounts/${result.uid}`).get()).data().employeeId, data.employeeId);
+  const duplicate = await fetch(provisionEndpoint, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ data: { ...data, password: 'Different-123!' } }) });
+  assert.equal(duplicate.status, 409);
+  const duplicateError = (await duplicate.json()).error;
+  assert.equal(duplicateError.status, 'ALREADY_EXISTS');
+  assert.equal(duplicateError.message, 'Email này đã được sử dụng.');
 });
 
 test('Callable HTTP: admin creates a shift, customer books it, staff cannot mutate shifts', async () => {

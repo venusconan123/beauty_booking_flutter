@@ -16,9 +16,9 @@ part 'workspace_management.dart';
 
 const _ink = Color(0xff0b1623),
     _gold = Color(0xffd9ad60),
-    _paper = Color(0xfff5f3ef),
+    _paper = Color(0xfff6f7f9),
     _muted = Color(0xff67717d);
-const _line = Color(0xffe5e3de);
+const _line = Color(0xffe8ebef);
 
 class WorkspaceApp extends StatelessWidget {
   const WorkspaceApp({super.key, required this.store});
@@ -29,6 +29,11 @@ class WorkspaceApp extends StatelessWidget {
     title: 'Men Hair Booking • Giao diện',
     theme: ThemeData(
       useMaterial3: true,
+      fontFamily: 'Segoe UI',
+      textTheme: const TextTheme(
+        bodyMedium: TextStyle(color: _ink, height: 1.5),
+        bodyLarge: TextStyle(color: _ink, height: 1.5),
+      ),
       scaffoldBackgroundColor: _paper,
       colorScheme: ColorScheme.fromSeed(
         seedColor: _gold,
@@ -49,6 +54,32 @@ class WorkspaceApp extends StatelessWidget {
           borderSide: const BorderSide(color: _line),
         ),
         contentPadding: const EdgeInsets.all(16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _gold, width: 2),
+        ),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: Colors.white,
+        indicatorColor: Color(0xfff3e6cf),
+      ),
+      chipTheme: ChipThemeData(
+        side: const BorderSide(color: _line),
+        selectedColor: const Color(0xfff3e6cf),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+          side: const BorderSide(color: _line),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -240,8 +271,14 @@ class _WorkspaceShellState extends State<_WorkspaceShell> {
             ),
           };
     Widget side = Container(
-      width: 238,
-      color: _ink,
+      width: 252,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_ink, Color(0xff192a3b)],
+        ),
+      ),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -287,12 +324,23 @@ class _WorkspaceShellState extends State<_WorkspaceShell> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         selected: page == d.$1,
-                        selectedTileColor: const Color(0xff28313b),
+                        selectedTileColor: const Color(0xffd9ad60),
                         iconColor: Colors.white60,
                         textColor: Colors.white70,
-                        selectedColor: _gold,
+                        selectedColor: _ink,
                         leading: Icon(d.$3),
-                        title: Text(d.$2),
+                        title: Text(
+                          d.$2,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: page == d.$1
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        trailing: page == d.$1
+                            ? const Icon(Icons.chevron_right, size: 18)
+                            : null,
                         onTap: () {
                           _navigate(d.$1);
                           if (!wide) Navigator.pop(context);
@@ -361,12 +409,26 @@ class _WorkspaceShellState extends State<_WorkspaceShell> {
                     ),
                     child: Row(
                       children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'MEN HAIR / WORKSPACE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                letterSpacing: 1.8,
+                                color: _muted,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                         const Spacer(),
                         Text(
@@ -383,14 +445,14 @@ class _WorkspaceShellState extends State<_WorkspaceShell> {
                     ),
                   ),
                 Container(
-                  color: const Color(0xffffedc9),
+                  color: const Color(0xfff4eddf),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 8,
                   ),
                   child: Text(
                     s.storageNotice ??
-                        'BẢN DUYỆT GIAO DIỆN • Dữ liệu lưu trên trình duyệt • Không giao dịch tiền thật',
+                        'Bản xem trước • Dữ liệu được lưu trên thiết bị • Thanh toán mô phỏng',
                     style: const TextStyle(
                       color: Color(0xff705018),
                       fontSize: 11,
@@ -475,140 +537,166 @@ class _WelcomeState extends State<_Welcome> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: _ink,
-    body: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Panel(
-            child: Form(
-              key: form,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.content_cut, color: _gold, size: 44),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'MEN HAIR BOOKING',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    register ? 'Tạo phong cách của bạn' : 'Chào mừng trở lại',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Bản duyệt giao diện: biểu mẫu xử lý cục bộ, không tạo hay xác thực tài khoản thật.',
-                    style: TextStyle(color: _muted),
-                  ),
-                  const SizedBox(height: 24),
-                  if (register) ...[
-                    TextFormField(
-                      controller: name,
-                      decoration: const InputDecoration(labelText: 'Họ và tên'),
-                      validator: (v) => v == null || v.trim().isEmpty
-                          ? 'Nhập họ và tên'
-                          : null,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: phone,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Số điện thoại',
-                      ),
-                      validator: (v) => RegExp(r'^0\d{9}$').hasMatch(v ?? '')
-                          ? null
-                          : 'Số điện thoại gồm 10 số, bắt đầu bằng 0',
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-                  TextFormField(
-                    controller: email,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.mail_outline),
-                    ),
-                    validator: (v) =>
-                        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v ?? '')
-                        ? null
-                        : 'Nhập email hợp lệ',
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: password,
-                    obscureText: obscure,
-                    decoration: InputDecoration(
-                      labelText: 'Mật khẩu xem trước',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => obscure = !obscure),
-                        icon: Icon(
-                          obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/images/login_barbershop_background.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const ColoredBox(color: _ink),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xee0b1623), Color(0xb30b1623)],
+            ),
+          ),
+        ),
+        Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Panel(
+                child: Form(
+                  key: form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Icon(Icons.content_cut, color: _gold, size: 44),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'MEN HAIR BOOKING',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 3,
                         ),
                       ),
-                    ),
-                    validator: (v) =>
-                        (v?.length ?? 0) < 6 ? 'Ít nhất 6 ký tự' : null,
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => _info(
-                        context,
-                        'Khôi phục mật khẩu',
-                        'Chức năng gửi email sẽ được nối Firebase Auth sau khi duyệt giao diện. Bản này không gửi email hoặc lưu mật khẩu.',
+                      const SizedBox(height: 24),
+                      Text(
+                        register
+                            ? 'Tạo phong cách của bạn'
+                            : 'Chào mừng trở lại',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                      child: const Text('Quên mật khẩu?'),
-                    ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Bản duyệt giao diện: biểu mẫu xử lý cục bộ, không tạo hay xác thực tài khoản thật.',
+                        style: TextStyle(color: _muted),
+                      ),
+                      const SizedBox(height: 24),
+                      if (register) ...[
+                        TextFormField(
+                          controller: name,
+                          decoration: const InputDecoration(
+                            labelText: 'Họ và tên',
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Nhập họ và tên'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: phone,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Số điện thoại',
+                          ),
+                          validator: (v) =>
+                              RegExp(r'^0\d{9}$').hasMatch(v ?? '')
+                              ? null
+                              : 'Số điện thoại gồm 10 số, bắt đầu bằng 0',
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      TextFormField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.mail_outline),
+                        ),
+                        validator: (v) =>
+                            RegExp(
+                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                            ).hasMatch(v ?? '')
+                            ? null
+                            : 'Nhập email hợp lệ',
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: password,
+                        obscureText: obscure,
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu xem trước',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => obscure = !obscure),
+                            icon: Icon(
+                              obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                        validator: (v) =>
+                            (v?.length ?? 0) < 6 ? 'Ít nhất 6 ký tự' : null,
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => _info(
+                            context,
+                            'Khôi phục mật khẩu',
+                            'Chức năng gửi email sẽ được nối Firebase Auth sau khi duyệt giao diện. Bản này không gửi email hoặc lưu mật khẩu.',
+                          ),
+                          child: const Text('Quên mật khẩu?'),
+                        ),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          if (!form.currentState!.validate()) return;
+                          if (register) {
+                            widget.store.saveProfile(name.text, phone.text);
+                          }
+                          widget.store.switchRole(WorkspaceRole.customer);
+                          widget.onEnter();
+                        },
+                        child: Text(
+                          register
+                              ? 'Tạo hồ sơ xem trước'
+                              : 'Vào không gian khách hàng',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => register = !register),
+                        child: Text(
+                          register
+                              ? 'Đã có tài khoản? Đăng nhập'
+                              : 'Chưa có tài khoản? Đăng ký',
+                        ),
+                      ),
+                      const Divider(),
+                      OutlinedButton.icon(
+                        onPressed: widget.onRoles,
+                        icon: const Icon(Icons.switch_account),
+                        label: const Text('Xem vai trò Admin / Nhân viên'),
+                      ),
+                    ],
                   ),
-                  FilledButton(
-                    onPressed: () {
-                      if (!form.currentState!.validate()) return;
-                      if (register) {
-                        widget.store.saveProfile(name.text, phone.text);
-                      }
-                      widget.store.switchRole(WorkspaceRole.customer);
-                      widget.onEnter();
-                    },
-                    child: Text(
-                      register
-                          ? 'Tạo hồ sơ xem trước'
-                          : 'Vào không gian khách hàng',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() => register = !register),
-                    child: Text(
-                      register
-                          ? 'Đã có tài khoản? Đăng nhập'
-                          : 'Chưa có tài khoản? Đăng ký',
-                    ),
-                  ),
-                  const Divider(),
-                  OutlinedButton.icon(
-                    onPressed: widget.onRoles,
-                    icon: const Icon(Icons.switch_account),
-                    label: const Text('Xem vai trò Admin / Nhân viên'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+      ],
     ),
   );
 }
@@ -624,6 +712,13 @@ class Panel extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: _line),
+      boxShadow: [
+        BoxShadow(
+          color: _ink.withValues(alpha: .025),
+          blurRadius: 24,
+          offset: const Offset(0, 6),
+        ),
+      ],
     ),
     child: child,
   );
@@ -741,7 +836,18 @@ class _Metrics extends StatelessWidget {
               child: Panel(
                 child: Row(
                   children: [
-                    Icon(i.$3, color: _gold, size: 28),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff6efdf),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        i.$3,
+                        color: const Color(0xff98702f),
+                        size: 24,
+                      ),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -754,6 +860,8 @@ class _Metrics extends StatelessWidget {
                           const SizedBox(height: 8),
                           Text(
                             i.$2,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w900,
@@ -826,8 +934,15 @@ void _mutate(BuildContext context, VoidCallback action, String message) {
   }
 }
 
-Widget _page(List<Widget> children) =>
-    ListView(padding: const EdgeInsets.all(24), children: children);
+Widget _page(List<Widget> children) => LayoutBuilder(
+  builder: (context, constraints) => ListView(
+    padding: EdgeInsets.symmetric(
+      horizontal: constraints.maxWidth < 600 ? 16 : 30,
+      vertical: 28,
+    ),
+    children: children,
+  ),
+);
 Widget _gap([double height = 18]) => SizedBox(height: height);
 
 class _Home extends StatelessWidget {
@@ -878,7 +993,7 @@ class _Home extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: SizedBox(
-            height: 290,
+            height: MediaQuery.sizeOf(context).width < 600 ? 400 : 290,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -943,6 +1058,23 @@ class _Home extends StatelessWidget {
         ),
         _gap(24),
       ] else ...[
+        _WorkspaceBanner(
+          eyebrow: 'KHÔNG GIAN QUẢN TRỊ',
+          title: 'Mọi lịch hẹn. Một góc nhìn.',
+          subtitle:
+              'Sắp xếp đội ngũ, chăm sóc khách hàng và theo dõi hoạt động mỗi ngày.',
+          icon: Icons.space_dashboard_outlined,
+          action: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: _gold,
+              foregroundColor: _ink,
+            ),
+            onPressed: () => onNavigate('bookings'),
+            icon: const Icon(Icons.arrow_forward, size: 18),
+            label: const Text('Quản lý lịch hẹn'),
+          ),
+        ),
+        _gap(22),
         _Metrics([
           ('Lịch hẹn hôm nay', '${todayBookings.length}', Icons.event_note),
           (
@@ -1109,4 +1241,76 @@ class _Home extends StatelessWidget {
         ),
     ]);
   }
+}
+
+class _WorkspaceBanner extends StatelessWidget {
+  const _WorkspaceBanner({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.action,
+  });
+  final String eyebrow, title, subtitle;
+  final IconData icon;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 22 : 30),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      gradient: const LinearGradient(colors: [_ink, Color(0xff263e50)]),
+    ),
+    child: LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  eyebrow,
+                  style: const TextStyle(
+                    color: _gold,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                  ),
+                ),
+                _gap(12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: constraints.maxWidth < 500 ? 25 : 30,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                _gap(10),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Color(0xffc4cfd9)),
+                ),
+                if (action != null) ...[_gap(20), action!],
+              ],
+            ),
+          ),
+          if (constraints.maxWidth >= 650) ...[
+            const SizedBox(width: 32),
+            Container(
+              padding: const EdgeInsets.all(26),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .06),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: .12)),
+              ),
+              child: Icon(icon, color: _gold, size: 54),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }

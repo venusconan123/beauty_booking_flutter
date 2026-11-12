@@ -501,31 +501,87 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 18),
               ],
               _buildAdminButton(context),
-              _headerIcon(
-                tooltip: 'Bản đồ salon',
-                icon: Icons.map_outlined,
-                onPressed: () => _openMap(context),
-              ),
-              _headerIcon(
-                tooltip: 'Lịch hẹn của tôi',
-                icon: Icons.calendar_month_outlined,
-                onPressed: () => _openBookingHistory(context),
-              ),
-              _headerIcon(
-                tooltip: 'Thông báo',
-                icon: Icons.notifications_none_rounded,
-                onPressed: () => _openNotifications(context),
-              ),
-              _headerIcon(
-                tooltip: 'Hồ sơ cá nhân',
-                icon: Icons.account_circle_outlined,
-                onPressed: () => _openProfile(context),
-              ),
-              _headerIcon(
-                tooltip: 'Đăng xuất',
-                icon: Icons.logout_rounded,
-                onPressed: () => _confirmLogout(context),
-              ),
+              if (!wide)
+                PopupMenuButton<String>(
+                  tooltip: 'Menu tài khoản',
+                  color: _panel,
+                  icon: const Icon(Icons.menu_rounded, color: _gold),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'map':
+                        _openMap(context);
+                      case 'bookings':
+                        _openBookingHistory(context);
+                      case 'notifications':
+                        _openNotifications(context);
+                      case 'profile':
+                        _openProfile(context);
+                      case 'logout':
+                        _confirmLogout(context);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    for (final item in [
+                      ('map', 'Bản đồ salon', Icons.map_outlined),
+                      (
+                        'bookings',
+                        'Lịch hẹn của tôi',
+                        Icons.calendar_month_outlined,
+                      ),
+                      (
+                        'notifications',
+                        'Thông báo',
+                        Icons.notifications_none_rounded,
+                      ),
+                      (
+                        'profile',
+                        'Hồ sơ cá nhân',
+                        Icons.account_circle_outlined,
+                      ),
+                      ('logout', 'Đăng xuất', Icons.logout_rounded),
+                    ])
+                      PopupMenuItem(
+                        value: item.$1,
+                        child: Row(
+                          children: [
+                            Icon(item.$3, color: _gold, size: 20),
+                            const SizedBox(width: 12),
+                            Text(
+                              item.$2,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              if (wide) ...[
+                _headerIcon(
+                  tooltip: 'Bản đồ salon',
+                  icon: Icons.map_outlined,
+                  onPressed: () => _openMap(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Lịch hẹn của tôi',
+                  icon: Icons.calendar_month_outlined,
+                  onPressed: () => _openBookingHistory(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Thông báo',
+                  icon: Icons.notifications_none_rounded,
+                  onPressed: () => _openNotifications(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Hồ sơ cá nhân',
+                  icon: Icons.account_circle_outlined,
+                  onPressed: () => _openProfile(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Đăng xuất',
+                  icon: Icons.logout_rounded,
+                  onPressed: () => _confirmLogout(context),
+                ),
+              ],
             ],
           ),
         );
@@ -563,7 +619,7 @@ class HomeScreen extends StatelessWidget {
       builder: (context, constraints) {
         final bool wide = constraints.maxWidth >= 760;
         return Container(
-          height: wide ? 410 : 520,
+          constraints: BoxConstraints(minHeight: wide ? 410 : 520),
           width: double.infinity,
           decoration: const BoxDecoration(
             image: DecorationImage(
@@ -615,11 +671,11 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'PHONG CÁCH MỚI,\nKHÍ CHẤT MỚI',
+                      'Chất riêng bắt đầu\ntừ mái tóc.',
                       style: TextStyle(
                         color: const Color(0xFFFFF5E4),
                         fontSize: wide ? 48 : 36,
-                        height: 1.02,
+                        height: 1.15,
                         fontWeight: FontWeight.w900,
                         letterSpacing: .4,
                       ),

@@ -62,11 +62,18 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         // Refresh the ID token first so Firestore Rules can trust the
         // email_verified claim when accepting this system-field update.
         await user.getIdToken(true);
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'emailVerified': true,
-          'emailVerifiedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        final profile = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+        // Admin-provisioned staff identities have no customer profile.
+        // Auth email_verified is authoritative; never create an incomplete user.
+        if ((await profile.get()).exists) {
+          await profile.update({
+            'emailVerified': true,
+            'emailVerifiedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -89,7 +96,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         );
       }
     } on FirebaseAuthException catch (error) {
-      _showError(_authMessage(error, 'Không thể kiểm tra trạng thái xác minh.'));
+      _showError(
+        _authMessage(error, 'Không thể kiểm tra trạng thái xác minh.'),
+      );
     } catch (_) {
       _showError('Không thể kiểm tra trạng thái xác minh. Vui lòng thử lại.');
     } finally {
@@ -202,7 +211,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Chúng tôi đã gửi liên kết xác minh đến',
+                      'Xác minh địa chỉ email của bạn',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _muted, height: 1.5),
                     ),
@@ -218,7 +227,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Hãy kiểm tra cả hộp thư chính và thư rác, sau đó bấm nút bên dưới.',
+                      'Bấm gửi email xác minh nếu chưa nhận được liên kết. '
+                      'Kiểm tra hộp thư chính và thư rác, mở liên kết rồi bấm “Tôi đã xác minh”.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _muted, height: 1.5),
                     ),
@@ -257,7 +267,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       label: Text(
                         _resendSeconds > 0
                             ? 'Gửi lại sau $_resendSeconds giây'
-                            : 'Gửi lại email xác minh',
+                            : 'Gửi email xác minh',
                       ),
                       style: TextButton.styleFrom(foregroundColor: _gold),
                     ),

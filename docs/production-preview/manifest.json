@@ -1,7 +1,7 @@
 {
   "project": "men-hair-booking",
   "database": "(default)",
-  "sourceCommit": "5084af0caeeb38c726592576273f7f40f53f397f",
+  "sourceCommit": "fab7765f7ab90e321754445ecb43ef76b005b3c3",
   "observedAtUtc": "2026-11-09T04:00:46.934Z",
   "approved": false,
   "executed": false,
@@ -108,7 +108,9 @@
     "lib/screens/work_shifts_screen.dart": "59e7b8d6c27e2e55fefa237639d487d1d8ca6ad5adc20951019531144b1f13cb",
     "lib/screens/barber_selection_screen.dart": "d56bbed1afa198835e1e965b0e487411538112eb3e1fbba311953dabc5e28f66",
     "lib/screens/date_time_selection_screen.dart": "c725efba9d6716a323eb41fe7bda7c14a0efd4547e19ba77bdd869b61bbc9782",
-    "lib/screens/salon_detail_screen.dart": "7b4f0e89cf5745d8f7ddb69758152ef2e6ad961f01755cc6e3d0f58f19c0541b"
+    "lib/screens/salon_detail_screen.dart": "7b4f0e89cf5745d8f7ddb69758152ef2e6ad961f01755cc6e3d0f58f19c0541b",
+    "functions/package.json": "68e91bd254551c655637e810e6d8100da1bf70c3536880fb91f401ca45e96de3",
+    "functions/package-lock.json": "647b8df40d5f77af6db4a35bc4c28d5111c358a5f68745cfcda154824f069ce8"
   },
   "resolvedLocally": [
     "Customer quota replay on an existing redeemed booking is denied",
@@ -116,9 +118,8 @@
     "booking_slots reads are owner/admin scoped",
     "Production transport no longer requires Emulator flag; server write gates default closed"
   ],
-  "localChangesIncluded": true,
   "webVerification": "docs/OPTIMIZED_WEB_EMULATOR_VERIFICATION.md",
-  "sourceCommitMeaning": "Baseline implementation 5084af0 plus optimized source/config changes included in the containing commit; sourceSha256 identifies the candidate",
+  "sourceCommitMeaning": "Exact committed implementation reviewed: fab7765; documentation-only update, no runtime edits. Cloud inventory remains the earlier observation at observedAtUtc, not refreshed.",
   "reviewReport": "docs/FIREBASE_THESIS_MINIMAL_PLAN.md",
   "reviewStatus": "draft-for-approval; no resource creation, billing/API/IAM changes, deployments or real data writes authorized by this report",
   "stagingProjectId": null,
@@ -135,5 +136,44 @@
     "concurrency": 1
   },
   "stagingApproach": "No new staging project per user request; Emulator first, controlled smoke tests on existing project only after explicit approval for real writes",
-  "implementationChangesIncludedInContainingCommit": true
+  "implementationCommitted": true,
+  "deltaReview": {
+    "changedBackendFiles": [
+      "functions/src/index.js",
+      "functions/src/scheduling.js",
+      "functions/src/loyalty.js"
+    ],
+    "rulesChanged": false,
+    "baseCommit": "5084af0caeeb38c726592576273f7f40f53f397f",
+    "indexesChanged": false,
+    "dependenciesChanged": false,
+    "deployPreviewConfigChanged": false,
+    "reviewedCommit": "fab7765f7ab90e321754445ecb43ef76b005b3c3",
+    "newDataMigrationRequired": false,
+    "testsRerun": false,
+    "cloudReinventoried": false,
+    "testReuseReason": "Runtime unchanged since the 43/43 Emulator, 22/22 Flutter, analyze/build and direct Web verification recorded in fab7765"
+  },
+  "approvalGroups": {
+    "functionsRulesIndexClientApproved": false,
+    "catalogControlMappingsShiftsApproved": false,
+    "billingApisPermissionsBackupApproved": false,
+    "cutoverAndRealSmokeTestApproved": false
+  },
+  "deployScope": {
+    "project": "men-hair-booking",
+    "functionCodebase": "staff",
+    "excluded": [
+      "Hosting",
+      "Storage Rules",
+      "Worker",
+      "Emulator data",
+      "Auth account provisioning"
+    ],
+    "functionsCount": 12,
+    "config": "firebase.production.preview.json",
+    "workerCompatibilityRequiredBeforeOpeningBooking": true,
+    "rules": "firestore.rules",
+    "compositeIndexesCount": 1
+  }
 }

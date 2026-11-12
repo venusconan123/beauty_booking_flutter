@@ -7,6 +7,7 @@ class DashboardStats {
     required this.cancelled,
     required this.paid,
     required this.revenue,
+    this.completedValue = 0,
   });
 
   final int total;
@@ -16,6 +17,8 @@ class DashboardStats {
   final int cancelled;
   final int paid;
   final int revenue;
+  final int completedValue;
+  int get outstanding => completedValue - revenue;
 
   double get cancellationRate => total == 0 ? 0 : cancelled / total;
 
@@ -27,6 +30,7 @@ class DashboardStats {
     var cancelled = 0;
     var paid = 0;
     var revenue = 0;
+    var completedValue = 0;
     for (final booking in bookings) {
       total++;
       final rawStatus = booking['status']?.toString() ?? 'pending';
@@ -41,9 +45,11 @@ class DashboardStats {
       if (status == 'confirmed') confirmed++;
       if (status == 'completed') completed++;
       if (status == 'cancelled') cancelled++;
-      if (isPaid) paid++;
+      if (isPaid && status != 'cancelled') paid++;
       if (status == 'completed') {
-        revenue += (booking['totalPrice'] as num?)?.toInt() ?? 0;
+        final amount = (booking['totalPrice'] as num?)?.toInt() ?? 0;
+        completedValue += amount;
+        if (isPaid) revenue += amount;
       }
     }
     return DashboardStats(
@@ -54,6 +60,7 @@ class DashboardStats {
       cancelled: cancelled,
       paid: paid,
       revenue: revenue,
+      completedValue: completedValue,
     );
   }
 }

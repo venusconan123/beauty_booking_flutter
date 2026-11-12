@@ -23,7 +23,8 @@ class Barber {
     this.gender = 'Nam',
     this.skills = const ['Cắt tóc', 'Tạo kiểu'],
     this.reviewCount = 0,
-    this.bio = 'Chuyên gia tạo kiểu tóc nam, tư vấn phong cách phù hợp khuôn mặt.',
+    this.bio =
+        'Chuyên gia tạo kiểu tóc nam, tư vấn phong cách phù hợp khuôn mặt.',
     this.isActive = true,
   });
 
@@ -33,30 +34,50 @@ class Barber {
       salonId: data['salonId']?.toString() ?? '',
       name: data['name']?.toString() ?? '',
       experienceYears: (data['experienceYears'] as num?)?.toInt() ?? 0,
-      rating: (data['rating'] as num?)?.toDouble() ?? 0,
+      // Employee documents may still contain historical manual/demo scores.
+      // Ratings are attached only from the verified review aggregation API.
+      rating: 0,
       imageUrl: data['imageUrl']?.toString(),
       age: (data['age'] as num?)?.toInt() ?? 25,
       gender: data['gender']?.toString() ?? 'Nam',
       skills: (data['skills'] as List<dynamic>? ?? const <dynamic>[])
           .map((value) => value.toString())
           .toList(),
-      reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
+      reviewCount: 0,
       bio: data['bio']?.toString() ?? '',
       isActive: data['isActive'] as bool? ?? true,
     );
   }
 
   Map<String, dynamic> toMap() => {
-        'salonId': salonId,
-        'name': name,
-        'experienceYears': experienceYears,
-        'rating': rating,
-        'imageUrl': imageUrl ?? '',
-        'age': age,
-        'gender': gender,
-        'skills': skills,
-        'reviewCount': reviewCount,
-        'bio': bio,
-        'isActive': isActive,
-      };
+    'salonId': salonId,
+    'name': name,
+    'experienceYears': experienceYears,
+    'imageUrl': imageUrl ?? '',
+    'age': age,
+    'gender': gender,
+    'skills': skills,
+    'bio': bio,
+    'isActive': isActive,
+  };
+
+  String get reviewSummary => reviewCount == 0
+      ? 'Chưa có đánh giá'
+      : '${rating.toStringAsFixed(1)} ($reviewCount đánh giá)';
+
+  Barber withReviewStats({required double average, required int count}) =>
+      Barber(
+        id: id,
+        salonId: salonId,
+        name: name,
+        experienceYears: experienceYears,
+        rating: average,
+        reviewCount: count,
+        imageUrl: imageUrl,
+        age: age,
+        gender: gender,
+        skills: skills,
+        bio: bio,
+        isActive: isActive,
+      );
 }

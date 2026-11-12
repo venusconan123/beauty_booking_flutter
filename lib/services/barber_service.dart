@@ -3,58 +3,107 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/sample_barbers.dart';
 import '../models/barber.dart';
 import 'scheduling_service.dart';
+import 'barber_ratings_stream.dart';
 
 class BarberService {
   final CollectionReference<Map<String, dynamic>> _collection =
       FirebaseFirestore.instance.collection('employees');
 
   Stream<List<Barber>> watchBySalon(String salonId) {
-    return _scheduledBarbers(salonId);
+    return restartableBarberStream(
+      () => _withRatings(_scheduledBarbers(salonId)),
+    );
   }
 
   Stream<List<Barber>> _scheduledBarbers(String salonId) async* {
     final result = await SchedulingService().call('listBookableStaff', {
       'salonId': salonId,
     });
-    yield (result['employees'] as List)
-        .map(
-          (row) => Barber.fromDocument(
-            (row as Map)['id'] as String,
-            Map<String, dynamic>.from(row),
-          ),
-        )
-        .toList();
+    final ids = (result['employees'] as List)
+        .map((row) => (row as Map)['id'] as String)
+        .toSet();
+    if (ids.isEmpty) {
+      yield [];
+      return;
+    }
+    yield* _collection.snapshots().map(
+      (snapshot) => snapshot.docs
+          .where(
+            (doc) => ids.contains(doc.id) && doc.data()['isActive'] != false,
+          )
+          .map((doc) => Barber.fromDocument(doc.id, doc.data()))
+          .toList(),
+    );
   }
 
-  Stream<List<Barber>> watchAll() {
-    return _collection.snapshots().map((snapshot) {
-      final barbers = snapshot.docs
-          .where((document) => document.id != '_catalog')
-          .map((document) => Barber.fromDocument(document.id, document.data()))
-          .toList();
-      if (snapshot.docs.isEmpty) return sampleBarbers.map(_profiled).toList();
-      barbers.sort((first, second) {
-        final salonComparison = first.salonId.compareTo(second.salonId);
-        return salonComparison != 0
-            ? salonComparison
-            : first.name.compareTo(second.name);
+  Future<Map<String, ({double average, int count})>> _ratings(
+    List<String> ids,
+  ) async {
+    final ratings = <String, ({double average, int count})>{};
+    for (var offset = 0; offset < ids.length; offset += 100) {
+      final result = await SchedulingService().call('getBarberRatings', {
+        'employeeIds': ids.skip(offset).take(100).toList(),
       });
-      return barbers;
-    });
+      for (final row in result['ratings'] as List) {
+        final data = row as Map;
+        ratings[data['employeeId'] as String] = (
+          average: (data['rating'] as num).toDouble(),
+          count: (data['reviewCount'] as num).toInt(),
+        );
+      }
+    }
+    return ratings;
+  }
+
+  Stream<List<Barber>> _withRatings(Stream<List<Barber>> profiles) =>
+      watchBarberRatings(
+        profiles: profiles,
+        reviewChanges: FirebaseFirestore.instance
+            .collection('reviews')
+            .snapshots(),
+        load: _ratings,
+      );
+
+  Stream<List<Barber>> watchAll() {
+    return restartableBarberStream(
+      () => _withRatings(
+        _collection.snapshots().map((snapshot) {
+          final barbers = snapshot.docs
+              .where((document) => document.id != '_catalog')
+              .map(
+                (document) => Barber.fromDocument(document.id, document.data()),
+              )
+              .toList();
+          barbers.sort((first, second) {
+            final salonComparison = first.salonId.compareTo(second.salonId);
+            return salonComparison != 0
+                ? salonComparison
+                : first.name.compareTo(second.name);
+          });
+          return barbers;
+        }),
+      ),
+    );
   }
 
   Future<List<Barber>> getBySalon(String salonId) async {
     final snapshot = await _collection.get();
-    if (snapshot.docs.isEmpty) {
-      return getBarbersBySalonId(salonId).map(_profiled).toList();
-    }
     final barbers = snapshot.docs
         .where((document) => document.id != '_catalog')
         .map((document) => Barber.fromDocument(document.id, document.data()))
         .where((barber) => barber.salonId == salonId && barber.isActive)
         .toList();
-    barbers.sort((first, second) => second.rating.compareTo(first.rating));
-    return barbers;
+    final stats = await _ratings(barbers.map((barber) => barber.id).toList());
+    final result = barbers
+        .map(
+          (barber) => barber.withReviewStats(
+            average: stats[barber.id]!.average,
+            count: stats[barber.id]!.count,
+          ),
+        )
+        .toList();
+    result.sort((first, second) => second.rating.compareTo(first.rating));
+    return result;
   }
 
   Future<void> ensureDefaults() async {
@@ -87,8 +136,10 @@ class BarberService {
   }
 
   Future<void> update(Barber barber) async {
+    // toMap contains profile fields only, never manual rating/reviewCount.
+    final profile = barber.toMap();
     await _collection.doc(barber.id).update({
-      ...barber.toMap(),
+      ...profile,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -112,12 +163,12 @@ class BarberService {
       salonId: barber.salonId,
       name: barber.name,
       experienceYears: barber.experienceYears,
-      rating: barber.rating,
+      rating: 0,
       imageUrl: barber.imageUrl,
       age: 22 + (number % 9),
       gender: 'Nam',
       skills: skillSets[(number - 1) % skillSets.length],
-      reviewCount: 68 + number * 17,
+      reviewCount: 0,
       bio:
           'Chuyên gia tóc nam với ${barber.experienceYears} năm kinh nghiệm, '
           'tư vấn kiểu tóc phù hợp khuôn mặt và phong cách cá nhân.',
