@@ -71,14 +71,16 @@ Seed tạo phần còn thiếu, không đặt lại các lịch đã hoàn thàn
 1. Khách chọn chi nhánh Nguyễn Văn Linh → cắt tóc + gội đầu → Nhân viên demo →
    một giờ trống → thanh toán sau. Tổng 110.000đ; lịch xác nhận tự động.
 2. Nhân viên đăng nhập vào tab Lịch làm, chuyển Lịch hẹn → Hôm nay.
-   Chỉ bắt đầu khi tới giờ hẹn trong cùng ngày Việt Nam; nhấn cập nhật giờ nếu cần.
-3. Bắt đầu phục vụ → Hoàn thành. Hoàn thành tăng giá trị dịch vụ, chưa tăng tiền đã thu.
-4. Admin → Quản lý lịch hẹn → đúng chi nhánh → Hoàn thành → Ghi nhận thanh toán.
-   Đối chiếu số tiền và phương thức → Xác nhận đã nhận tiền.
-5. Lịch hiển thị đã thu tại salon, mất nút thu tiền lần nữa. Thống kê nhân viên
+   Có thể bắt đầu sớm trong cùng ngày khi khách đã đến, đang trong ca,
+   không có khách đang phục vụ và không chồng lịch hẹn còn hiệu lực.
+3. Bắt đầu phục vụ → Hoàn thành. Với lịch thanh toán tại quầy, xác nhận hoàn thành
+   đồng thời xác nhận đã nhận đủ tiền, tự tạo biên nhận và tăng số đã thanh toán.
+4. Admin xem lịch hoàn thành và biên nhận; không cần thu thêm lần nữa.
+   Nút ghi nhận thanh toán vẫn dùng cho lịch cũ đã hoàn thành nhưng chưa thu.
+5. Lịch hiển thị đã thu tại salon. Thống kê nhân viên
    cập nhật trực tiếp; dashboard admin tách giá trị dịch vụ, tiền đã thu và còn chưa thu.
 
-## Bằng chứng kiểm thử 12/11/2026
+## Bằng chứng kiểm thử 12/11/2026 (luồng cũ, trước tự thanh toán khi hoàn thành)
 
 Lịch **wSefTjxaDY5bR3yvRnF4**, 19:00 ngày 12/11/2026, được tạo và xử lý qua
 giao diện thật trên giả lập: khách đặt → nhân viên bắt đầu → nhân viên hoàn thành →

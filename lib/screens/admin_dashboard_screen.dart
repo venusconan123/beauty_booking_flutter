@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_salons.dart';
 import '../models/dashboard_stats.dart';
+import '../models/staff_activity.dart';
 import '../widgets/salon_page_intro.dart';
 
-enum _DashboardPeriod { sevenDays, thirtyDays, all }
+enum _DashboardPeriod { today, day, sevenDays, thirtyDays, custom, all }
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key, this.bookingsStream, this.now});
+  final Stream<QuerySnapshot<Map<String, dynamic>>>? bookingsStream;
+  final DateTime? now;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -21,15 +24,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   static const _muted = Color(0xFFB8C0CC);
   _DashboardPeriod _period = _DashboardPeriod.thirtyDays;
 
-  DateTime? get _startDate => switch (_period) {
-    _DashboardPeriod.sevenDays => DateTime.now().subtract(
-      const Duration(days: 7),
+  DateTimeRange? _customRange;
+  DateTime? _selectedDay;
+  DateTime get _today => vietnamDay(widget.now ?? DateTime.now());
+  StaffDateRange get _range => switch (_period) {
+    _DashboardPeriod.today => StaffDateRange(StaffPeriod.today, _today),
+    _DashboardPeriod.day => StaffDateRange(StaffPeriod.day, _selectedDay!),
+    _DashboardPeriod.sevenDays => StaffDateRange.custom(
+      _today.subtract(const Duration(days: 6)),
+      _today,
     ),
-    _DashboardPeriod.thirtyDays => DateTime.now().subtract(
-      const Duration(days: 30),
+    _DashboardPeriod.thirtyDays => StaffDateRange.custom(
+      _today.subtract(const Duration(days: 29)),
+      _today,
     ),
-    _DashboardPeriod.all => null,
+    _DashboardPeriod.custom => StaffDateRange.custom(
+      _customRange!.start,
+      _customRange!.end,
+    ),
+    _DashboardPeriod.all => StaffDateRange(StaffPeriod.all, _today),
   };
+
+  Future<void> _chooseDay() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay ?? _today,
+      currentDate: _today,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn một ngày',
+      confirmText: 'Áp dụng',
+      cancelText: 'Hủy',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedDay = selected;
+      _period = _DashboardPeriod.day;
+    });
+  }
+
+  Future<void> _chooseRange() async {
+    final selected = await showDateRangePicker(
+      context: context,
+      currentDate: _today,
+      initialDateRange:
+          _customRange ??
+          DateTimeRange(
+            start: _range.start ?? _today,
+            end: _range.end?.subtract(const Duration(days: 1)) ?? _today,
+          ),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn từ ngày – đến ngày',
+      saveText: 'Áp dụng',
+      confirmText: 'Áp dụng',
+      cancelText: 'Hủy',
+      fieldStartLabelText: 'Từ ngày',
+      fieldEndLabelText: 'Đến ngày',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _customRange = selected;
+      _period = _DashboardPeriod.custom;
+    });
+  }
 
   String _money(int value) {
     final raw = value.toString();
@@ -51,7 +109,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Tổng quan quản trị'),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('bookings').snapshots(),
+        stream:
+            widget.bookingsStream ??
+            FirebaseFirestore.instance.collection('bookings').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -64,13 +124,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: _gold));
           }
-          final start = _startDate;
+          final range = _range;
           final bookings = snapshot.data!.docs
               .where((doc) {
-                if (start == null) return true;
+                if (_period == _DashboardPeriod.all) return true;
                 final createdAt = (doc.data()['createdAt'] as Timestamp?)
                     ?.toDate();
-                return createdAt != null && !createdAt.isBefore(start);
+                return createdAt != null && range.containsInstant(createdAt);
               })
               .map((doc) => doc.data())
               .toList();
@@ -128,6 +188,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   style: const TextStyle(color: Colors.white),
                   items: const [
                     DropdownMenuItem(
+                      value: _DashboardPeriod.today,
+                      child: Text('Hôm nay'),
+                    ),
+                    DropdownMenuItem(
                       value: _DashboardPeriod.sevenDays,
                       child: Text('7 ngày'),
                     ),
@@ -136,15 +200,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Text('30 ngày'),
                     ),
                     DropdownMenuItem(
+                      value: _DashboardPeriod.day,
+                      child: Text('Chọn ngày'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.custom,
+                      child: Text('Chọn khoảng ngày'),
+                    ),
+                    DropdownMenuItem(
                       value: _DashboardPeriod.all,
-                      child: Text('Toàn bộ'),
+                      child: Text('Tất cả'),
                     ),
                   ],
                   onChanged: (value) {
-                    if (value != null) setState(() => _period = value);
+                    if (value == _DashboardPeriod.day) {
+                      _chooseDay();
+                    } else if (value == _DashboardPeriod.custom) {
+                      _chooseRange();
+                    } else if (value != null) {
+                      setState(() => _period = value);
+                    }
                   },
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            if (_period == _DashboardPeriod.day)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: _gold),
+                  onPressed: _chooseDay,
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text('Ngày ${staffDate(_selectedDay!)}'),
+                ),
+              ),
+            if (_period == _DashboardPeriod.custom)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: _gold),
+                  onPressed: _chooseRange,
+                  icon: const Icon(Icons.date_range),
+                  label: Text(
+                    'Từ ${staffDate(_range.start!)} đến ${staffDate(_range.lastDay!)}',
+                  ),
+                ),
+              ),
+            Text(
+              _period == _DashboardPeriod.all
+                  ? 'Toàn bộ lịch · Theo ngày tạo lịch (giờ Việt Nam)'
+                  : '${_range.label} · Theo ngày tạo lịch (giờ Việt Nam)',
+              style: const TextStyle(color: _muted, fontSize: 12),
             ),
             const SizedBox(height: 20),
             LayoutBuilder(

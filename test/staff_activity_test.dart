@@ -4,6 +4,58 @@ import 'package:men_hair_booking/models/staff_activity.dart';
 
 void main() {
   test(
+    'custom dates include both whole Vietnam days and reject reversed ranges',
+    () {
+      final range = StaffDateRange.custom(
+        DateTime(2026, 11, 10),
+        DateTime(2026, 11, 13),
+      );
+      expect(
+        range.containsInstant(DateTime.parse('2026-11-09T16:59:59Z')),
+        isFalse,
+      );
+      expect(
+        range.containsInstant(DateTime.parse('2026-11-09T17:00:00Z')),
+        isTrue,
+      );
+      expect(
+        range.containsInstant(DateTime.parse('2026-11-13T16:59:59.999Z')),
+        isTrue,
+      );
+      expect(
+        range.containsInstant(DateTime.parse('2026-11-13T17:00:00Z')),
+        isFalse,
+      );
+      expect(range.label, '10/11/2026 – 13/11/2026');
+      expect(
+        () => StaffDateRange.custom(
+          DateTime(2026, 11, 13),
+          DateTime(2026, 11, 10),
+        ),
+        throwsArgumentError,
+      );
+      final today = StaffDateRange(
+        StaffPeriod.today,
+        vietnamDay(DateTime.parse('2026-11-12T18:00:00Z')),
+      );
+      expect(
+        today.containsInstant(DateTime.parse('2026-11-12T17:00:00Z')),
+        isTrue,
+      );
+      expect(
+        today.containsInstant(DateTime.parse('2026-11-13T17:00:00Z')),
+        isFalse,
+      );
+      expect(
+        StaffDateRange.custom(
+          DateTime(2026, 11, 13),
+          DateTime(2026, 11, 13),
+        ).label,
+        '13/11/2026 – 13/11/2026',
+      );
+    },
+  );
+  test(
     'Vietnam period boundaries use appointment day and Monday-start weeks',
     () {
       Map<String, dynamic> at(String time) => {

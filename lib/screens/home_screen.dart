@@ -28,6 +28,7 @@ import 'salon_map_screen.dart';
 import 'notification_screen.dart';
 import 'profile_screen.dart';
 import 'support_chat_screen.dart';
+import 'salon_assistant_screen.dart';
 import '../services/hair_service_catalog.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -440,20 +441,39 @@ class HomeScreen extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         final isAdmin = snapshot.data?.exists ?? false;
-        return FloatingActionButton.extended(
-          heroTag: 'support_chat',
-          backgroundColor: _gold,
-          foregroundColor: _ink,
-          onPressed: () => isAdmin
-              ? _openAdminChatScreen(context)
-              : _openSupportChat(context),
-          icon: Icon(
-            isAdmin ? Icons.support_agent_rounded : Icons.chat_bubble_rounded,
-          ),
-          label: Text(
-            isAdmin ? 'Tin nhắn khách hàng' : 'Chat với admin',
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'salon_assistant',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SalonAssistantScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Trợ lý AI'),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton.extended(
+              heroTag: 'support_chat',
+              backgroundColor: _gold,
+              foregroundColor: _ink,
+              onPressed: () => isAdmin
+                  ? _openAdminChatScreen(context)
+                  : _openSupportChat(context),
+              icon: Icon(
+                isAdmin
+                    ? Icons.support_agent_rounded
+                    : Icons.chat_bubble_rounded,
+              ),
+              label: Text(
+                isAdmin ? 'Tin nhắn khách hàng' : 'Chat với admin',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
         );
       },
     );

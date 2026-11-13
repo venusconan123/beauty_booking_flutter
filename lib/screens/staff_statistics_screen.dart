@@ -12,9 +12,40 @@ class StaffStatisticsScreen extends StatefulWidget {
 class _StaffStatisticsScreenState extends State<StaffStatisticsScreen> {
   StaffPeriod period = StaffPeriod.month;
   late DateTime anchor = vietnamDay(widget.now ?? DateTime.now());
+  DateTimeRange? customRange;
+
+  Future<void> _chooseRange() async {
+    final selected = await showDateRangePicker(
+      context: context,
+      currentDate: vietnamDay(widget.now ?? DateTime.now()),
+      initialDateRange:
+          customRange ?? DateTimeRange(start: anchor, end: anchor),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn từ ngày – đến ngày',
+      saveText: 'Áp dụng',
+      confirmText: 'Áp dụng',
+      cancelText: 'Hủy',
+      fieldStartLabelText: 'Từ ngày',
+      fieldEndLabelText: 'Đến ngày',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      customRange = selected;
+      period = StaffPeriod.custom;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final range = StaffDateRange(period, anchor);
+    final range = period == StaffPeriod.custom
+        ? StaffDateRange.custom(customRange!.start, customRange!.end)
+        : StaffDateRange(
+            period,
+            period == StaffPeriod.today
+                ? vietnamDay(widget.now ?? DateTime.now())
+                : anchor,
+          );
     final stats = StaffActivityStats(widget.bookings.where(range.contains));
     final services = stats.services.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -38,7 +69,13 @@ class _StaffStatisticsScreenState extends State<StaffStatisticsScreen> {
               ChoiceChip(
                 label: Text(staffPeriodLabels[p]!),
                 selected: period == p,
-                onSelected: (_) => setState(() => period = p),
+                onSelected: (_) {
+                  if (p == StaffPeriod.custom) {
+                    _chooseRange();
+                  } else {
+                    setState(() => period = p);
+                  }
+                },
               ),
           ],
         ),
@@ -48,7 +85,20 @@ class _StaffStatisticsScreenState extends State<StaffStatisticsScreen> {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        if (period != StaffPeriod.all)
+        if (period == StaffPeriod.custom)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _chooseRange,
+              icon: const Icon(Icons.date_range),
+              label: Text(
+                'Từ ${staffDate(range.start!)} đến ${staffDate(range.lastDay!)}',
+              ),
+            ),
+          ),
+        if (period != StaffPeriod.all &&
+            period != StaffPeriod.today &&
+            period != StaffPeriod.custom)
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
@@ -134,7 +184,7 @@ class _StaffStatisticsScreenState extends State<StaffStatisticsScreen> {
         const SizedBox(height: 12),
         const Text(
           'Giá trị dịch vụ không phải tiền lương hoặc hoa hồng. '
-          'Số đã thanh toán lấy từ trạng thái thanh toán của lịch, không phải sổ thu tiền.',
+          'Lịch thanh toán tại quầy được tự ghi nhận đã thanh toán khi xác nhận hoàn thành.',
           style: TextStyle(fontSize: 12, color: Colors.blueGrey),
         ),
         if (stats.total == 0)

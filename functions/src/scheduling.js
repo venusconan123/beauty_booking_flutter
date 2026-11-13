@@ -37,6 +37,15 @@ function interval(booking) {
   }
   return [start, start + Math.ceil(minutes / 30) * 1800000];
 }
+function occupiedIntervals(booking) {
+  const scheduled = interval(booking);
+  if (booking.status !== 'in_service' || (booking.serviceStartedAt == null && booking.serviceExpectedEndAt == null)) return [scheduled];
+  const start = milliseconds(booking.serviceStartedAt), end = milliseconds(booking.serviceExpectedEndAt);
+  if (start === null || end === null || end <= start) fail('failed-precondition', 'Lịch đang phục vụ thiếu thời gian thực tế; cần đối chiếu trước khi đặt thêm.');
+  // Preserve the booked reservation and the actual service window separately;
+  // do not block a fictitious gap between an early service and the booked time.
+  return [scheduled, [start, end]];
+}
 function overlaps(a, b) { return a[0] < b[1] && b[0] < a[1]; }
 function shiftInterval(shift) {
   const start = dayStart(shift.dateKey);
@@ -47,7 +56,7 @@ function available(shifts, bookings, salonId, start, minutes, excludeId) {
   const end = start + Math.ceil(minutes / 30) * 1800000;
   return shifts.some((s) => s.status === 'scheduled' && s.salonId === salonId &&
       shiftInterval(s)[0] <= start && shiftInterval(s)[1] >= end) &&
-    !bookings.some((b) => b.id !== excludeId && active(b) && overlaps([start, end], interval(b)));
+    !bookings.some((b) => b.id !== excludeId && active(b) && occupiedIntervals(b).some(window => overlaps([start, end], window)));
 }
 
 function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
@@ -96,14 +105,14 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
     const profile = employee.data();
     const live = bookings.docs.map((doc) => ({ ...doc.data(), id: doc.id })).filter(active);
     // Validate legacy rows instead of silently excluding unknown occupied time.
-    for (const booking of live) interval(booking);
+    for (const booking of live) occupiedIntervals(booking);
     const result = {
       guard, version: guardDoc.data()?.version ?? 0, profile: profile ?? {},
       active: employee.exists && (!('isActive' in profile) || profile.isActive === true) && Boolean(SALONS[profile.salonId]),
       shifts: shifts.docs.map((doc) => ({ ...doc.data(), id: doc.id })).filter((s) => s.dateKey === date && ['scheduled', 'off'].includes(s.status)),
       bookings: live.filter((b) => {
-        const times = interval(b); const start = dayStart(date);
-        return overlaps(times, [start, start + DAY]);
+        const start = dayStart(date);
+        return occupiedIntervals(b).some(window => overlaps(window, [start, start + DAY]));
       }),
       inService: live.filter(b => b.status === 'in_service'),
     };
@@ -134,7 +143,7 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       }
     }
     for (const booking of day.bookings) {
-      if (!available(shifts, [], booking.salonId, interval(booking)[0], duration(booking))) {
+      if (!occupiedIntervals(booking).every(([start, end]) => available(shifts, [], booking.salonId, start, (end - start) / 60000))) {
         fail('failed-precondition', 'Thay đổi sẽ làm lịch hẹn còn hiệu lực nằm ngoài ca.');
       }
     }
@@ -495,24 +504,58 @@ function createSchedulingHandlers(db, auth, { clock = () => Date.now() } = {}) {
       if (data.status === 'in_service' && effectiveStatus !== 'confirmed') fail('failed-precondition', 'Lịch phải được xác nhận trước khi bắt đầu.');
       if (data.status === 'completed' && !(staffAction ? old.status === 'in_service' : ['confirmed', 'in_service'].includes(effectiveStatus))) fail('failed-precondition', 'Cần bắt đầu phục vụ trước khi hoàn thành lịch.');
       const start = milliseconds(old.appointmentAt); if (start === null) fail('failed-precondition', 'Lịch cũ thiếu thời gian.');
-      if (data.status === 'in_service' && (start > clock() || dateKey(start) !== dateKey(clock()))) {
-        fail('failed-precondition', 'Chỉ bắt đầu phục vụ lịch trong ngày và đã đến giờ hẹn.');
+      const serviceNow = clock();
+      if (data.status === 'in_service' && dateKey(start) !== dateKey(serviceNow)) {
+        fail('failed-precondition', 'Chỉ bắt đầu phục vụ lịch hẹn trong ngày hôm nay.');
       }
       const cache = new Map(); const day = await loadDay(tx, old.barberId, dateKey(start), cache);
       if (staffAction && !day.active) fail('permission-denied', 'Nhân viên đã ngừng hoạt động.');
       if (data.status === 'in_service' && day.inService.some(b => b.id !== ref.id)) {
         fail('failed-precondition', 'Hãy hoàn thành lịch đang phục vụ trước khi bắt đầu lịch khác.');
       }
+      if (data.status === 'in_service' && (!day.active || !available(day.shifts, day.bookings, old.salonId, serviceNow, duration(old), ref.id))) {
+        fail('failed-precondition', 'Chưa thể bắt đầu lúc này: cần đang trong ca và đủ thời gian phục vụ, không trùng lịch hẹn còn hiệu lực khác.');
+      }
       const slots = await tx.get(db.collection('booking_slots').where('bookingId', '==', ref.id));
       if (['pending', 'confirmed'].includes(data.status) && (!day.active || !available(day.shifts, day.bookings, old.salonId, start, duration(old), ref.id))) fail('failed-precondition', 'Không còn ca/giờ trống phù hợp.');
       const award = data.status === 'completed' ? await prepareLoyalty(tx, db, ref.id, old) : () => {};
+      // Completing a pay-at-salon appointment also confirms full payment.
+      // Keep this in the same transaction as completion so retries cannot
+      // produce a completed/unpaid row or a second receipt.
+      let completionPayment = {};
+      if (data.status === 'completed' && old.payment?.status !== 'paid') {
+        if (old.payment?.choice !== 'pay_later' || old.payment?.status !== 'unpaid' || old.payment?.receipt ||
+            !Number.isSafeInteger(old.totalPrice) || old.totalPrice < 0) {
+          fail('failed-precondition', 'Chưa thể hoàn thành: cần đối chiếu số tiền hoặc kết quả thanh toán online.');
+        }
+        const stamp = FieldValue.serverTimestamp(), receiptId = `salon_${ref.id}`;
+        const receipt = { id: receiptId, amount: old.totalPrice, method: 'completion',
+          recordedBy: user.uid, recordedAt: stamp, employeeId: old.barberId,
+          salonId: old.salonId, source: 'booking_completion' };
+        completionPayment = { 'payment.status': 'paid', 'payment.provider': 'salon',
+          'payment.environment': 'manual', 'payment.amount': old.totalPrice,
+          'payment.method': 'completion', 'payment.paidAt': stamp,
+          'payment.paidBy': user.uid, 'payment.receipt': receipt };
+        audit(tx, 'booking.payment.record', user.uid,
+          { bookingId: ref.id, paymentStatus: old.payment.status },
+          { bookingId: ref.id, receiptId, amount: old.totalPrice, method: 'completion', source: 'booking_completion' });
+        tx.create(db.doc(`users/${old.userId}/notifications/${receiptId}`), {
+          type: 'payment_recorded', title: 'Đã ghi nhận thanh toán tại salon',
+          message: `Lịch hẹn đã hoàn thành và được ghi nhận thanh toán ${old.totalPrice.toLocaleString('vi-VN')}đ.`,
+          bookingId: ref.id, receiptId, createdAt: stamp,
+        });
+      }
       tx.update(ref, { status: data.status, updatedAt: FieldValue.serverTimestamp(),
-        ...(data.status === 'in_service' ? { startedAt: FieldValue.serverTimestamp(), startedBy: user.uid } : {}),
+        ...completionPayment,
+        ...(data.status === 'in_service' ? { startedAt: FieldValue.serverTimestamp(), startedBy: user.uid,
+          serviceStartedAt: Timestamp.fromMillis(serviceNow), serviceExpectedEndAt: Timestamp.fromMillis(serviceNow + Math.ceil(duration(old) / 30) * 1800000),
+          startedEarly: serviceNow < start } : {}),
         ...(data.status === 'completed' ? { completedAt: FieldValue.serverTimestamp(), completedBy: user.uid } : {}),
         ...(data.status === 'cancelled' && old.payment?.status === 'paid' ? { 'payment.refundRequired': true } : {}) });
       award();
       if (['cancelled', 'completed'].includes(data.status)) for (const slot of slots.docs) tx.update(slot.ref, { state: 'released', releasedAt: FieldValue.serverTimestamp() });
-      guards(tx, cache); audit(tx, 'booking.status', user.uid, { bookingId: ref.id, status: old.status }, { status: data.status });
+      guards(tx, cache); audit(tx, 'booking.status', user.uid, { bookingId: ref.id, status: old.status }, { status: data.status,
+        ...(data.status === 'in_service' ? { startedEarly: serviceNow < start, serviceStartedAt: Timestamp.fromMillis(serviceNow) } : {}) });
       tx.create(db.doc(`users/${old.userId}/notifications/schedule_${id(data.requestId)}`), {
         type: `booking_${data.status}`, title: 'Lịch hẹn đã được cập nhật',
         message: `Trạng thái lịch hẹn tại ${old.salonName ?? ''}: ${data.status}.`, bookingId: ref.id,

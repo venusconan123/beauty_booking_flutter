@@ -94,6 +94,7 @@ class SchedulingService {
       'getAvailability',
       'listBookableStaff',
       'getBarberRatings',
+      'askSalonAssistant',
       'releaseStaleSlots',
     }.contains(name)) {
       throw ArgumentError.value(name, 'name', 'Callable không hợp lệ.');

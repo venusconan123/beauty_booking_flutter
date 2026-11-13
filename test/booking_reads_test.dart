@@ -19,6 +19,49 @@ void main() {
     rating: 5,
   );
   testWidgets(
+    'assistant date beyond the normal week is rechecked for the selected barber',
+    (tester) async {
+      final now = DateTime.now().toUtc().add(const Duration(hours: 7));
+      final date = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(const Duration(days: 21));
+      Map<String, dynamic>? checked;
+      final service = SchedulingService.testing(
+        tokenProvider: () async => 'test-token',
+        clientFactory: () => MockClient((request) async {
+          checked = Map<String, dynamic>.from(
+            (jsonDecode(request.body) as Map)['data'] as Map,
+          );
+          return http.Response(
+            jsonEncode({
+              'result': {'slots': []},
+            }),
+            200,
+          );
+        }),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DateTimeSelectionScreen(
+            salon: sampleSalons.first,
+            selectedServices: [sampleSalons.first.services.first],
+            selectedBarber: barber,
+            useAnyBarber: false,
+            schedulingService: service,
+            initialDate: date,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(checked?['dateKey'], SchedulingService.dateKey(date));
+      expect(checked?['barberId'], barber.id);
+      expect(checked?['salonId'], sampleSalons.first.id);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'choosing a barber/rebuilding/idle do not reload; refresh recovers error',
     (tester) async {
       var calls = 0;

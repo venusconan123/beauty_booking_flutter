@@ -14,6 +14,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
   final Barber? selectedBarber;
   final bool useAnyBarber;
   final SchedulingService? schedulingService;
+  final DateTime? initialDate;
 
   const DateTimeSelectionScreen({
     super.key,
@@ -23,6 +24,7 @@ class DateTimeSelectionScreen extends StatefulWidget {
     required this.selectedBarber,
     required this.useAnyBarber,
     this.schedulingService,
+    this.initialDate,
   });
 
   @override
@@ -102,6 +104,18 @@ class _DateTimeSelectionScreenState extends State<DateTimeSelectionScreen> {
     });
 
     _selectedDate = _availableDates.first;
+    final requested = widget.initialDate;
+    if (requested != null) {
+      final date = DateTime(requested.year, requested.month, requested.day);
+      if (!date.isBefore(today) &&
+          !date.isAfter(today.add(const Duration(days: 90)))) {
+        if (!_availableDates.any((day) => _isSameDate(day, date))) {
+          _availableDates.add(date);
+          _availableDates.sort();
+        }
+        _selectedDate = date;
+      }
+    }
     _scheduling = widget.schedulingService ?? SchedulingService();
     _bookedSlotsStream = _createBookedSlotsStream();
   }

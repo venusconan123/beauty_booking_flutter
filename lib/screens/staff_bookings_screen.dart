@@ -24,6 +24,7 @@ class StaffBookingList extends StatefulWidget {
 class _StaffBookingListState extends State<StaffBookingList> {
   String status = 'all', search = '';
   DateTime? date;
+  DateTimeRange? dateRange;
   String? busy;
   Map<String, dynamic>? retryBooking;
   String? retryStatus;
@@ -59,15 +60,22 @@ class _StaffBookingListState extends State<StaffBookingList> {
   }) async {
     if (busy != null || widget.onChangeStatus == null) return;
     if (!retry) {
+      final appointment = staffAppointment(row);
+      final early =
+          next == 'in_service' &&
+          appointment != null &&
+          appointment.isAfter(now);
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(
-            next == 'in_service' ? 'Bắt đầu phục vụ?' : 'Hoàn thành lịch hẹn?',
+            next == 'in_service'
+                ? (early ? 'Bắt đầu phục vụ sớm?' : 'Bắt đầu phục vụ?')
+                : 'Hoàn thành lịch hẹn?',
           ),
           content: Text(
             '${row['userName'] ?? 'Khách hàng'}\n'
-            '${next == 'in_service' ? 'Xác nhận khách đã đến và bạn bắt đầu phục vụ.' : 'Xác nhận đã thực hiện xong các dịch vụ. Thao tác này không ghi nhận thu tiền.'}',
+            '${next == 'in_service' ? (early ? 'Giờ hẹn: ${staffTime(appointment)} (giờ Việt Nam).\nXác nhận khách đã đến và đồng ý được phục vụ sớm. Hệ thống sẽ kiểm tra ca làm và lịch khác trước khi bắt đầu.' : 'Xác nhận khách đã đến và bạn bắt đầu phục vụ.') : 'Xác nhận đã thực hiện xong các dịch vụ. ${row['payment'] is Map && row['payment']['status'] == 'paid' ? 'Lịch đã thanh toán, hệ thống không thu thêm.' : 'Khi hoàn thành, hệ thống tự ghi nhận đã thanh toán ${staffMoney(staffAmount(row))} và cập nhật thống kê. Chỉ xác nhận khi đã nhận đủ tiền của khách.'}'}',
           ),
           actions: [
             TextButton(
@@ -134,6 +142,10 @@ class _StaffBookingListState extends State<StaffBookingList> {
                   : '${staffTime(staffAppointment(row)!)} (giờ Việt Nam)',
             ),
             Text('Thời lượng: ${row['totalDurationMinutes'] ?? '—'} phút'),
+            if (staffServiceStarted(row) case final DateTime actualStart)
+              Text(
+                'Bắt đầu thực tế: ${staffTime(actualStart)} (giờ Việt Nam)${row['startedEarly'] == true ? ' · Bắt đầu sớm' : ''}',
+              ),
             Text(staffStatusLabels[staffStatus(row)] ?? 'Chưa rõ trạng thái'),
             const Divider(height: 28),
             if (row['services'] is List)
@@ -181,13 +193,17 @@ class _StaffBookingListState extends State<StaffBookingList> {
 
   @override
   Widget build(BuildContext context) {
+    final activeRange = dateRange != null
+        ? StaffDateRange.custom(dateRange!.start, dateRange!.end)
+        : date != null
+        ? StaffDateRange(StaffPeriod.day, date!)
+        : null;
     final rows =
         widget.bookings
             .where(
               (row) =>
                   (status == 'all' || staffStatus(row) == status) &&
-                  (date == null ||
-                      StaffDateRange(StaffPeriod.day, date!).contains(row)) &&
+                  (activeRange == null || activeRange.contains(row)) &&
                   '${row['id']} ${row['userName']} ${row['userPhone']}'
                       .toLowerCase()
                       .contains(search.toLowerCase()),
@@ -234,7 +250,34 @@ class _StaffBookingListState extends State<StaffBookingList> {
             OutlinedButton.icon(
               icon: const Icon(Icons.today),
               label: const Text('Hôm nay'),
-              onPressed: () => setState(() => date = vietnamDay(now)),
+              onPressed: () => setState(() {
+                date = vietnamDay(now);
+                dateRange = null;
+              }),
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range),
+              label: const Text('7 ngày'),
+              onPressed: () => setState(() {
+                final today = vietnamDay(now);
+                date = null;
+                dateRange = DateTimeRange(
+                  start: today.subtract(const Duration(days: 6)),
+                  end: today,
+                );
+              }),
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range),
+              label: const Text('30 ngày'),
+              onPressed: () => setState(() {
+                final today = vietnamDay(now);
+                date = null;
+                dateRange = DateTimeRange(
+                  start: today.subtract(const Duration(days: 29)),
+                  end: today,
+                );
+              }),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.date_range),
@@ -247,19 +290,48 @@ class _StaffBookingListState extends State<StaffBookingList> {
                   lastDate: DateTime(2100),
                 );
                 if (chosen != null && mounted) {
-                  setState(
-                    () => date = DateTime.utc(
-                      chosen.year,
-                      chosen.month,
-                      chosen.day,
-                    ),
-                  );
+                  setState(() {
+                    dateRange = null;
+                    date = DateTime.utc(chosen.year, chosen.month, chosen.day);
+                  });
                 }
               },
             ),
-            if (date != null)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range),
+              label: const Text('Chọn khoảng ngày'),
+              onPressed: () async {
+                final chosen = await showDateRangePicker(
+                  context: context,
+                  currentDate: vietnamDay(now),
+                  initialDateRange:
+                      dateRange ??
+                      DateTimeRange(
+                        start: date ?? vietnamDay(now),
+                        end: date ?? vietnamDay(now),
+                      ),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                  helpText: 'Chọn từ ngày – đến ngày',
+                  saveText: 'Áp dụng',
+                  confirmText: 'Áp dụng',
+                  cancelText: 'Hủy',
+                  fieldStartLabelText: 'Từ ngày',
+                  fieldEndLabelText: 'Đến ngày',
+                );
+                if (chosen == null || !mounted) return;
+                setState(() {
+                  date = null;
+                  dateRange = chosen;
+                });
+              },
+            ),
+            if (activeRange != null)
               TextButton(
-                onPressed: () => setState(() => date = null),
+                onPressed: () => setState(() {
+                  date = null;
+                  dateRange = null;
+                }),
                 child: const Text('Bỏ lọc ngày'),
               ),
             IconButton(
@@ -269,6 +341,11 @@ class _StaffBookingListState extends State<StaffBookingList> {
             ),
           ],
         ),
+        if (dateRange != null)
+          Text(
+            'Từ ${staffDate(activeRange!.start!)} đến ${staffDate(activeRange.lastDay!)}',
+            style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+          ),
         if (retryBooking != null)
           Card(
             child: Padding(
@@ -313,11 +390,14 @@ class _StaffBookingListState extends State<StaffBookingList> {
 
   Widget _card(BuildContext context, Map<String, dynamic> row) {
     final current = staffStatus(row), time = staffAppointment(row);
+    final anotherInService = widget.bookings.any(
+      (other) => other['id'] != row['id'] && staffStatus(other) == 'in_service',
+    );
     final canStart =
         current == 'confirmed' &&
         time != null &&
-        !time.isAfter(now) &&
-        vietnamDay(time) == vietnamDay(now);
+        vietnamDay(time) == vietnamDay(now) &&
+        !anotherInService;
     final canFinish = current == 'in_service';
     final items = row['services'];
     final names = items is List
@@ -342,6 +422,11 @@ class _StaffBookingListState extends State<StaffBookingList> {
             ),
             Text('${row['salonName'] ?? row['salonId'] ?? ''}'),
             Text(names),
+            if (staffServiceStarted(row) case final DateTime actualStart)
+              Text(
+                'Bắt đầu thực tế: ${staffTime(actualStart)}${row['startedEarly'] == true ? ' · Sớm hơn giờ hẹn' : ''}',
+                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 12,
@@ -398,8 +483,15 @@ class _StaffBookingListState extends State<StaffBookingList> {
             if (widget.onChangeStatus != null &&
                 current == 'confirmed' &&
                 !canStart)
+              Text(
+                anotherInService
+                    ? 'Hãy hoàn thành lịch đang phục vụ trước khi bắt đầu khách tiếp theo.'
+                    : 'Chỉ bắt đầu phục vụ lịch hẹn trong ngày hôm nay.',
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+            if (canStart && time.isAfter(now))
               const Text(
-                'Chỉ bắt đầu trong ngày và khi đã đến giờ hẹn.',
+                'Có thể bắt đầu sớm khi khách đã đến, thợ đang rảnh và không trùng lịch khác.',
                 style: TextStyle(fontSize: 12, color: Colors.blueGrey),
               ),
           ],

@@ -108,7 +108,7 @@ async function staffFixture(employeeId) {
 }
 
 for (const method of ['cash', 'bank_transfer']) {
-  test(`demo E2E ${method}: customer booking -> assigned staff -> admin receipt -> statistics snapshot`, async () => {
+  test(`demo E2E ${method}: completion includes payment; later admin collection cannot duplicate it`, async () => {
     let now = Date.UTC(2030, 0, 1);
     const flow = createSchedulingHandlers(db, auth, { clock: () => now });
     const e = await employee(); const staff = await staffFixture(e);
@@ -141,15 +141,16 @@ for (const method of ['cash', 'bank_transfer']) {
     const finish = request(staff, { bookingId: ref.id, status: 'completed' });
     await flow.changeBookingStatus(finish); await flow.changeBookingStatus(finish);
     const completed = await snapshot();
-    assert.equal(completed.status, 'completed'); assert.equal(completed.payment.status, 'unpaid');
+    assert.equal(completed.status, 'completed'); assert.equal(completed.payment.status, 'paid');
     await denied(flow.recordBookingPayment(request(staff, receipt.data)), 'permission-denied');
     const paid = await flow.recordBookingPayment(receipt);
     assert.deepEqual(await flow.recordBookingPayment(receipt), paid);
     assert.equal((await flow.recordBookingPayment(admin({ ...receipt.data, requestId: `new-${receipt.data.requestId}` }))).alreadyPaid, true);
     const collected = await snapshot();
     assert.equal(collected.status, 'completed'); assert.equal(collected.payment.status, 'paid');
-    assert.equal(collected.payment.receipt.amount, 99000); assert.equal(collected.payment.receipt.method, method);
-    assert.equal(collected.completedBy, staff); assert.equal(collected.payment.receipt.recordedBy, 's2-admin');
+    assert.equal(paid.alreadyPaid, true);
+    assert.equal(collected.payment.receipt.amount, 99000); assert.equal(collected.payment.receipt.method, 'completion');
+    assert.equal(collected.completedBy, staff); assert.equal(collected.payment.receipt.recordedBy, staff);
     for (const slotId of collected.slotIds) assert.equal((await db.doc(`booking_slots/${slotId}`).get()).data().state, 'released');
     assert.equal((await db.collection('audit_events').where('after.receiptId', '==', paid.receiptId).get()).size, 1);
     assert.equal((await db.doc(`users/s2-customer/vouchers/${voucherId}`).get()).data().isUsed, true);
@@ -161,7 +162,7 @@ for (const method of ['cash', 'bank_transfer']) {
   });
 }
 
-test('staff lifecycle: assigned verified employee starts/completes atomically without collecting money', async () => {
+test('staff lifecycle: assigned verified employee completes and confirms payment atomically', async () => {
   const e = await employee(); await shift(e);
   const uid = await staffFixture(e);
   const { bookingId } = await handlers.createBooking(customer(booking(e)));
@@ -194,11 +195,58 @@ test('staff lifecycle: assigned verified employee starts/completes atomically wi
   assert.equal(completed.completedBy, uid);
   assert.ok(completed.completedAt.toMillis());
   assert.equal(completed.totalPrice, before.totalPrice);
-  assert.deepEqual(completed.payment, before.payment);
+  assert.equal(completed.payment.status, 'paid');
+  assert.equal(completed.payment.amount, before.totalPrice);
+  assert.equal(completed.payment.receipt.recordedBy, uid);
   for (const slotId of completed.slotIds) assert.equal((await db.doc(`booking_slots/${slotId}`).get()).data().state, 'released');
   const audits = await db.collection('audit_events').where('actorUid', '==', uid).get();
-  assert.equal(audits.size, 2);
+  assert.equal(audits.size, 3);
   await denied(change(uid, 'in_service'), 'failed-precondition');
+});
+
+test('completion payment: concurrent finishes write one receipt and preserve online payments', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const created = await handlers.createBooking(customer(booking(e)));
+  const ref = db.doc(`bookings/${created.bookingId}`);
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 540 * 60000 });
+  await flow.changeBookingStatus(request(uid, { bookingId: ref.id, status: 'in_service' }));
+  await Promise.all([1, 2].map(() => flow.changeBookingStatus(request(uid, { bookingId: ref.id, status: 'completed' }))));
+  const paid = (await ref.get()).data();
+  assert.equal(paid.payment.status, 'paid'); assert.equal(paid.payment.amount, 80000);
+  assert.equal(paid.payment.receipt.source, 'booking_completion');
+  assert.equal(paid.payment.paidBy, uid); assert.ok(paid.payment.paidAt.toMillis());
+  assert.equal((await db.collection('audit_events').where('after.receiptId', '==', paid.payment.receipt.id).get()).size, 1);
+  assert.equal((await db.doc(`users/s2-customer/notifications/${paid.payment.receipt.id}`).get()).exists, true);
+
+  const next = await handlers.createBooking(customer(booking(e, d1, 600, { paymentChoice: 'pay_now' })));
+  const onlineRef = db.doc(`bookings/${next.bookingId}`);
+  const original = { choice: 'pay_now', status: 'paid', provider: 'vnpay', transactionId: 'verified-online', amount: 80000 };
+  await onlineRef.update({ status: 'in_service', payment: original });
+  await flow.changeBookingStatus(request(uid, { bookingId: onlineRef.id, status: 'completed' }));
+  assert.deepEqual((await onlineRef.get()).data().payment, original);
+  assert.equal((await db.collection('audit_events').where('after.receiptId', '==', `salon_${onlineRef.id}`).get()).size, 0);
+});
+
+test('completion payment: invalid amount or unpaid online payment rolls back completion; zero total is valid', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const created = await handlers.createBooking(customer(booking(e)));
+  const ref = db.doc(`bookings/${created.bookingId}`);
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 540 * 60000 });
+  await flow.changeBookingStatus(request(uid, { bookingId: ref.id, status: 'in_service' }));
+  for (const update of [
+    { totalPrice: -1, payment: { choice: 'pay_later', status: 'unpaid' } },
+    { totalPrice: 80000, payment: { choice: 'pay_now', status: 'unpaid' } },
+  ]) {
+    await ref.update(update);
+    await denied(flow.changeBookingStatus(request(uid, { bookingId: ref.id, status: 'completed' })), 'failed-precondition');
+    assert.equal((await ref.get()).data().status, 'in_service');
+    assert.equal((await db.doc(`users/s2-customer/notifications/salon_${ref.id}`).get()).exists, false);
+  }
+  await ref.update({ totalPrice: 0, payment: { choice: 'pay_later', status: 'unpaid' } });
+  await flow.changeBookingStatus(request(uid, { bookingId: ref.id, status: 'completed' }));
+  const saved = (await ref.get()).data();
+  assert.equal(saved.status, 'completed'); assert.equal(saved.payment.status, 'paid');
+  assert.equal(saved.payment.receipt.amount, 0);
 });
 
 test('staff lifecycle: foreign assignment and unpaid pay-now cannot start; concurrent starts allow one', async () => {
@@ -215,6 +263,89 @@ test('staff lifecycle: foreign assignment and unpaid pay-now cannot start; concu
     { bookingId: row.bookingId, status: 'in_service' }))));
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
   assert.equal(results.find(r => r.status === 'rejected').reason.code, 'failed-precondition');
+});
+
+test('early service: previous customer completes early, next starts now without moving the appointment or payment', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const a = await handlers.createBooking(customer(booking(e, d1, 540)));
+  const b = await handlers.createBooking(customer(booking(e, d1, 600)));
+  const ref = db.doc(`bookings/${b.bookingId}`); const before = (await ref.get()).data();
+  let now = dayStart(d1) + 540 * 60000;
+  const flow = createSchedulingHandlers(db, auth, { clock: () => now });
+  await flow.changeBookingStatus(request(uid, { bookingId: a.bookingId, status: 'in_service' }));
+  now += 10 * 60000;
+  await flow.changeBookingStatus(request(uid, { bookingId: a.bookingId, status: 'completed' }));
+  const action = request(uid, { bookingId: b.bookingId, status: 'in_service' });
+  await flow.changeBookingStatus(action); await flow.changeBookingStatus(action);
+  const saved = (await ref.get()).data();
+  assert.equal(saved.status, 'in_service'); assert.equal(saved.startedEarly, true);
+  assert.equal(saved.appointmentAt.toMillis(), before.appointmentAt.toMillis());
+  assert.equal(saved.selectedTime, before.selectedTime); assert.deepEqual(saved.payment, before.payment);
+  assert.equal(saved.serviceStartedAt.toMillis(), now);
+  assert.equal(saved.serviceExpectedEndAt.toMillis(), now + 30 * 60000);
+  assert.deepEqual(saved.slotIds, before.slotIds);
+  const availability = await flow.getAvailability(request('s2-customer', { salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'] }));
+  assert.ok(!availability.slots.some(s => s.time === '09:30' && s.employeeIds.includes(e)));
+  await denied(flow.createBooking(customer(booking(e, d1, 570))), 'failed-precondition');
+  now += 10 * 60000;
+  await flow.changeBookingStatus(request(uid, { bookingId: b.bookingId, status: 'completed' }));
+  const released = await flow.getAvailability(request('s2-customer', { salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'] }));
+  assert.ok(released.slots.some(s => s.time === '09:30' && s.employeeIds.includes(e)));
+  assert.equal((await ref.get()).data().payment.status, 'paid');
+});
+
+test('early service: cancelled prior appointment frees the time; a live waiting appointment still blocks it', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const a = await handlers.createBooking(customer(booking(e, d1, 540)));
+  const b = await handlers.createBooking(customer(booking(e, d1, 600)));
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 550 * 60000 });
+  await denied(flow.changeBookingStatus(request(uid, { bookingId: b.bookingId, status: 'in_service' })), 'failed-precondition');
+  assert.equal((await db.doc(`bookings/${b.bookingId}`).get()).data().serviceStartedAt, undefined);
+  await flow.changeBookingStatus(customer({ bookingId: a.bookingId, status: 'cancelled' }));
+  await flow.changeBookingStatus(request(uid, { bookingId: b.bookingId, status: 'in_service' }));
+  assert.equal((await db.doc(`bookings/${b.bookingId}`).get()).data().startedEarly, true);
+});
+
+test('early service: outside a shift or another day is denied, and an uncompleted customer remains locked after the expected end', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const a = await handlers.createBooking(customer(booking(e, d1, 540)));
+  const b = await handlers.createBooking(customer(booking(e, d1, 600)));
+  const action = () => request(uid, { bookingId: b.bookingId, status: 'in_service' });
+  for (const now of [dayStart(d1) - 3600000, dayStart(d1) + 510 * 60000, dayStart(d1) + 1020 * 60000]) {
+    await denied(createSchedulingHandlers(db, auth, { clock: () => now }).changeBookingStatus(action()), 'failed-precondition');
+  }
+  await createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 540 * 60000 }).changeBookingStatus(request(uid, { bookingId: a.bookingId, status: 'in_service' }));
+  await denied(createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 580 * 60000 }).changeBookingStatus(action()), 'failed-precondition');
+});
+
+test('early service: two parallel starts serialize to one customer in service', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const a = await handlers.createBooking(customer(booking(e, d1, 600)));
+  const b = await handlers.createBooking(customer(booking(e, d1, 660)));
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 540 * 60000 });
+  const results = await Promise.allSettled([a, b].map(row => flow.changeBookingStatus(request(uid, { bookingId: row.bookingId, status: 'in_service' }))));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(results.find(r => r.status === 'rejected').reason.code, 'failed-precondition');
+});
+
+test('early service: actual and booked windows do not falsely occupy the gap between them', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const far = await handlers.createBooking(customer(booking(e, d1, 840)));
+  await handlers.createBooking(customer(booking(e, d1, 660)));
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 570 * 60000 });
+  await flow.changeBookingStatus(request(uid, { bookingId: far.bookingId, status: 'in_service' }));
+  const result = await flow.getAvailability(request('s2-customer', { salonId: 'salon_01', dateKey: d1, serviceIds: ['s2-cut'] }));
+  assert.ok(result.slots.some(s => s.time === '10:30' && s.employeeIds.includes(e)));
+  assert.ok(!result.slots.some(s => s.time === '14:00' && s.employeeIds.includes(e)));
+});
+
+test('early service: a legacy active booking at another branch blocks the actual window', async () => {
+  const e = await employee(); await shift(e); const uid = await staffFixture(e);
+  const b = await handlers.createBooking(customer(booking(e, d1, 600)));
+  await db.doc(`bookings/early-other-branch-${++n}`).set({ barberId: e, salonId: 'salon_02', userId: 's2-customer',
+    status: 'confirmed', appointmentAt: Timestamp.fromMillis(dayStart(d1) + 540 * 60000), totalDurationMinutes: 30 });
+  const flow = createSchedulingHandlers(db, auth, { clock: () => dayStart(d1) + 550 * 60000 });
+  await denied(flow.changeBookingStatus(request(uid, { bookingId: b.bookingId, status: 'in_service' })), 'failed-precondition');
 });
 
 // Count the documents actually returned by real Emulator queries, rather than

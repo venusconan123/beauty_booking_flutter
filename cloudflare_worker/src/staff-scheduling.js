@@ -1,15 +1,16 @@
 import staffModule from '../../functions/src/staff.js';
 import schedulingModule from '../../functions/src/scheduling.js';
 import reviewRatingModule from '../../functions/src/review_ratings.js';
+import advisorModule from '../../functions/src/salon_advisor.js';
 import { RestFirestore, rosterHints } from './firestore-rest.js';
 
 const PROJECT = 'men-hair-booking';
 const METHODS = new Set(['linkStaffAccount', 'createStaffAccount', 'setStaffAccountActive',
   'saveRoster', 'saveShifts', 'cancelShift', 'swapShifts', 'createBooking',
   'updateBookingServices', 'changeBookingStatus', 'recordBookingPayment',
-  'getAvailability', 'listBookableStaff', 'releaseStaleSlots', 'getBarberRatings']);
+  'getAvailability', 'listBookableStaff', 'releaseStaleSlots', 'getBarberRatings', 'askSalonAssistant']);
 const STATUS = { 'invalid-argument': 400, unauthenticated: 401, 'permission-denied': 403,
-  'not-found': 404, 'already-exists': 409, 'failed-precondition': 412, 'resource-exhausted': 429 };
+  'not-found': 404, 'already-exists': 409, 'failed-precondition': 412, 'resource-exhausted': 429, unavailable: 503 };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status,
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
@@ -80,7 +81,9 @@ export async function handleScheduling(request, env, { tokenProvider, verifyUser
     const db = new RestFirestore({ projectId: PROJECT, tokenProvider: getToken,
       hints: name === 'saveRoster' || name === 'saveShifts' ? rosterHints(input.data) : {} });
     const auth = new RestAuth({ projectId: PROJECT, tokenProvider: getToken });
-    const handlers = { ...staffModule.createStaffHandlers(db, auth), ...schedulingModule.createSchedulingHandlers(db, auth),
+    const scheduling = schedulingModule.createSchedulingHandlers(db, auth);
+    const handlers = { ...staffModule.createStaffHandlers(db, auth), ...scheduling,
+      askSalonAssistant: advisorModule.createSalonAdvisor({ db, auth, scheduling, ai: env.AI, limiter: env.CHAT_RATE_LIMITER }),
       ...reviewRatingModule.createReviewRatingHandlers(db, auth) };
     return json({ result: await handlers[name]({ auth: { uid: identity.userId }, data: input.data }) });
   } catch (error) {

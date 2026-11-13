@@ -215,7 +215,8 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
           style: TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Bạn có chắc chắn muốn $action lịch hẹn này không?',
+          'Bạn có chắc chắn muốn $action lịch hẹn này không?'
+          '${newStatus == 'completed' ? '\nLịch thanh toán tại quầy chưa thu sẽ tự được ghi nhận đã thanh toán đủ tiền và cập nhật thống kê.' : ''}',
           style: const TextStyle(color: _muted),
         ),
         actions: [
@@ -872,7 +873,11 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
     late final IconData paymentIcon;
     if (isPaid) {
       paymentLabel = payment['provider'] == 'salon'
-          ? 'Đã thu tại salon • ${payment['method'] == 'bank_transfer' ? 'Chuyển khoản' : 'Tiền mặt'}'
+          ? 'Đã thu tại salon • ${payment['method'] == 'completion'
+                ? 'Ghi nhận khi hoàn thành'
+                : payment['method'] == 'bank_transfer'
+                ? 'Chuyển khoản'
+                : 'Tiền mặt'}'
           : payment['provider'] == 'vnpay'
           ? 'Đã thanh toán qua VNPAY Sandbox'
           : 'Đã thanh toán';

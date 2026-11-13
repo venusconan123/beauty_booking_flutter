@@ -45,10 +45,28 @@ Sau khi hoàn tất, xóa file service account khỏi thư mục Downloads hoặ
 
 Lưu ý: VNPAY cần biết IPN URL của merchant. Hãy đăng ký/cấu hình IPN URL này trong tài khoản Sandbox hoặc liên hệ kênh hỗ trợ VNPAY được nêu trong email cấp mã. Return URL chỉ hiển thị thông tin; ứng dụng chỉ đánh dấu `paid` khi IPN hợp lệ được Worker xử lý.
 
+### Trang VNPAY báo `Error.html?code=71`
+
+Nếu trang hiển thị **Website này chưa được phê duyệt**, cần kiểm tra website/terminal
+trong tài khoản VNPAY Sandbox, không phải mở quyền Firestore hay bật Firebase Blaze.
+Đối chiếu mã website trong email cấp thông tin với `VNP_TMN_CODE` được quản lý trong
+Cloudflare Secrets; mã và Hash Secret phải thuộc cùng terminal Sandbox.
+Không đưa Hash Secret vào chat, Flutter, ảnh chụp hoặc Git.
+
+Trong cổng quản trị Sandbox, kiểm tra trạng thái website đã được phê duyệt/hoạt động.
+Đối chiếu website đã đăng ký và hai URL Return/IPN ở trên. Nếu chưa được duyệt,
+hoặc đã duyệt nhưng vẫn báo lỗi, liên hệ hỗ trợ theo email cấp mã, cung cấp TmnCode,
+mã tra cứu và thời gian giao dịch trên trang lỗi để VNPAY kiểm tra terminal.
+Source không thể tự phê duyệt terminal của VNPAY.
+
+Sau khi kích hoạt hoặc cập nhật đúng cặp cấu hình, tạo liên kết thanh toán mới từ app;
+không dùng lại liên kết cũ đã quá 15 phút. Trang lỗi 71 không phải bằng chứng đã trả
+tiền; không tự đổi lịch sang `paid` để xử lý lỗi cổng thanh toán.
+
 ## 5. Triển khai Flutter và Firestore Rules
 
 ```powershell
-cd C:\Users\tranl\beauty_booking_flutter
+cd C:\Users\tranl\men_hair_booking
 flutter pub get
 firebase deploy --project men-hair-booking --only firestore:rules
 dart format .\lib
@@ -59,7 +77,7 @@ flutter run -d chrome
 Trước khi dùng hai lựa chọn đặt lịch mới, triển khai lại Worker đã cập nhật:
 
 ```powershell
-cd C:\Users\tranl\beauty_booking_flutter\cloudflare_worker
+cd C:\Users\tranl\men_hair_booking\cloudflare_worker
 npm test
 npx wrangler deploy
 ```

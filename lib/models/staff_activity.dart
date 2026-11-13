@@ -8,13 +8,15 @@ const staffStatusLabels = {
   'cancelled': 'Đã hủy',
 };
 
-enum StaffPeriod { day, week, month, year, all }
+enum StaffPeriod { today, day, week, month, year, custom, all }
 
 const staffPeriodLabels = {
+  StaffPeriod.today: 'Hôm nay',
   StaffPeriod.day: 'Ngày',
   StaffPeriod.week: 'Tuần',
   StaffPeriod.month: 'Tháng',
   StaffPeriod.year: 'Năm',
+  StaffPeriod.custom: 'Chọn khoảng ngày',
   StaffPeriod.all: 'Tất cả',
 };
 
@@ -25,6 +27,12 @@ DateTime vietnamDay(DateTime instant) {
 
 DateTime? staffAppointment(Map<String, dynamic> row) =>
     (row['appointmentAt'] as Timestamp?)?.toDate();
+
+DateTime? staffServiceStarted(Map<String, dynamic> row) {
+  final value = row['serviceStartedAt'];
+  return value is Timestamp ? value.toDate() : null;
+}
+
 String staffStatus(Map<String, dynamic> row) {
   final status = row['status']?.toString() ?? 'pending';
   final payment = row['payment'];
@@ -51,18 +59,33 @@ String staffTime(DateTime instant) {
 
 class StaffDateRange {
   StaffDateRange(this.period, DateTime anchor)
-    : anchor = DateTime.utc(anchor.year, anchor.month, anchor.day);
+    : anchor = DateTime.utc(anchor.year, anchor.month, anchor.day),
+      lastDay = null {
+    if (period == StaffPeriod.custom) {
+      throw ArgumentError('Dùng StaffDateRange.custom để chọn hai ngày.');
+    }
+  }
+  StaffDateRange.custom(DateTime from, DateTime through)
+    : period = StaffPeriod.custom,
+      anchor = DateTime.utc(from.year, from.month, from.day),
+      lastDay = DateTime.utc(through.year, through.month, through.day) {
+    if (lastDay!.isBefore(anchor)) {
+      throw ArgumentError('Ngày kết thúc phải từ ngày bắt đầu trở đi.');
+    }
+  }
   final StaffPeriod period;
   final DateTime anchor;
+  final DateTime? lastDay;
   DateTime? get start => switch (period) {
-    StaffPeriod.day => anchor,
+    StaffPeriod.today || StaffPeriod.day || StaffPeriod.custom => anchor,
     StaffPeriod.week => anchor.subtract(Duration(days: anchor.weekday - 1)),
     StaffPeriod.month => DateTime.utc(anchor.year, anchor.month),
     StaffPeriod.year => DateTime.utc(anchor.year),
     StaffPeriod.all => null,
   };
   DateTime? get end => switch (period) {
-    StaffPeriod.day => anchor.add(const Duration(days: 1)),
+    StaffPeriod.today || StaffPeriod.day => anchor.add(const Duration(days: 1)),
+    StaffPeriod.custom => lastDay!.add(const Duration(days: 1)),
     StaffPeriod.week => start!.add(const Duration(days: 7)),
     StaffPeriod.month => DateTime.utc(anchor.year, anchor.month + 1),
     StaffPeriod.year => DateTime.utc(anchor.year + 1),
@@ -71,7 +94,11 @@ class StaffDateRange {
   bool contains(Map<String, dynamic> row) {
     if (period == StaffPeriod.all) return true;
     final instant = staffAppointment(row);
-    if (instant == null) return false;
+    return instant != null && containsInstant(instant);
+  }
+
+  bool containsInstant(DateTime instant) {
+    if (period == StaffPeriod.all) return true;
     final day = vietnamDay(instant);
     return !day.isBefore(start!) && day.isBefore(end!);
   }

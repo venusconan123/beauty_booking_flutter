@@ -5,6 +5,8 @@
   "compatibility_date": "2026-09-13",
   "workers_dev": true,
   "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "ratelimits": [{ "name": "CHAT_RATE_LIMITER", "namespace_id": "1013", "simple": { "limit": 10, "period": 60 } }],
   "alias": {
     "firebase-admin/firestore": "./src/firebase-primitives.cjs",
     "firebase-functions/v2/https": "./src/firebase-primitives.cjs"
